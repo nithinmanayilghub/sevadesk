@@ -1,6 +1,6 @@
 ---
 title: "PRD: SevaDesk"
-status: draft
+status: final
 created: 2026-11-01
 updated: 2026-11-01
 sources:
@@ -17,7 +17,7 @@ This PRD is for the solo builder and for the next BMAD steps: UX, architecture, 
 How to read it:
 - §3 Glossary fixes the words. All other sections use them exactly.
 - Requirements have stable IDs: FR (functional requirement), NFR (non-functional requirement), UJ (user journey), and SM (success metric).
-- `[ASSUMPTION]` tags mark my guesses. §10 lists them all.
+- §10 lists the assumptions that the builder accepted on 2026-11-01. Revisit them if facts change.
 - The tech stack, engineering rules, budget, and Definition of Done are in `docs/project-seed.md`. This PRD does not copy them. `addendum.md` holds the technical notes.
 
 ## 1. Vision
@@ -46,7 +46,8 @@ The MVP proves the core loop: **a customer message becomes an approved job on th
 
 - **UJ-1. Ravi gets a booking request while he is on a ladder.**
   Ravi runs a two-person AC repair business in Bengaluru. He is on a job when a customer opens his SevaDesk chat link from his Google profile and writes in Hindi: "AC is not cooling." The Agent replies in Hindi. It asks for the name, phone, address, and AC type. It offers two free Slots for tomorrow. The customer picks one. The Agent says: "Your request is sent. The business will confirm soon." Ravi sees the Booking Request on his phone dashboard after the job and taps **Confirm**. The customer's chat page now shows "Confirmed: tomorrow 10:00–11:00."
-  **Edge case:** the customer asks "How much will it cost?" The Service has no price, so the Agent says that the technician confirms the price on visit. It never guesses a number.
+  Before it offers Slots, the Agent shows the Price: "AC not cooling — inspection and gas check: from ₹499. Parts extra, quoted before work starts." The customer agrees.
+  **Edge case:** the customer asks for a discount. The Agent says it cannot change Prices and offers a Handoff. It never invents a number.
 
 - **UJ-2. Anita takes over a confused conversation.**
   Anita is the office staff for a plumbing business. A customer writes about three different problems and asks to "talk to a person". The Agent hands off the Conversation. It is marked **Needs Human** at the top of the Inbox. Anita opens it, reads the history, and replies herself. The Agent stays silent in that Conversation until Anita hands it back.
@@ -70,13 +71,15 @@ The MVP proves the core loop: **a customer message becomes an approved job on th
 - **Agent** — The AI that replies to Customers on behalf of a Business.
 - **Handoff** — The state where a User, not the Agent, answers a Conversation.
 - **Inbox** — The list of all Conversations of a Business, for Owner and Staff.
-- **Service** — A job type that a Business offers, with a name, a duration, and an optional fixed visit charge.
+- **Service** — A job type that a Business offers, with a name, a duration, and a Price.
+- **Price** — The "starting from" amount in rupees that a Customer sees before booking a Service ("from ₹499, parts extra"). The final amount is quoted on site. Every active Service has one.
 - **Working Hours** — The weekly hours when a Business accepts jobs.
 - **Slot** — A start time and an end time inside Working Hours, when a Technician is free for a Service.
-- **Booking** — A planned job: a Customer, a Service, an address, a Slot, and a status. Statuses: **requested**, **confirmed**, **declined**, **cancelled**, **completed**.
+- **Booking** — A planned job: a Customer, a Service, an address, a Slot, and a status. Statuses: **requested**, **confirmed**, **declined**, **expired**, **cancelled**, **completed**.
 - **Booking Request** — A Booking with status requested. It waits for a User to approve it.
 - **Dashboard** — The Owner's home screen: today's work and the items that need action.
 - **Golden Dataset** — A fixed set of example Customer conversations (English and Hindi) with the expected results. Evals use it.
+- **Scenario Card** — A short description of one test situation (Service, language, Customer behaviour, expected result). An LLM turns it into a draft Golden Dataset conversation.
 - **Eval** — An automatic test that checks how good the Agent's behavior is against the Golden Dataset.
 
 ## 4. Features
@@ -129,7 +132,7 @@ A User can log in and log out. Sessions expire after inactivity.
 
 #### FR-9: Invite team members
 An Owner can invite a person by email, with one or more Roles. The person accepts through an invite link and sets a password.
-- In the MVP, the Owner copies and shares the invite link. SevaDesk sends no emails. [ASSUMPTION: no email service in MVP, to keep cost at $0]
+- In the MVP, the Owner copies and shares the invite link. SevaDesk sends no emails.
 - An invite link works once and expires after 7 days.
 
 #### FR-10: Role-based access
@@ -154,8 +157,9 @@ A User can read and change only the data of their own Business.
 **Description:** The Owner tells SevaDesk what the Business sells and when it works. The Agent may offer only these Services and Slots. Realizes UJ-3.
 
 #### FR-12: Manage Services
-An Owner can add, edit, and deactivate Services. Each Service has a name, a duration (30–480 minutes), and an optional fixed visit charge in rupees.
-- The Agent mentions a price only when the Service has a fixed visit charge. Then it uses that exact value.
+An Owner can add, edit, and deactivate Services. Each Service has a name, a duration (30–480 minutes), and a Price (required).
+- A Service cannot be saved or activated without a Price.
+- The Agent states a Price only from the Service data, always as "from ₹X", and says that the final amount is quoted on site.
 
 #### FR-13: Working Hours
 An Owner can set weekly Working Hours (per day: closed, or a start and an end time) and mark single days as closed (holidays).
@@ -166,11 +170,11 @@ Each Business has one Chat Page with a stable, shareable link. The Owner can cop
 
 ### 4.4 Customer Chat and AI Agent (P1)
 
-**Description:** A Customer opens the Chat Page and talks to the Agent. The Agent collects the details, offers real free Slots, and creates a Booking Request. It replies in the Customer's language (English or Hindi). It never invents prices, Slots, or facts. When it cannot help, it hands off to a human. Realizes UJ-1, UJ-2.
+**Description:** A Customer opens the Chat Page and talks to the Agent. The Agent collects the details, offers real free Slots, and creates a Booking Request. It replies in the Customer's language (English or Hindi). It never invents Prices, Slots, or facts. When it cannot help, it hands off to a human. Realizes UJ-1, UJ-2.
 
 #### FR-15: Start and continue a Conversation
 A Customer can open the Chat Page, send Messages, and return later to the same Conversation from the same browser.
-- The Customer needs no account. [ASSUMPTION: a browser token links the Customer to the Conversation; a new device starts a new Conversation]
+- The Customer needs no account.
 - The page works on a slow mobile connection (see NFR-6).
 
 #### FR-16: Collect booking details
@@ -178,9 +182,15 @@ The Agent collects the name, phone number, address, the problem description, and
 - It asks only for the missing details. It does not ask again for details the Customer already gave.
 - It checks that the phone number is a valid Indian mobile number.
 
+#### FR-16a: Show the Price before booking
+Before it offers Slots, the Agent shows the Price of the chosen Service, and the Customer confirms that they accept it.
+- No Booking Request is created unless the Customer accepted the Price in that Conversation.
+- The Booking Request stores the Price that the Customer saw, so a later Price change does not change it.
+- The Chat Page lists all active Services with their Prices above the chat, so a Customer sees them before the first Message.
+
 #### FR-17: Offer real Slots only
 The Agent offers only Slots that the system calculates as free, for the chosen Service.
-- A Slot is free when, within Working Hours, at least one active Technician has no confirmed or requested Booking that overlaps it.
+- A Slot is free when it is inside Working Hours and the number of confirmed or requested Bookings that overlap it is less than the number of active Technicians.
 - If no Slot is free in the next 7 days, the Agent says so and offers a Handoff.
 
 #### FR-18: Create a Booking Request
@@ -188,12 +198,18 @@ When the Customer picks a Slot, the system creates a Booking Request and holds t
 - If the Slot is no longer free (a race with another Customer), the Agent apologizes and offers new Slots.
 - The Agent tells the Customer that the Business will confirm, and that the status shows on the Chat Page.
 
+#### FR-18a: Booking Request expiry
+A Booking Request that no User confirms or declines within 12 hours gets the status expired, and its Slot becomes free again.
+- The Customer's Chat Page shows: "Not confirmed. Please contact the business." The Customer can start a new request in the same chat.
+- The expired Booking Request stays visible to Users in the Inbox for follow-up.
+- The Dashboard shows the time left on each waiting Booking Request.
+
 #### FR-19: Language match
 The Agent replies in the language of the Customer's last Message: English or Hindi (Devanagari or Roman script).
-- Other languages get a short English reply and a Handoff. [ASSUMPTION]
+- Other languages get a short English reply and a Handoff.
 
 #### FR-20: No invented facts
-The Agent never states a price, Slot, opening time, or policy that is not in the Business data.
+The Agent never states a Price, Slot, opening time, or policy that is not in the Business data.
 - For unknown questions, it says that the Business will answer, and it offers a Handoff.
 
 #### FR-21: Handoff to a human
@@ -215,16 +231,16 @@ A User with Inbox access sees Conversations, newest activity first. Conversation
 #### FR-24: Read and reply
 A User can open a Conversation, read the full history, and reply. The reply appears on the Customer's Chat Page.
 - Replying starts a Handoff automatically.
-- New Messages appear without a page reload within 5 seconds. [ASSUMPTION: polling is acceptable for the MVP]
+- New Messages appear without a page reload within 5 seconds.
 
 ### 4.6 Bookings and Calendar (P1)
 
 **Description:** Users approve Booking Requests and see the schedule. Realizes UJ-1, UJ-3.
 
 #### FR-25: Approve, change, or decline
-A User with Inbox access can confirm a Booking Request, change its Slot or Technician and then confirm it, or decline it with a reason.
-- Confirming needs a Technician. If the Business has only one active Technician, the system assigns that Technician automatically. (This is why a solo owner never sees an "assign" step.)
-- The Customer's Chat Page shows the new status and time within 5 seconds.
+A User with Inbox access can confirm a Booking Request, change its Slot or Technician and then confirm it, or decline it with a reason. A declined Booking Request frees its Slot, and the Customer's Chat Page shows that it was declined.
+- Confirming needs a Technician who is free in that Slot. If the Business has only one active Technician, the system assigns that Technician automatically. (This is why a solo owner never sees an "assign" step.)
+- The Customer's Chat Page shows the new status and time within 5 seconds. In the MVP, the Chat Page is the only place where the Customer sees the confirmation; WhatsApp updates come in P3.
 
 #### FR-26: Calendar
 A User sees a day view and a week view of the Bookings. A Technician sees only their own Bookings.
@@ -247,18 +263,39 @@ The demo and AWS environments start with at least two seeded demo Businesses (on
 - A command resets the demo data.
 - Demo data contains no real personal data.
 
+### 4.9 Golden Dataset (P1)
+
+**Description:** The builder creates the Golden Dataset with an LLM and checks every case by hand. No public dataset fits SevaDesk, and scraping is not allowed (personal data, site terms). See addendum "Golden Dataset".
+
+#### FR-30: Build the Golden Dataset
+The builder can turn Scenario Cards into draft conversations with an LLM, review them, and save the approved cases in the repo.
+- Each case stores: the conversation, the language, the expected details, the expected Service and Price shown, and the expected result (Booking Request, Handoff, or no booking).
+- A case enters the dataset only after the builder marks it as reviewed.
+- The first version has at least 30 cases: about half English and half Hindi or Hinglish. It covers happy paths, missing details, Price questions and discount requests, no free Slot, a request for a person, and an unsupported language.
+- Cases use the seeded demo Businesses (FR-29) and only fake personal data.
+
+### 4.10 Portfolio Landing Page (P1)
+
+**Description:** A public page at the root URL that explains SevaDesk to recruiters and visitors and sends them into the demo. It carries the brand's glass look; the app screens do not. Realizes UJ-4. Visual and behavior specs: UX `DESIGN.md` and `EXPERIENCE.md`.
+
+#### FR-31: Landing page
+A visitor can learn what SevaDesk does and open the demo from one page.
+- It links to a demo Business's Chat Page, a demo Owner log-in, and the GitHub repository.
+- It shows how SevaDesk is built (tests, Evals, tracing, AWS deploy). It shows no pricing, because SevaDesk has no paid plans.
+- It loads under 1 MB on mobile, and its animations stop when the visitor's device asks for reduced motion.
+
 ## 5. Cross-Cutting Non-Functional Requirements
 
 - **NFR-1 Tenant isolation.** No API endpoint or background job reads or writes across Businesses. FR-11's tests run in CI on every pull request.
-- **NFR-2 Agent quality gates.** Evals run on the Golden Dataset (English and Hindi). Code-based checks (detail extraction, correct Booking, no invented prices or Slots, language match) run first. An LLM-as-judge checks tone. A score drop blocks the merge.
+- **NFR-2 Agent quality gates.** Evals run on the Golden Dataset (English and Hindi). Code-based checks (detail extraction, correct Booking, no invented Prices or Slots, language match) run first. An LLM-as-judge checks tone. A score drop blocks the merge.
 - **NFR-3 Response time.** The Agent's reply reaches the Chat Page within 10 seconds in 95% of cases on the demo environment. Other API calls answer within 500 ms in 95% of cases.
-- **NFR-4 Observability.** Every Agent call records the prompt version, model, tokens, cost, and latency in the LLM tracing tool, linked to the request trace.
+- **NFR-4 Observability.** Every Agent call records the prompt version, model, tokens, cost, and latency in the LLM tracing tool, linked to the request trace. Errors are tracked, and basic dashboards and alerts exist for errors and Agent cost.
 - **NFR-5 Security.** Input validation on every endpoint. Rate limits on log-in and on the public Chat Page (per IP and per Conversation). No secrets in code. Passwords are stored only as strong hashes.
-- **NFR-6 Mobile-first and low bandwidth.** All screens work from 360 px width. The first load of the Chat Page is under 200 KB compressed. [ASSUMPTION: budget value]
-- **NFR-7 Cost.** Total running cost stays under $10 a month. Each Business has a daily cap on Agent replies. After the cap, the Agent hands off. [ASSUMPTION: cap of 200 Agent replies per Business per day on the demo] Development uses the Groq free tier with fake data only. Claude runs CI Evals and the demo.
+- **NFR-6 Mobile-first and low bandwidth.** All screens work from 360 px width. The first load of the Chat Page is under 200 KB compressed.
+- **NFR-7 Cost.** Total running cost stays under $10 a month. Each Business has a daily cap on Agent replies. After the cap, the Agent hands off. Development uses the Groq free tier with fake data only. Claude runs CI Evals and the demo. Monthly spending limits are set in the AWS and Anthropic consoles.
 - **NFR-8 Personal data (DPDP Act).** The Chat Page shows a short notice before the first Message: what data is collected, why, and that the Business can delete it. An Owner can delete a Customer and all their Conversations and Bookings. Logs and traces do not store phone numbers or addresses in plain text.
 - **NFR-9 Swappable providers.** The AI provider, Channels, and payment providers sit behind adapters. Adding a provider needs no change in the booking logic.
-- **NFR-10 Testing.** Every story meets the Definition of Done in `docs/project-seed.md`. Every bug fix adds a regression test. Key flows (UJ-1, UJ-2, UJ-3) have Playwright E2E tests.
+- **NFR-10 Testing.** Every story meets the Definition of Done in `docs/project-seed.md`. Every bug fix adds a regression test. Key flows (UJ-1, UJ-2, UJ-3) have Playwright E2E tests. CI enforces a minimum code coverage.
 
 ## 6. Non-Goals (Explicit)
 
@@ -273,7 +310,7 @@ The demo and AWS environments start with at least two seeded demo Businesses (on
 
 ### 7.1 In Scope (P0 + P1)
 
-FR-1 to FR-29 and NFR-1 to NFR-10.
+FR-1 to FR-31 (including FR-16a and FR-18a) and NFR-1 to NFR-10.
 
 ### 7.2 Roadmap After the MVP (detail comes in a PRD update before each phase)
 
@@ -287,15 +324,15 @@ FR-1 to FR-29 and NFR-1 to NFR-10.
 
 **Primary**
 - **SM-1 Portfolio-ready:** P0 + P1 deploy to AWS with one command and pass the E2E tests there. Target: yes, before the first interview demo. Validates FR-6, FR-29.
-- **SM-2 Correct bookings:** in at least 90% of Golden Dataset cases, the Agent creates a Booking Request with the correct details and Service. Validates FR-16, FR-17, FR-18. [ASSUMPTION: target value]
-- **SM-3 No invented facts:** 0 cases of an invented price or Slot in the Golden Dataset. Validates FR-12, FR-17, FR-20.
+- **SM-2 Correct bookings:** in at least 90% of Golden Dataset cases, the Agent creates a Booking Request with the correct details and Service. Validates FR-16, FR-17, FR-18.
+- **SM-3 No invented facts, Price always shown:** 0 cases of an invented Price or Slot, and 0 Booking Requests without an accepted Price, in the Golden Dataset. Validates FR-12, FR-16a, FR-17, FR-20.
 - **SM-4 Isolation:** 0 cross-Business access in the isolation tests. Validates FR-11, NFR-1.
 
 **Secondary**
-- **SM-5 Language match:** at least 95% of Agent replies match the Customer's language in the Golden Dataset. Validates FR-19. [ASSUMPTION: target value]
+- **SM-5 Language match:** at least 95% of Agent replies match the Customer's language in the Golden Dataset. Validates FR-19.
 - **SM-6 Cost:** monthly running cost under $10, checked each month. Validates NFR-7.
 - **SM-7 Understanding:** the builder passes the Understanding Gate for every CORE story.
-- **SM-8 Pilot (after P1 or P3):** one real Business uses SevaDesk for 2 weeks and says it saved at least one lost Customer. [ASSUMPTION: from the brief]
+- **SM-8 Pilot (after P1 or P3):** one real Business uses SevaDesk for 2 weeks and says it saved at least one lost Customer.
 
 **Counter-metrics (do not optimize)**
 - **SM-C1 Booking volume:** do not push the Agent to create more Booking Requests. A request with missing or wrong details costs the Business a wasted trip. Counterbalances SM-2.
@@ -304,12 +341,9 @@ FR-1 to FR-29 and NFR-1 to NFR-10.
 
 ## 9. Open Questions
 
-1. How does a Customer learn that the Booking was confirmed if they do not reopen the Chat Page? In the MVP, only the Chat Page shows it. SMS or WhatsApp comes in P3. Is this acceptable for the pilot?
-2. What happens to a Booking Request that nobody approves? Should it expire and free the Slot after some hours? [NOTE FOR PM: needed before the Booking stories]
-3. How big is the first Golden Dataset? (A suggestion is 30 conversations, 50% Hindi.)
-4. Which Claude model does the demo Agent use, and what is the cost per Conversation? The architecture step measures this.
+1. Which Claude model does the demo Agent use, and what is the cost per Conversation? The architecture step measures this.
 
-## 10. Assumptions Index
+## 10. Accepted Assumptions (2026-11-01)
 
 - §4.2 FR-9 — No email service in the MVP. Invite links are copied by hand.
 - §4.4 FR-15 — A browser token links a Customer to a Conversation. A new device starts a new Conversation.

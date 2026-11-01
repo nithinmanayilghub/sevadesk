@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SevaDesk mock — Chat Page (mobile, light + dark)</title>
+<style>
+/* Governs: DESIGN.md Colors, Typography, Shapes, Components (chat bubbles, service price row, status badge, button-primary)
+   EXPERIENCE.md Component Patterns (Chat Page header + Services list, quick-reply chips, slot chips), Voice and Tone,
+   Key Flows Flow 1 (UJ-1) steps 1-4. Static mock: inline CSS, no JS, no network. */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,"Noto Sans Devanagari",system-ui,sans-serif;background:#d4d4d8;padding:32px;display:flex;gap:40px;flex-wrap:wrap;justify-content:center;color:#18181B}
+.cap{width:100%;text-align:center;font-size:14px;color:#3f3f46}
+.phone{width:360px;height:740px;border-radius:40px;border:10px solid #18181B;overflow:hidden;display:flex;flex-direction:column;background:#F4F4F5}
+.phone.dark{background:linear-gradient(180deg,#09090B 0%,#000 100%);color:#FAFAFA}
+header{padding:16px;border-bottom:1px solid #E4E4E7;background:#fff}
+.dark header{background:#18181B;border-color:#27272A}
+h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.sub{font-size:14px;color:#52525B;margin-top:2px}
+.dark .sub,.dark .muted{color:#A1A1AA}
+.label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#52525B;margin:12px 0 6px}
+.dark .label{color:#A1A1AA}
+.svc{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-top:1px solid #E4E4E7}
+.dark .svc{border-color:#27272A}
+.svc b{font-size:15px;font-weight:600}.svc span{font-size:13px;color:#52525B}
+.price{font-size:16px;font-weight:600}
+.msgs{flex:1;padding:16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.who{font-size:12px;color:#52525B;margin-bottom:2px}
+.dark .who{color:#A1A1AA}
+.b{max-width:80%;padding:10px 14px;border-radius:24px;font-size:15px;line-height:1.45}
+.cust{align-self:flex-end;background:#18181B;color:#fff;border-bottom-right-radius:8px}
+.dark .cust{background:#fff;color:#18181B}
+.agent{align-self:flex-start;background:#fff;border:1px solid #E4E4E7;border-bottom-left-radius:8px}
+.dark .agent{background:#18181B;border-color:#27272A;color:#FAFAFA}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 16px;border-radius:9999px;border:1px solid #18181B;display:flex;align-items:center;font-size:14px;font-weight:500;background:#fff}
+.dark .chip{background:#18181B;border-color:#3f3f46;color:#FAFAFA}
+.status{align-self:center;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:#FEF3C7;color:#B45309}
+.dark .status{background:#451a03;color:#FBBF24}
+.status.ok{background:#D1FAE5;color:#047857}
+.dark .status.ok{background:#064E3B;color:#34D399}
+.composer{display:flex;gap:8px;padding:12px;border-top:1px solid #E4E4E7;background:#fff}
+.dark .composer{background:#18181B;border-color:#27272A}
+.input{flex:1;height:44px;border-radius:12px;border:1px solid #E4E4E7;padding:0 12px;display:flex;align-items:center;color:#52525B;font-size:15px}
+.dark .input{border-color:#27272A;color:#A1A1AA}
+.send{height:44px;padding:0 20px;border-radius:9999px;background:#18181B;color:#fff;display:flex;align-items:center;font-weight:600;font-size:15px}
+.dark .send{background:#fff;color:#18181B}
+.svcbtn{font-size:13px;font-weight:600;color:#047857;margin-top:6px}
+.dark .svcbtn{color:#34D399}
+</style>
+</head>
+<body>
+<p class="cap"><b>Chat Page</b> — left: light, before the first message (Services &amp; Prices visible, DPDP notice). Right: dark, mid-booking in Hindi (Flow 1, steps 2–4).</p>
+
+<div class="phone">
+  <header>
+    <h1>Ravi Cool Services</h1>
+    <p class="sub">AC repair · Bengaluru · Replies in seconds</p>
+    <p class="label">Services &amp; prices</p>
+    <div class="svc"><div><b>AC gas check</b><br><span>1 h</span></div><div class="price">from ₹499</div></div>
+    <div class="svc"><div><b>AC deep cleaning</b><br><span>1 h 30 min</span></div><div class="price">from ₹799</div></div>
+    <div class="svc"><div><b>AC installation</b><br><span>2 h</span></div><div class="price">from ₹1,499</div></div>
+    <p class="sub" style="margin-top:6px;font-size:13px">Final price after inspection. Parts extra.</p>
+  </header>
+  <div class="msgs">
+    <div><p class="who">SevaDesk assistant</p>
+    <div class="b agent">Hi! Tell me what's wrong, and I'll find a time for you. You can write in English or हिंदी.</div></div>
+  </div>
+  <div style="padding:10px 16px;font-size:13px;color:#52525B;background:#fff;border-top:1px solid #E4E4E7">
+    We collect your name, phone, and address only to book your job. Ravi Cool Services can delete them on request.
+  </div>
+  <div class="composer"><div class="input">Type a message…</div><div class="send">Send</div></div>
+</div>
+
+<div class="phone dark">
+  <header>
+    <h1>Ravi Cool Services</h1>
+    <p class="svcbtn">Services &amp; prices ▾</p>
+  </header>
+  <div class="msgs">
+    <div class="b cust" lang="hi">AC ठंडा नहीं कर रहा</div>
+    <div><p class="who">SevaDesk assistant</p>
+    <div class="b agent" lang="hi">यह AC gas check होगा — <b>₹499 से शुरू</b>। अंतिम कीमत जाँच के बाद। पार्ट्स अलग। क्या मैं बुक करूँ?</div></div>
+    <div class="b cust" lang="hi">हाँ, बुक करें</div>
+    <div><p class="who">SevaDesk assistant</p>
+    <div class="b agent" lang="hi">कल के लिए ये समय खाली हैं:</div></div>
+    <div class="chips">
+      <div class="chip">Wed 10:00 am</div><div class="chip">Wed 12:00 pm</div>
+      <div class="chip">Wed 4:00 pm</div><div class="chip">Other times</div>
+    </div>
+    <div class="status">⏳ Request sent · waiting for confirmation</div>
+  </div>
+  <div class="composer"><div class="input">Type a message…</div><div class="send">Send</div></div>
+</div>
+</body>
+</html>

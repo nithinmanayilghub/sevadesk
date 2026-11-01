@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SevaDesk mock — Landing page hero (desktop + mobile)</title>
+<style>
+/* Governs: DESIGN.md Brand & Style (landing expression), Elevation & Depth (glass, grain), Shapes (rounded.section 40px),
+   Components (glass-panel, button-action, landing-section), Do's and Don'ts (glass only here, no photos)
+   EXPERIENCE.md Inspiration & Anti-patterns, Key Flows Flow 4 step 1. PRD FR-31.
+   Static mock: inline CSS, no JS, no network. Grain = inline SVG noise. Motion omitted (static). */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:#F4F4F5;padding:24px;color:#FAFAFA}
+.cap{text-align:center;font-size:14px;color:#3f3f46;margin-bottom:16px}
+.hero{position:relative;max-width:1600px;margin:0 auto;height:92vh;min-height:620px;border-radius:40px;overflow:hidden;
+  background:radial-gradient(ellipse at 75% 20%,rgba(52,211,153,.22),transparent 55%),linear-gradient(180deg,#18181B 0%,#000 100%)}
+.grain{position:absolute;inset:0;opacity:.15;pointer-events:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.word{position:absolute;bottom:-4vw;left:-1vw;font-size:22vw;font-weight:700;letter-spacing:-0.05em;color:#fff;opacity:.03;filter:blur(2px);line-height:1}
+.glass{background:rgba(255,255,255,.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1)}
+nav{position:absolute;top:24px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:6px;border-radius:9999px;backdrop-filter:blur(20px)}
+nav a{color:rgba(255,255,255,.8);text-decoration:none;font-size:14px;padding:8px 16px;border-radius:9999px}
+nav a.on{background:rgba(255,255,255,.1)}
+.content{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:48px;padding:0 6%}
+.left{max-width:760px}
+.label{font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#34D399}
+h1{font-size:clamp(48px,7vw,104px);font-weight:700;letter-spacing:-0.05em;line-height:1.05;margin:16px 0}
+.lead{font-size:18px;font-weight:400;color:#A1A1AA;max-width:560px;line-height:1.5}
+.ctas{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap}
+.btn{display:flex;align-items:center;gap:12px;background:#fff;color:#18181B;border-radius:9999px;padding:8px 8px 8px 24px;font-weight:500;font-size:16px}
+.btn i{width:40px;height:40px;border-radius:9999px;background:#18181B;color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal}
+.btn2{display:flex;align-items:center;border-radius:9999px;padding:0 24px;height:56px;font-size:16px;color:#FAFAFA}
+.stats{display:flex;flex-direction:column;gap:12px;width:280px}
+.stat{border-radius:24px;padding:20px}
+.stat b{display:block;font-size:30px;font-weight:600;letter-spacing:-0.03em}
+.stat span{font-size:14px;color:rgba(255,255,255,.6)}
+.mobile{width:360px;height:740px;margin:32px auto 0;border:10px solid #18181B;border-radius:40px;overflow:hidden}
+.mobile .hero{height:100%;min-height:0;border-radius:0}
+.mobile .content{flex-direction:column;justify-content:center;align-items:flex-start;padding:88px 20px 24px;gap:24px}
+.mobile h1{font-size:44px}.mobile .lead{font-size:16px}
+.mobile .stats{flex-direction:row;width:100%}.mobile .stat{flex:1;padding:12px}.mobile .stat b{font-size:22px}
+.mobile nav a{padding:8px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<p class="cap"><b>Landing page hero</b> — the only surface with glass, grain, and the background word. No photo: CSS gradient + SVG noise (FR-31, under 1 MB). Stats are demo-verifiable facts, not marketing claims.</p>
+
+<section class="hero">
+  <div class="grain"></div><div class="word">SEVA</div>
+  <nav class="glass"><a class="on">SevaDesk</a><a>How it works</a><a>How it's built</a><a>GitHub</a></nav>
+  <div class="content">
+    <div class="left">
+      <p class="label">AI front desk · Indian home services</p>
+      <h1>Never miss a customer while you're on the job.</h1>
+      <p class="lead">An AI assistant answers in English or हिंदी, shows your prices, and sends you booking requests to confirm with one tap.</p>
+      <div class="ctas">
+        <div class="btn">Try the chat <i>→</i></div>
+        <div class="btn2 glass">Demo log-in</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat glass"><b>&lt; 10 s</b><span>Agent reply target</span></div>
+      <div class="stat glass"><b>EN · हिं</b><span>Chat languages</span></div>
+      <div class="stat glass"><b>0</b><span>Invented prices in evals</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="mobile">
+<section class="hero">
+  <div class="grain"></div><div class="word">SEVA</div>
+  <nav class="glass"><a class="on">SevaDesk</a><a>How</a><a>Built</a><a>GitHub</a></nav>
+  <div class="content">
+    <div>
+      <p class="label">AI front desk</p>
+      <h1>Never miss a customer while you're on the job.</h1>
+      <p class="lead">Answers in English or हिंदी. Shows your prices. You confirm with one tap.</p>
+      <div class="ctas"><div class="btn">Try the chat <i>→</i></div></div>
+    </div>
+    <div class="stats">
+      <div class="stat glass"><b>&lt;10 s</b><span>Reply</span></div>
+      <div class="stat glass"><b>EN·हिं</b><span>Languages</span></div>
+      <div class="stat glass"><b>0</b><span>Invented prices</span></div>
+    </div>
+  </div>
+</section>
+</div>
+</body>
+</html>

@@ -33,3 +33,12 @@ Technical notes for the architecture step. The PRD says *what*. These notes say 
 
 - The Agent uses tools (function calls) to get free Slots and to create the Booking Request. It never writes Slots or prices from memory (FR-17, FR-20).
 - Agent calls run in the background worker, so the web request does not wait for the LLM.
+
+## Golden Dataset (source plan)
+
+No public dataset fits SevaDesk directly: Indian home services, our Services and Prices, Hindi and Hinglish, with expected booking results. So the builder creates it.
+
+- **Main source: synthetic + hand-checked.** An LLM writes draft conversations from scenario cards (Service, language, Customer behaviour, expected result). The builder reads and fixes every one. Each case stores the expected details, Service, Price shown, Booking result, and language.
+- **Inspiration only (check each licence first):** Schema-Guided Dialogue (Google, CC BY-SA 4.0; booking dialogues with slots), and research sets with Hindi-English code-mixed booking dialogues (DSTC2 code-mixed; HDRS). Use them to learn realistic phrasing, not as the golden set.
+- **Later: the pilot.** Real pilot conversations can become cases only with the Customer's consent, and only after names, phones, and addresses are replaced with fake values (DPDP Act).
+- **Do not scrape.** Real chats, reviews, or forum posts contain personal data, and most sites forbid scraping in their terms.

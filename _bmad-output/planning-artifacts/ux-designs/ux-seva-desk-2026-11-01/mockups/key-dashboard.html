@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SevaDesk mock — Dashboard with Booking Request card (mobile, light + dark)</title>
+<style>
+/* Governs: DESIGN.md Colors (status-requested, status-handoff, accent), Components (card, status-badge, button-action, button-primary)
+   EXPERIENCE.md Information Architecture (Dashboard, mobile bottom tabs), Component Patterns (Booking Request card),
+   State Patterns (Booking Request waiting), Key Flows Flow 1 steps 5-6. Static mock: inline CSS, no JS, no network. */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,"Noto Sans Devanagari",system-ui,sans-serif;background:#d4d4d8;padding:32px;display:flex;gap:40px;flex-wrap:wrap;justify-content:center;color:#18181B}
+.cap{width:100%;text-align:center;font-size:14px;color:#3f3f46}
+.phone{width:360px;height:740px;border-radius:40px;border:10px solid #18181B;overflow:hidden;display:flex;flex-direction:column;background:#F4F4F5}
+.dark{background:linear-gradient(180deg,#09090B 0%,#000 100%);color:#FAFAFA}
+main{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+h1{font-size:24px;font-weight:600;letter-spacing:-0.02em}
+.muted{color:#52525B;font-size:14px}.dark .muted{color:#A1A1AA}
+.label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#52525B}
+.dark .label{color:#A1A1AA}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:#fff;border:1px solid #E4E4E7;border-radius:16px;padding:10px}
+.dark .stat,.dark .card{background:#18181B;border-color:#27272A}
+.stat b{display:block;font-size:24px;font-weight:600;letter-spacing:-0.02em}
+.stat span{font-size:12px;color:#52525B}.dark .stat span{color:#A1A1AA}
+.card{background:#fff;border:1px solid #E4E4E7;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.badge{align-self:flex-start;display:inline-flex;gap:6px;align-items:center;padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.req{background:#FEF3C7;color:#B45309}.dark .req{background:#451a03;color:#FBBF24}
+.hand{background:#FEE2E2;color:#B91C1C}.dark .hand{background:#450a0a;color:#F87171}
+.row{display:flex;justify-content:space-between;font-size:15px}
+.row span:first-child{color:#52525B}.dark .row span:first-child{color:#A1A1AA}
+.actions{display:flex;gap:8px;align-items:center;margin-top:4px}
+.confirm{display:flex;align-items:center;gap:10px;background:#18181B;color:#fff;border-radius:9999px;padding:2px 2px 2px 18px;height:44px;font-weight:600;font-size:15px}
+.confirm i{width:40px;height:40px;border-radius:9999px;background:#fff;color:#047857;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:18px}
+.dark .confirm{background:#fff;color:#18181B}.dark .confirm i{background:#18181B;color:#34D399}
+.ghost{height:44px;padding:0 16px;border-radius:9999px;border:1px solid #E4E4E7;display:flex;align-items:center;font-size:15px;font-weight:500}
+.dark .ghost{border-color:#3f3f46}
+nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #E4E4E7;background:#fff;height:64px}
+.dark nav{background:#18181B;border-color:#27272A}
+nav div{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:#52525B;position:relative}
+.dark nav div{color:#A1A1AA}
+nav .on{color:#047857;font-weight:600}.dark nav .on{color:#34D399}
+nav .dot{position:absolute;top:8px;right:22px;background:#B91C1C;color:#fff;border-radius:9999px;font-size:11px;padding:0 6px;font-weight:600}
+.ok{background:#D1FAE5;color:#047857}.dark .ok{background:#064E3B;color:#34D399}
+</style>
+</head>
+<body>
+<p class="cap"><b>Dashboard</b> (Owner, solo) — Booking Request waiting with countdown; Confirm uses the button-action pill. Right: same screen in dark theme after Confirm.</p>
+
+<div class="phone">
+  <main>
+    <div><p class="muted">Tue, 4 Nov</p><h1>Good evening, Ravi</h1></div>
+    <div class="stats">
+      <div class="stat"><b>3</b><span>Jobs today</span></div>
+      <div class="stat"><b>1</b><span>Waiting</span></div>
+      <div class="stat"><b>12</b><span>Chats this week</span></div>
+    </div>
+    <p class="label">Needs action</p>
+    <div class="card">
+      <span class="badge req">⏳ Booking request · expires in 11 h</span>
+      <div class="row"><b>Anil Kumar</b><span>98765 43210</span></div>
+      <div class="row"><span>Service</span><span>AC gas check</span></div>
+      <div class="row"><span>Price shown</span><span>from ₹499</span></div>
+      <div class="row"><span>Time</span><span>Wed 5 Nov, 10:00 am</span></div>
+      <div class="row"><span>Address</span><span>HSR Layout, Sector 2</span></div>
+      <div class="actions">
+        <div class="confirm">Confirm <i>✓</i></div>
+        <div class="ghost">Change</div>
+        <div class="ghost">Decline</div>
+      </div>
+    </div>
+    <div class="card">
+      <span class="badge hand">● Needs human</span>
+      <div class="row"><b>+91 90123 45678</b><span>2 min ago</span></div>
+      <p class="muted">"Can you give a discount for two ACs?"</p>
+    </div>
+  </main>
+  <nav><div class="on">⌂<span>Dashboard</span></div><div>✉<span>Inbox</span><b class="dot">1</b></div><div>▦<span>Calendar</span></div><div>⋯<span>More</span></div></nav>
+</div>
+
+<div class="phone dark">
+  <main>
+    <div><p class="muted">Tue, 4 Nov</p><h1>Good evening, Ravi</h1></div>
+    <div class="stats">
+      <div class="stat"><b>3</b><span>Jobs today</span></div>
+      <div class="stat"><b>0</b><span>Waiting</span></div>
+      <div class="stat"><b>12</b><span>Chats this week</span></div>
+    </div>
+    <p class="label">Tomorrow</p>
+    <div class="card">
+      <span class="badge ok">✓ Confirmed</span>
+      <div class="row"><b>Anil Kumar</b><span>10:00 am</span></div>
+      <div class="row"><span>Service</span><span>AC gas check · from ₹499</span></div>
+      <div class="row"><span>Technician</span><span>You</span></div>
+    </div>
+    <div class="card">
+      <span class="badge hand">● Needs human</span>
+      <div class="row"><b>+91 90123 45678</b><span>3 min ago</span></div>
+      <p class="muted">"Can you give a discount for two ACs?"</p>
+    </div>
+  </main>
+  <nav><div class="on">⌂<span>Dashboard</span></div><div>✉<span>Inbox</span><b class="dot">1</b></div><div>▦<span>Calendar</span></div><div>⋯<span>More</span></div></nav>
+</div>
+</body>
+</html>
