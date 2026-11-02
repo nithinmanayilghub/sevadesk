@@ -1,0 +1,49 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SevaDesk API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/hello": {
+      "get": {
+        "summary": "Get Hello",
+        "operationId": "get_hello",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelloResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HelloResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "version"
+        ],
+        "title": "HelloResponse"
+      }
+    }
+  }
+}
