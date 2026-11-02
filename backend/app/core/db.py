@@ -1,7 +1,9 @@
 # Database plumbing: the engine, the model base class, and the per-request session.
 from collections.abc import Iterator
 from functools import lru_cache
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session
 
@@ -25,3 +27,8 @@ def get_session() -> Iterator[Session]:
     # Services only use the session; they never call commit themselves.
     with Session(get_engine()) as session, session.begin():
         yield session
+
+
+# scope="function" makes the commit happen before the response is sent,
+# so a failed commit becomes an error response (AD-15).
+SessionDep = Annotated[Session, Depends(get_session, scope="function")]
