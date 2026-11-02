@@ -1,0 +1,9 @@
+# Caddy is the single front door: /api/* goes to the backend, everything else to the frontend.
+:80 {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
