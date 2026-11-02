@@ -5,9 +5,9 @@ purpose: build-substrate
 altitude: feature
 paradigm: 'modular monolith (feature modules, layered inside) with ports and adapters at external edges'
 scope: 'SevaDesk MVP (P0 + P1), with seams for P2–P6'
-status: draft
+status: final
 created: '2026-11-01'
-updated: '2026-11-01'
+updated: '2026-11-02'
 binds: [FR-1..FR-31, FR-16a, FR-18a, NFR-1..NFR-10]
 sources:
   - docs/project-seed.md
