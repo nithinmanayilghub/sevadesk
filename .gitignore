@@ -9,3 +9,10 @@
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Python / Node
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+.next/
