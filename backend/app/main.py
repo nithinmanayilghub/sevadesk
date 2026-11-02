@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 
 from app.core import hello_router
+from app.core.errors import register_error_handlers
 
 app = FastAPI(
     title="SevaDesk API",
@@ -9,3 +10,4 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 app.include_router(hello_router.router)
+register_error_handlers(app)

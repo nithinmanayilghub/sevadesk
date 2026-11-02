@@ -5,7 +5,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 
 from app.core.db import get_engine
 from app.core.settings import get_settings
@@ -31,3 +31,5 @@ def client(pg, monkeypatch):
     get_engine.cache_clear()
     command.upgrade(Config(str(ALEMBIC_INI)), "head")
     yield TestClient(app)
+    # Close pooled connections so nothing is left open after the test.
+    get_engine().dispose()
