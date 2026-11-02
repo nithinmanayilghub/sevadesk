@@ -16,18 +16,18 @@ Technical notes for the architecture step. The PRD says *what*. These notes say 
 
 ## Hosting
 
-- Demo: frontend on Vercel; backend and worker on Oracle Cloud Always Free (docker-compose); Postgres on Neon or Supabase free tier; Redis on Upstash free tier.
+- Demo: frontend, backend, worker, and Valkey (Redis) together on Oracle Cloud Always Free (docker-compose, one web address); Postgres on Neon free tier. Superseded the earlier Vercel / Supabase / Upstash plan (see architecture spine, 2026-11-01).
 - AWS staging (Terraform): on demand only. Turn it on for interviews, then destroy it (FR-6).
 
 ## Slot calculation (FR-17)
 
 - Capacity = the number of active Users with the Technician Role.
 - A Slot is free if the count of confirmed or requested Bookings that overlap it is less than the capacity.
-- Slot holding and double-booking need a database-level guard (for example, a transaction with a lock or an exclusion constraint). The architecture step chooses.
+- Slot holding and double-booking: decided in the architecture spine (AD-9: bookings-owned advisory lock per Business, recount, then write).
 
 ## Tenant isolation (FR-11)
 
-- Every table has `business_id` (from the seed). The architecture step decides between application-level scoping only, or scoping plus Postgres Row-Level Security as a second guard.
+- Every table has `business_id` (from the seed). Decided in the architecture spine (AD-3): automatic application-level scoping now; Row-Level Security deferred as a second guard.
 
 ## Agent design hints
 

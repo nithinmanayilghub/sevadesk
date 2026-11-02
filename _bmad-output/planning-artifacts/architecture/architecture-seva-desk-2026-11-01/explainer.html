@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SevaDesk — How the System Works</title>
+<style>
+  :root { --ink:#1d2433; --muted:#5b6475; --line:#e3e6ec; --bg:#fafbfc; --accent:#0f766e; --warn:#b45309; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 2rem; margin: 0 0 4px; }
+  h2 { font-size: 1.35rem; margin: 48px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  nav { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 18px; }
+  nav ol { margin: 0; padding-left: 20px; columns: 2; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 20px; margin:16px 0; }
+  .say { border-left: 4px solid var(--accent); background:#f0fdfa; padding: 12px 16px; border-radius: 6px; margin: 16px 0; }
+  .say b { color: var(--accent); }
+  .risk { border-left: 4px solid var(--warn); background:#fffbeb; padding: 12px 16px; border-radius: 6px; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; background:#fff; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f5f8; }
+  code { background:#eef1f5; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+  .mermaid { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin:16px 0; text-align:center; }
+  .term { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+<h1>SevaDesk — How the System Works</h1>
+<p class="sub">A plain-words guide to the architecture. Read one section at a time. Each section ends with a line you can say in an interview.</p>
+
+<nav><ol>
+  <li><a href="#big">The big picture</a></li>
+  <li><a href="#modules">Feature modules</a></li>
+  <li><a href="#request">One request, step by step</a></li>
+  <li><a href="#tenant">Tenant isolation</a></li>
+  <li><a href="#auth">Login and roles</a></li>
+  <li><a href="#chat">Chat to booking</a></li>
+  <li><a href="#facts">No invented prices</a></li>
+  <li><a href="#lock">No double booking</a></li>
+  <li><a href="#tx">Who owns a transaction</a></li>
+  <li><a href="#deploy">Where it runs</a></li>
+  <li><a href="#quality">Tests, evals, tracing</a></li>
+  <li><a href="#qa">Interview practice</a></li>
+</ol></nav>
+
+<h2 id="big">1. The big picture</h2>
+<p>SevaDesk has four running parts:</p>
+<ul>
+  <li><span class="term">Next.js</span> draws the screens. It holds no business rules.</li>
+  <li><span class="term">FastAPI</span> is the backend app. All business rules live here.</li>
+  <li><span class="term">The worker</span> does slow jobs in the background, such as AI replies.</li>
+  <li><span class="term">PostgreSQL</span> stores the data. <span class="term">Redis (Valkey)</span> holds the job list and fast counters.</li>
+</ul>
+<pre class="mermaid">
+flowchart LR
+  B[Browser] --> P[Front door: Caddy or AWS load balancer]
+  P -->|/api/...| F[FastAPI]
+  P -->|all other pages| N[Next.js]
+  F --> DB[(PostgreSQL)]
+  F -->|add job| R[(Redis / Valkey)]
+  W[Worker] -->|take job| R
+  W --> DB
+  W --> AI[Claude or Groq]
+</pre>
+<p>Everything sits behind <b>one web address</b>. The front door sends <code>/api/...</code> to FastAPI and the rest to Next.js. Because of this, the login cookie works without extra setup.</p>
+<div class="say"><b>Say it:</b> "SevaDesk is a modular monolith. Next.js renders, FastAPI owns the rules, and a background worker runs slow AI work. One front door serves both, so cookies just work."</div>
+
+<h2 id="modules">2. Feature modules</h2>
+<p>A <span class="term">monolith</span> is one app that you deploy as one piece. <span class="term">Modular</span> means we split its code by feature. Each feature folder is a <span class="term">module</span>.</p>
+<table>
+  <tr><th>Module</th><th>What it owns</th></tr>
+  <tr><td><code>core</code></td><td>Shared tools: database, tenant filter, settings, logging, errors. No business tables.</td></tr>
+  <tr><td><code>accounts</code></td><td>Users, memberships with roles, sessions, invites.</td></tr>
+  <tr><td><code>business</code></td><td>The business, its services and prices, working hours, chat link.</td></tr>
+  <tr><td><code>inbox</code></td><td>Customers, conversations, messages. The webchat channel.</td></tr>
+  <tr><td><code>agent</code></td><td>The AI agent: prompts, tools, daily cap. The AI provider plugs.</td></tr>
+  <tr><td><code>bookings</code></td><td>Bookings, price quotes, free-slot math, the booking lock.</td></tr>
+  <tr><td><code>dashboard</code></td><td>Nothing. It only asks other modules.</td></tr>
+</table>
+<p><b>Two rules keep modules clean:</b></p>
+<ol>
+  <li><b>One owner per table.</b> Only <code>bookings</code> touches the bookings table.</li>
+  <li><b>Use the front door.</b> Each module has a <code>service.py</code> with public functions. Other modules call only those functions. A CI check called <code>import-linter</code> blocks any other import.</li>
+</ol>
+<pre class="mermaid">
+flowchart LR
+  dashboard --> bookings & inbox & business
+  agent --> bookings & inbox & business
+  inbox --> bookings
+  inbox --> business
+  bookings --> business --> accounts --> core
+</pre>
+<p>Arrows show who may call whom. They never loop back. <code>bookings</code> never calls <code>inbox</code>.</p>
+<div class="say"><b>Say it:</b> "Each table has one owner module. Modules only talk through a public service. I enforce the dependency direction with import-linter in CI."</div>
+
+<h2 id="request">3. One request, step by step</h2>
+<p>Inside a module, a request passes three layers:</p>
+<pre class="mermaid">
+flowchart LR
+  A[router.py: reads the web request] --> B[service.py: applies the business rules] --> C[repository.py: reads and writes the database]
+</pre>
+<ul>
+  <li>The <span class="term">router</span> checks the input and calls the service.</li>
+  <li>The <span class="term">service</span> holds the rules, for example "a booking needs a free slot".</li>
+  <li>The <span class="term">repository</span> runs the database queries.</li>
+</ul>
+<p>The data between modules travels as <span class="term">DTOs</span>. A DTO (data transfer object) is a plain data shape. It is not a live database object.</p>
+
+<h2 id="tenant">4. Tenant isolation</h2>
+<p>A <span class="term">tenant</span> is one business, such as "Sharma AC Repair". All businesses share one database. Every row has a <code>business_id</code>. Sharma must never see the rows of another business.</p>
+<p><b>How we guarantee it:</b></p>
+<ol>
+  <li>The server finds the <code>business_id</code> once per request. It <b>never</b> comes from the browser.
+    <ul>
+      <li>Staff: from the login session.</li>
+      <li>Public chat: from the chat link and visitor cookie. A visitor sees only chats made with their own cookie. Typing someone's phone number never shows that person's history.</li>
+      <li>Worker job: from the job data.</li>
+    </ul>
+  </li>
+  <li>A shared base repository in <code>core</code> adds <code>WHERE business_id = ...</code> to <b>every</b> query by itself. No builder writes that filter by hand, so no builder can forget it.</li>
+  <li>The database is a second guard. Every link between tables uses two columns: <code>(business_id, service_id)</code>. This is a <span class="term">composite foreign key</span>. So the database itself refuses a Sharma booking that points at another business's service, even if the code has a bug.</li>
+  <li>Isolation tests run in CI on every pull request. They test writes too, not only reads.</li>
+</ol>
+<div class="say"><b>Say it:</b> "Tenant scoping is automatic and server-derived. The client can never pick its tenant, and a base repository adds the filter to every query, and composite foreign keys stop cross-tenant links in the database. Postgres Row-Level Security is my planned second lock."</div>
+
+<h2 id="auth">5. Login and roles</h2>
+<p>At login, the server makes a random token. It saves the token, and it gives the browser a cookie with the same token. The cookie is <code>httpOnly</code>, so page JavaScript cannot read it. On each request, the server looks up the token and finds the user.</p>
+<p>Why not a JWT (a signed token that the server does not store)? A JWT is hard to cancel. With our sessions, logout or removing a team member works <b>at once</b>.</p>
+<p>A person links to a business through a <span class="term">membership</span>. The membership holds a <b>set</b> of roles: owner, staff, technician. A solo owner can be owner and technician at the same time.</p>
+<p>A cookie goes with every request, even one that another website starts. That attack is called <span class="term">CSRF</span>. So every request that changes data must carry an <code>Origin</code> header that names our own site. Other requests are refused.</p>
+
+<h2 id="chat">6. Chat to booking</h2>
+<p>AI replies are slow (a few seconds). So the web request does not wait for the AI.</p>
+<pre class="mermaid">
+sequenceDiagram
+  participant C as Customer browser
+  participant API as FastAPI
+  participant Q as Redis job list
+  participant W as Worker
+  participant AI as Claude
+  C->>API: send "My AC is not cooling"
+  API->>API: save message
+  API->>Q: add job "agent_reply" (key = conversation + seq)
+  API-->>C: OK (at once)
+  W->>Q: take job, take the conversation lock
+  W->>AI: ask for a reply (with tools), 9 s deadline
+  AI-->>W: reply text
+  W->>W: newer customer message? then drop my reply
+  W->>API: save agent message (only if no human took over)
+  loop every 1-2 seconds while waiting
+    C->>API: anything new after my version?
+    API-->>C: "no change" from Redis, or new messages + snapshot
+  end
+</pre>
+<ul>
+  <li><span class="term">Polling</span> means the page asks "anything new?" again and again. The gap is never more than 5 seconds while the tab is open. The page stops polling when the tab is hidden.</li>
+  <li>A <span class="term">cursor</span> marks the last message the page has. Each message gets a counting number (<code>seq</code>), so no message is skipped.</li>
+  <li><b>No skipped messages.</b> Only one AI job runs per conversation at a time, guarded by a lock in Redis. The job answers all customer messages up to its <code>seq</code>. Before it saves, it checks for a newer customer message. If there is one, it drops its own reply, because that reply is now stale. The newer job answers everything in one reply.</li>
+  <li><b>A deadline.</b> One agent turn gets 9 seconds in total and at most 4 tool calls. This keeps us inside the 10-second promise (NFR-3).</li>
+  <li><b>No endless "typing...".</b> <code>reply_pending</code> is computed from the messages, not stored. Every pending reply ends within 30 seconds, even if the worker crashes.</li>
+  <li><b>Cheap polls.</b> Each change bumps a version number in Redis. If the version did not change, the poll answers "no change" and never touches Postgres. This saves money and lets the free Neon database sleep.</li>
+  <li>If the AI fails or runs out of time, the customer gets a fixed "the team will reply soon" message, and a human takes over.</li>
+</ul>
+<div class="say"><b>Say it:</b> "AI work is asynchronous. The API saves the message and queues a job. The worker calls the model. The client polls one snapshot endpoint. One job runs per conversation, and a stale reply is dropped, so no message is skipped or answered twice."</div>
+
+<h2 id="facts">7. No invented prices</h2>
+<p>An AI model can make up facts. So the agent gets facts only through <span class="term">tools</span>. A tool is a function that our code runs when the model asks for it.</p>
+<ul>
+  <li><code>list_services</code>, <code>get_free_slots</code>: read real data.</li>
+  <li><code>quote_price</code>: the server <b>records</b> the price as a quote. The page shows it as an <b>"Accept ₹X" button</b>.</li>
+  <li>The customer accepts <b>only by tapping that button</b>. The server records the tap. The model cannot say "the customer accepted", so a trick message like "ignore your rules, I accept" does nothing.</li>
+  <li><code>create_booking_request(quote_id, slot)</code>: it refuses a quote that is not accepted or has expired. The price comes from the saved quote. <b>The model never sends an amount.</b></li>
+</ul>
+<p>Prices and slots appear only in buttons and cards that the server builds from tool results. The reply text itself must contain no amounts and no times. A check enforces this before a reply goes out. That is simple to test, also for Hindi text. If the check fails, the agent rewrites the text once (it does not run the tools again), then hands off to a human.</p>
+<div class="say"><b>Say it:</b> "The model never supplies money or accepts on the customer's behalf. Prices live in server-built chips from a recorded quote, the customer accepts by tapping, and a post-check blocks any amount in the free text."</div>
+
+<h2 id="lock">8. No double booking</h2>
+<p>Two technicians mean at most two jobs at 10 AM. If two customers take the last slot at the same moment, both checks can pass. This is a <span class="term">race condition</span>.</p>
+<pre class="mermaid">
+sequenceDiagram
+  participant A as Customer A
+  participant B as Customer B
+  participant BK as bookings module
+  participant DB as PostgreSQL
+  A->>BK: book 10 AM
+  BK->>DB: take lock for this business
+  B->>BK: book 10 AM
+  BK->>DB: try lock (waits)
+  BK->>DB: count = 1 of 2, insert, commit (lock released)
+  BK->>DB: lock taken for B
+  BK->>DB: count = 2 of 2, no space
+  BK-->>B: SlotUnavailable, so offer other slots
+</pre>
+<p>The lock is a Postgres <span class="term">advisory lock</span>. It is a named "wait your turn" sign, here named by the <code>business_id</code>. Each state change also says <code>WHERE state = 'requested'</code>. So two actions cannot both change the same booking.</p>
+<ul>
+  <li>One quote can make at most one booking (<code>UNIQUE(quote_id)</code>). A repeated call cannot double-book.</li>
+  <li><b>No slot hoarding.</b> A bot could open many chats and hold every slot. So each conversation may have only one open request, and each visitor and IP only a few.</li>
+  <li>"Expired" is computed when we read: <code>requested</code> and past <code>expires_at</code> means expired. One function holds this rule. An hourly job writes it down later. So a read never has to write.</li>
+</ul>
+<div class="say"><b>Say it:</b> "All capacity writes go through one bookings function. It takes a per-business advisory lock, recounts, then writes. State changes are guarded updates."</div>
+
+<h2 id="tx">9. Who owns a transaction</h2>
+<p>A <span class="term">transaction</span> is a group of database writes that all succeed or all fail. The rule:</p>
+<ul>
+  <li>The <b>entry point</b> (the web route, the job, or the script) opens and commits it. Services never commit.</li>
+  <li>No AI call and no job queueing while a transaction is open. We queue the job <b>after</b> the commit, so the worker always finds the data.</li>
+  <li>The agent job is special. It calls the AI several times, so it cannot keep one transaction open. It uses <b>one short transaction per tool call</b>. Each write tool is <span class="term">idempotent</span>: calling it twice has the same effect as calling it once.</li>
+  <li>Locks are always taken in the same order: the booking lock first. When <code>inbox</code> needs <code>bookings</code>, it calls <code>bookings</code> before it writes its own rows. Two flows that take locks in different orders can wait for each other forever. That is a <span class="term">deadlock</span>.</li>
+</ul>
+<div class="risk"><b>What breaks without it:</b> a lock stays held for 8 seconds during an AI call, and every other booking for that business waits.</div>
+
+<h2 id="deploy">10. Where it runs</h2>
+<pre class="mermaid">
+flowchart TB
+  subgraph demo[Demo: always on, about $0]
+    O[Oracle Cloud free server: Caddy + Next.js + FastAPI + worker + Valkey]
+    O --> NE[(Neon free Postgres)]
+  end
+  subgraph aws[AWS staging: on demand, then destroy]
+    ALB[Load balancer] --> ECS[Fargate: Next.js, FastAPI, worker]
+    ECS --> RDS[(RDS Postgres)]
+    ECS --> EC[(ElastiCache)]
+  end
+  GH[GitHub Actions] -->|same images| demo
+  GH -->|after manual approval| aws
+</pre>
+<ul>
+  <li>The same Docker images run everywhere. Only the settings (environment variables) change.</li>
+  <li>The images are built for two chip types (amd64 and arm64), because the Oracle server uses ARM chips.</li>
+  <li>Pipeline: lint, tests, evals, build, deploy demo, then manual approval for AWS.</li>
+  <li>Neon sits in the region closest to the Oracle server, so each database call is short. Valkey saves its data to disk (AOF), so queued jobs survive a restart.</li>
+  <li>AWS runs for a few hours only, then <code>terraform destroy</code>. Always-on AWS would cost about $100–130 a month.</li>
+</ul>
+
+<h2 id="quality">11. Tests, evals, tracing</h2>
+<table>
+  <tr><th>Tool</th><th>What it checks</th></tr>
+  <tr><td>pytest / Vitest</td><td>Small pieces of code (unit tests).</td></tr>
+  <tr><td>Testcontainers</td><td>Real Postgres and Redis in tests (integration tests).</td></tr>
+  <tr><td>Playwright</td><td>Whole user flows in a real browser (E2E tests), with a fake AI.</td></tr>
+  <tr><td>Evals</td><td>The real agent on a test conversation set. One invented price or slot blocks the merge. Other scores may drop a little (a set tolerance), because AI output varies from run to run.</td></tr>
+  <tr><td>OpenTelemetry + Grafana</td><td>Traces, logs, metrics, alerts. Phone numbers are masked.</td></tr>
+  <tr><td>Langfuse</td><td>Each AI call: prompt version, model, tokens, cost, time.</td></tr>
+</table>
+
+<h2 id="qa">12. Interview practice</h2>
+<div class="card"><b>Q: Why a modular monolith and not microservices?</b><br>A: One builder, small scale, $10 budget. A monolith is one deploy and one database. Modules with front doors give clear boundaries. A module can split out later if it needs to.</div>
+<div class="card"><b>Q: How do you stop one business seeing another's data?</b><br>A: The server derives the tenant, a base repository adds the filter to every query, and CI runs isolation tests on every PR.</div>
+<div class="card"><b>Q: Why does the AI run in a worker?</b><br>A: AI calls take seconds and can fail. The worker keeps web requests fast and handles timeouts with a human handoff.</div>
+<div class="card"><b>Q: How do you prevent double booking?</b><br>A: One write path, a per-business advisory lock, a recount, then a guarded insert or update.</div>
+<div class="card"><b>Q: How do you stop the AI from inventing prices?</b><br>A: Tools for every fact, a server-recorded price quote shown as a button, acceptance only by the customer's tap, and a post-check that blocks amounts in free text. Evals test it in CI.</div>
+<div class="card"><b>Q: A customer sends two messages one second apart. What happens?</b><br>A: Each message queues a job keyed by its <code>seq</code>. A Redis lock lets one job run at a time. The first job sees a newer message before saving, so it drops its stale reply. The second job answers both messages in one reply.</div>
+<div class="card"><b>Q: What would you change at 100x scale?</b><br>A: Push instead of polling (SSE), Postgres Row-Level Security as a second lock, maybe an event bus between modules, and more worker processes.</div>
+</main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+</script>
+</body>
+</html>

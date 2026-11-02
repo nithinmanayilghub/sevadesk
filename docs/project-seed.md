@@ -61,10 +61,9 @@ WhatsApp-first, UPI payments, GST invoices, AMC contracts, Indian languages, mob
 Two deployment tracks:
 
 Track A — Always-on demo (portfolio link), target $0–5/month:
-- Frontend: Vercel free tier.
-- Backend + worker: one small server (~$5) running docker-compose, or a free-tier host.
-- Postgres: Neon or Supabase free tier.
-- Redis: Upstash free tier.
+- Frontend + backend + worker: together on one Oracle Cloud Always Free server via docker-compose, behind one reverse proxy (same web address). Vercel dropped (architecture, 2026-11-01).
+- Postgres: Neon free tier (Supabase dropped: it pauses free projects after 7 idle days).
+- Redis: Valkey container in the same docker-compose on the Oracle server (Upstash dropped: an idle worker uses ~10x its free quota).
 - LLM tracing: Langfuse Cloud free (hobby) plan.
 - Logs/traces/metrics: Grafana Cloud free tier via OpenTelemetry.
 
@@ -87,9 +86,9 @@ AI API budget: about $2–5/month for light use.
 
 Open-source cost choices (decided 2026-11-01):
 - Daily development uses open-weight models on the Groq API free tier (OpenAI-compatible), behind the same AI service layer. Claude runs CI evals that gate merges, and the demo. Ollama rejected: laptop has 8 GB RAM, no GPU. Send only fake data to Groq.
-- Database, Redis, and observability stay on free managed tiers (no self-hosting: it needs RAM and upkeep).
+- Database and observability stay on free managed tiers (no self-hosting: it needs RAM and upkeep). Exception (architecture, 2026-11-01): Redis/Valkey runs as one container on the Oracle server.
 - No unofficial WhatsApp libraries (they break Meta's rules and risk a number ban). Use the official API in P3.
-- Backend server (Track A demo): Oracle Cloud Always Free runs backend + worker via docker-compose. PostgreSQL stays the database.
+- Server (Track A demo): Oracle Cloud Always Free runs frontend + backend + worker + Valkey via docker-compose. PostgreSQL (Neon) stays the database.
 
 ### Security & compliance
 - Tenant-isolation tests, rate limiting, input validation.
