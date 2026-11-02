@@ -7,7 +7,7 @@ from app.core.db import get_engine
 def test_hello_reads_value_from_database(client):
     response = client.get("/api/v1/hello")
     assert response.status_code == 200
-    assert response.json() == {"message": "Hello from SevaDesk", "version": "test-1"}
+    assert response.json() == {"message": "Namaste from SevaDesk", "version": "test-1"}
 
 
 def test_migration_creates_only_app_meta(client):
