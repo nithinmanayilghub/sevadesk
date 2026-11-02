@@ -24,3 +24,14 @@ def check_redis() -> bool:
         return bool(get_redis().ping())
     except redis.RedisError:
         return False
+
+
+# The worker writes this key every 10 s; it expires after 30 s.
+# So "key exists" means "a worker was alive in the last 30 s".
+HEARTBEAT_KEY = "health:worker:heartbeat"
+HEARTBEAT_TTL_SECONDS = 30
+
+
+def check_worker_heartbeat() -> bool:
+    # A redis.RedisError is NOT caught here: the route turns it into a 503.
+    return get_redis().exists(HEARTBEAT_KEY) == 1

@@ -10,6 +10,7 @@ dependencies = [
     "pydantic==2.14.2",
     "pydantic-settings==2.16.2",
     "redis==7.4.1",
+    "saq[redis]==0.26.5",
     "sqlalchemy==2.1.6",
     "uvicorn==0.54.0",
 ]

@@ -40,6 +40,24 @@
           }
         }
       }
+    },
+    "/api/health/worker": {
+      "get": {
+        "summary": "Get Worker Health",
+        "operationId": "get_worker_health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -84,6 +102,19 @@
           "version"
         ],
         "title": "HelloResponse"
+      },
+      "WorkerHealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "WorkerHealthResponse"
       }
     }
   }
