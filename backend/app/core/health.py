@@ -9,7 +9,10 @@ from app.core.redis_client import get_redis
 
 def check_database() -> bool:
     try:
-        with get_engine().connect() as connection:
+        with get_engine().begin() as connection:
+            # SET LOCAL limits only this transaction (this health query),
+            # not other app queries. A stuck Postgres is cut off after 2 s.
+            connection.execute(text("SET LOCAL statement_timeout = '2s'"))
             connection.execute(text("SELECT 1"))
         return True
     except SQLAlchemyError:
