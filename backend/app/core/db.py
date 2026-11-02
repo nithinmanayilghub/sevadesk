@@ -18,7 +18,13 @@ class Base(DeclarativeBase):
 @lru_cache
 def get_engine() -> Engine:
     # One engine (one connection pool) for the whole app.
-    return create_engine(get_settings().database_url)
+    # pool_pre_ping: test a pooled connection before use, so a dead one is replaced.
+    # connect_timeout: give up connecting after 2 seconds.
+    return create_engine(
+        get_settings().database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 2},
+    )
 
 
 def get_session() -> Iterator[Session]:

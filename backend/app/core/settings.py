@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     database_url: str  # required: app will not start without it
+    redis_url: str  # required: Valkey/Redis address, e.g. redis://host:6379/0
     app_version: str = "dev"
 
 

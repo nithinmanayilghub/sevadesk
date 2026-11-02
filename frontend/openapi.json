@@ -22,10 +22,51 @@
           }
         }
       }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Get Health",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "redis": {
+            "type": "string",
+            "title": "Redis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "database",
+          "redis"
+        ],
+        "title": "HealthResponse"
+      },
       "HelloResponse": {
         "properties": {
           "message": {

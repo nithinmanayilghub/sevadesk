@@ -9,6 +9,7 @@ dependencies = [
     "psycopg[binary]==3.3.6",
     "pydantic==2.14.2",
     "pydantic-settings==2.16.2",
+    "redis==7.4.1",
     "sqlalchemy==2.1.6",
     "uvicorn==0.54.0",
 ]
@@ -17,7 +18,7 @@ dependencies = [
 dev = [
     "httpx2==2.16.0",
     "pytest==9.2.0",
-    "testcontainers[postgres]==4.15.0",
+    "testcontainers[postgres,valkey]==4.15.0",
 ]
 
 [tool.pytest.ini_options]
