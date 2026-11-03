@@ -1,14 +1,31 @@
-# Telemetry: JSON logs with request + trace IDs. Everything passes through core.masking.mask (AD-13).
-# Only OpenTelemetry APIs are used, so the backend tool can change by config alone.
+# Telemetry: JSON logs + traces with request and trace IDs. Everything passes through
+# core.masking.mask (AD-13). Only OpenTelemetry APIs are used, so the place we send data
+# to (local Grafana, Grafana Cloud, another tool) changes by env vars alone.
 import json
 import logging
+import os
 import sys
+import time
+from collections.abc import Sequence
 from contextvars import ContextVar
 from datetime import UTC, datetime
+from uuid import uuid4
 
+from fastapi import FastAPI, Request
 from opentelemetry import trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import Event, ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, SpanExportResult
 
 from app.core.masking import mask
+
+logger = logging.getLogger(__name__)
 
 # The current request's ID. A ContextVar is like a global, but each request
 # (and each async task) sees its own value. None = not inside a request or job.
@@ -79,3 +96,118 @@ def setup_logging() -> None:
         library_logger = logging.getLogger(name)
         library_logger.handlers.clear()
         library_logger.propagate = True
+
+
+# ---------------------------------------------------------------- traces
+
+
+def _masked_attributes(attributes) -> dict:
+    return {key: mask(value, key=key) for key, value in (attributes or {}).items()}
+
+
+class MaskingSpanExporter(SpanExporter):
+    """A guard at the exit door: masks each span's attributes, then hands it to the real exporter."""
+
+    def __init__(self, inner: SpanExporter):
+        self.inner = inner
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        # Finished spans are read-only, so we build masked copies instead of changing them.
+        masked = [
+            ReadableSpan(
+                name=span.name,
+                context=span.context,
+                parent=span.parent,
+                resource=span.resource,
+                attributes=_masked_attributes(span.attributes),
+                events=[
+                    Event(event.name, _masked_attributes(event.attributes), event.timestamp) for event in span.events
+                ],
+                links=span.links,
+                kind=span.kind,
+                status=span.status,
+                start_time=span.start_time,
+                end_time=span.end_time,
+                instrumentation_scope=span.instrumentation_scope,
+            )
+            for span in spans
+        ]
+        return self.inner.export(masked)
+
+    def shutdown(self) -> None:
+        self.inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return self.inner.force_flush(timeout_millis)
+
+
+def add_span_exporter(exporter: SpanExporter) -> None:
+    """The ONLY way to attach an exporter, so every exported span is masked first."""
+    trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(MaskingSpanExporter(exporter)))
+
+
+_logger_provider: LoggerProvider | None = None
+_configured = False
+
+
+def setup_telemetry(service_name: str) -> None:
+    """Set up logs and traces for one program (API or worker). Runs once per process."""
+    global _configured, _logger_provider
+    if _configured:
+        return
+    _configured = True
+
+    setup_logging()
+    # service.name tells Grafana which program a span came from.
+    resource = Resource.create({"service.name": service_name})
+    trace.set_tracer_provider(TracerProvider(resource=resource))
+    # Patch the Postgres driver (psycopg), so every query makes a span. We trace the driver,
+    # not SQLAlchemy: the SQLAlchemy instrumentor does not support SQLAlchemy 2.1 yet.
+    PsycopgInstrumentor().instrument()
+
+    # No endpoint = send nothing (tests, CI). The OTLP exporters read this env var themselves.
+    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return
+    add_span_exporter(OTLPSpanExporter())
+    # Also send log lines over OTLP, with the same masking filter as stdout.
+    _logger_provider = LoggerProvider(resource=resource)
+    _logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+    set_logger_provider(_logger_provider)
+    otel_handler = LoggingHandler(logger_provider=_logger_provider)
+    otel_handler.addFilter(MaskingFilter())
+    logging.getLogger().addHandler(otel_handler)
+
+
+def flush_telemetry() -> None:
+    """Send any spans and log lines still waiting in memory (call before the program exits)."""
+    provider = trace.get_tracer_provider()
+    if isinstance(provider, TracerProvider):
+        provider.force_flush()
+    if _logger_provider is not None:
+        _logger_provider.force_flush()
+
+
+def add_request_id(app: FastAPI) -> None:
+    """Give every request a fresh ID, put it in the X-Request-ID header, and log one line."""
+
+    @app.middleware("http")
+    async def request_id_middleware(request: Request, call_next):
+        # We always make our own ID; a client-sent one could be fake or contain anything.
+        token = request_id_var.set(uuid4().hex)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id_var.get()
+            # Written inside the request span, so this line has both IDs.
+            logger.info(
+                "request finished",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                },
+            )
+            return response
+        finally:
+            request_id_var.reset(token)
