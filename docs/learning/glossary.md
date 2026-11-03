@@ -45,7 +45,7 @@ Plain-word meanings. Newest terms at the bottom.
 - **Required check** - A CI check that must be green before GitHub allows a merge.
 - **Pull request (PR)** - A request to merge one branch into another. CI runs on it.
 - **Fork** - A copy of a repo owned by someone else. A fork PR always gets a read-only token.
-- **GITHUB_TOKEN** - The temporary key a workflow gets. We keep it read-only, except in the `build` job on `main`.
+- **GITHUB_TOKEN** - The temporary key a workflow gets. The `build` job gets a token that can write packages, on `main` and on PRs from this repo. It logs in and pushes only on a push to `main`. Fork PRs always get a read-only token.
 - **Container image** - A saved package of a program and everything it needs. Docker starts containers from it.
 - **Multi-arch image** - One image name that works on two chip types: amd64 (most PCs) and arm64 (Apple chips, some servers).
 - **GHCR** - GitHub Container Registry, `ghcr.io`. The place where we store our images.

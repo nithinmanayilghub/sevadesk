@@ -10,7 +10,8 @@ on:
     branches: [main]
 
 # A new push to a PR branch cancels the older run that is still going.
-# Runs on main are never cancelled, so every merged commit gets its images.
+# A run on main is never stopped once it starts.
+# If several merges queue up, GitHub keeps only the newest waiting run.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
