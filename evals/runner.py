@@ -23,9 +23,9 @@ def load_json(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise BadInput(f"file not found: {path}")
+        raise BadInput(f"file not found: {path}") from None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise BadInput(f"cannot read {path}: {error}")
+        raise BadInput(f"cannot read {path}: {error}") from error
 
 
 def validate(dataset: object, dataset_path: Path, baseline: object, baseline_path: Path) -> None:

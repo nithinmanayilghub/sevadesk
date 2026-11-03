@@ -60,3 +60,25 @@ docker compose -f infra/compose/docker-compose.yml start worker
 ```
 
 Same idea with `stop valkey` and `/api/health` (503 naming `redis`).
+
+## CI (checks on every pull request)
+
+GitHub Actions runs `.github/workflows/ci.yml` on every pull request to `main`, and again after each merge. The four jobs run in order. If one fails, the later jobs do not run, and GitHub blocks the merge.
+
+| Job | What it checks | Run it yourself (WSL, repo root) |
+|---|---|---|
+| `lint` | Python style (ruff), module import rules (import-linter), frontend style and types | `uv run --project backend ruff check .` · `uv run --project backend ruff format --check .` · `cd backend && uv run lint-imports` · `cd frontend && npm run lint && npm run typecheck` |
+| `test` | All tests, coverage ≥ 80%, one Alembic head, migrations undo cleanly, API client matches the API | `cd backend && uv run pytest --cov` · `uv run --project backend pytest evals/tests --cov --cov-config=evals/.coveragerc` · `cd frontend && npm test` |
+| `eval` | The AI quality score is not below the baseline | `uv run --project backend python -m evals.runner` |
+| `build` | Docker images build for `amd64` and `arm64`; on `main` they are pushed to `ghcr.io/nithinmanayilghub/sevadesk-*` | `docker compose -f infra/compose/docker-compose.yml build` |
+
+Fix style problems automatically with `uv run --project backend ruff format .` and `uv run --project backend ruff check --fix .`.
+
+**How a story reaches `main`:** nobody can push to `main` directly, not even the owner. Push the story branch, open a pull request, wait for four green checks, then merge:
+
+```bash
+git push -u origin story/<id>
+gh pr create --base main --fill
+gh pr checks --watch
+gh pr merge --merge --delete-branch
+```

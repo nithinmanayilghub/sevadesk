@@ -1,0 +1,11 @@
+# Ruff config for the whole repo (backend + evals).
+target-version = "py314"
+line-length = 120
+# _bmad is third-party BMAD tooling, not our code.
+extend-exclude = ["_bmad", "_bmad-output", "docs"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[lint.isort]
+known-first-party = ["app", "evals"]

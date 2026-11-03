@@ -1,6 +1,6 @@
 # Builds the backend image: installs locked dependencies, runs migrations, then starts the API.
 FROM python:3.14-slim
-COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
 
 WORKDIR /app
 # Install only locked, non-dev dependencies (this layer is cached until the lock changes).

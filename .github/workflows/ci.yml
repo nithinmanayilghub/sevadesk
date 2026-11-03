@@ -1,0 +1,167 @@
+# CI: runs on every pull request and every push to main.
+# Four jobs run one after another: lint -> test -> eval -> build.
+# If one job fails, the next ones do not run, and the PR cannot be merged.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A new push to a PR branch cancels the older run that is still going.
+# A run on main is never stopped once it starts.
+# If several merges queue up, GitHub keeps only the newest waiting run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every job can only READ the code by default. Only the build job asks for more.
+permissions:
+  contents: read
+
+env:
+  # uv must use uv.lock exactly as written (never silently change it).
+  UV_FROZEN: "1"
+
+jobs:
+  # Job 1: style and rule checks. No tests yet. This is the fastest job.
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.6"
+          # Must match backend/.python-version.
+          python-version: "3.14"
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Python dependencies
+        run: uv sync --project backend --frozen
+      - name: Ruff lint (backend and evals)
+        run: uv run --project backend ruff check .
+      - name: Ruff format check
+        run: uv run --project backend ruff format --check .
+      - name: Import rules (import-linter)
+        working-directory: backend
+        run: uv run lint-imports
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+      - name: TypeScript check
+        working-directory: frontend
+        run: npm run typecheck
+
+  # Job 2: all tests, with a coverage minimum of 80 percent.
+  # Also checks that the frontend API types match the backend (OpenAPI drift).
+  test:
+    name: test
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.6"
+          # Must match backend/.python-version.
+          python-version: "3.14"
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Python dependencies
+        run: uv sync --project backend --frozen
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      # Testcontainers starts Postgres and Valkey using the runner's Docker.
+      - name: Backend tests (coverage gate)
+        working-directory: backend
+        run: uv run pytest --cov
+      - name: Evals tests (coverage gate)
+        run: uv run --project backend pytest evals/tests --cov --cov-config=evals/.coveragerc
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+      # Regenerate the API description and the TypeScript types.
+      # If the committed files differ, someone forgot to regenerate them.
+      - name: OpenAPI drift check
+        run: |
+          cd backend
+          uv run python -m app.export_openapi ../frontend/openapi.json
+          cd ../frontend
+          npm run gen:api
+          git diff --exit-code -- openapi.json src/api/schema.d.ts
+
+  # Job 3: the quick eval set (the AI quality checks). It needs no secrets.
+  eval:
+    name: eval
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.6"
+          # Must match backend/.python-version.
+          python-version: "3.14"
+      - name: Install Python dependencies
+        run: uv sync --project backend --frozen
+      - name: Run the eval smoke set
+        run: uv run --project backend python -m evals.runner
+
+  # Job 4: build the Docker images for amd64 and arm64.
+  # On a pull request the images are only built (a test). On a push to main
+  # they are also pushed to ghcr.io. This is the only job allowed to write.
+  build:
+    name: build
+    needs: eval
+    runs-on: ubuntu-latest
+    # Fork PRs always get a read-only token from GitHub. The login and push steps
+    # run only on a push to main. A PR from a branch in this same repo does get a
+    # write-capable token during the build: an accepted gap.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-qemu-action@v4.4.0
+      - uses: docker/setup-buildx-action@v4.4.1
+      - name: Log in to ghcr.io (only when pushing from main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The worker runs the same image as the backend (only the command differs),
+      # so we build once and tag the image with both names.
+      - name: Build backend and worker image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: backend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/nithinmanayilghub/sevadesk-backend:${{ github.sha }}
+            ghcr.io/nithinmanayilghub/sevadesk-worker:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+      - name: Build frontend image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: frontend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/nithinmanayilghub/sevadesk-frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
