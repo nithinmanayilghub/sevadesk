@@ -42,7 +42,7 @@ def test_ci_only_build_on_main_can_write_packages():
         assert "packages: write" not in _job_block(job)
     build = _job_block("build")
     assert "packages: write" in build
-    assert f"push: ${{{{ {PUSH_CONDITION} }}}}" in build
+    assert build.count(f"push: ${{{{ {PUSH_CONDITION} }}}}") == 2
     assert f"if: {PUSH_CONDITION}" in build  # the ghcr.io login step
 
 
