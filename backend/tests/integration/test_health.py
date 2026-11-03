@@ -22,7 +22,7 @@ def test_health_ok(client):
     # Behaviour: both reachable -> 200 and each dependency says ok.
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "ok", "redis": "ok"}
+    assert response.json() == {"status": "ok", "database": "ok", "redis": "ok","version": "test-1"}
 
 
 def test_health_database_down(client, monkeypatch):

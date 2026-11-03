@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.core.errors import AppError
 from app.core.health import check_database, check_redis, check_worker_heartbeat
+from app.core.settings import get_settings
 
 router = APIRouter(prefix="/api/health")
 
@@ -13,6 +14,7 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     redis: str
+    version: str
 
 
 @router.get("", operation_id="get_health")
@@ -26,7 +28,7 @@ def get_health() -> HealthResponse:
             message="Not reachable: " + ", ".join(failing),
             status_code=503,
         )
-    return HealthResponse(status="ok", database="ok", redis="ok")
+    return HealthResponse(status="ok", database="ok", redis="ok",version=get_settings().app_version)
 
 
 class WorkerHealthResponse(BaseModel):

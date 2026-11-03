@@ -75,13 +75,18 @@
           "redis": {
             "type": "string",
             "title": "Redis"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
           }
         },
         "type": "object",
         "required": [
           "status",
           "database",
-          "redis"
+          "redis",
+          "version"
         ],
         "title": "HealthResponse"
       },

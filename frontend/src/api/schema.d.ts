@@ -67,6 +67,8 @@ export interface components {
             database: string;
             /** Redis */
             redis: string;
+            /** Version */
+            version: string;
         };
         /** HelloResponse */
         HelloResponse: {
