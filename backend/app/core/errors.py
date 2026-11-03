@@ -1,4 +1,5 @@
-# The one error envelope: every API error looks like {"error": {"code", "message"}}.
+# The error envelope for errors we raise on purpose (AppError): {"error": {"code", "message"}}.
+# FastAPI's own 404/422/500 errors are not mapped yet.
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 

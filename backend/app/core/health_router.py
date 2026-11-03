@@ -1,4 +1,4 @@
-# The GET /api/health route: tells a load balancer or a person if the app can reach its dependencies.
+# The health routes: GET /api/health (Postgres + Valkey) and GET /api/health/worker (worker heartbeat).
 import redis
 from fastapi import APIRouter
 from pydantic import BaseModel

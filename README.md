@@ -48,7 +48,7 @@ Two URLs tell you if the stack is alive:
 - `GET http://localhost/api/health` checks Postgres and Valkey.
 - `GET http://localhost/api/health/worker` checks the background worker (it must have sent a heartbeat in the last 30 seconds).
 
-`200` means all good. `503` means something is down; the body names it (`dependency_unavailable`, or `worker_unavailable` for the worker).
+`200` means all good. `503` means something is down; the body's `code` says what kind of failure it is, and its `message` names the part (for example `Not reachable: redis`).
 
 See a 503 yourself:
 

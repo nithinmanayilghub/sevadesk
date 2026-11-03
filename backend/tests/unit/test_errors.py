@@ -1,4 +1,5 @@
-# Unit test for the one error envelope that every API error uses.
+# Unit test for the error envelope of AppError: {"error": {"code", "message"}}.
+# FastAPI's own 404/422/500 errors are not mapped yet.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
