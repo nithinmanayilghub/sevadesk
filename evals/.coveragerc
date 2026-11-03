@@ -1,0 +1,10 @@
+# Coverage config for the evals package: run from the repo root.
+[run]
+source = evals
+omit = evals/tests/*
+
+[report]
+fail_under = 80
+show_missing = true
+exclude_also =
+    if __name__ == .__main__.:

@@ -19,3 +19,6 @@ node_modules/
 
 # Eval run results (outputs, not source)
 evals/results/
+
+# Coverage data files
+.coverage
