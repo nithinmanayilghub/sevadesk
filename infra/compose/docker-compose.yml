@@ -16,6 +16,11 @@ services:
 
   valkey:
     image: valkey/valkey:9.0
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   backend:
     build:
@@ -24,8 +29,33 @@ services:
         APP_VERSION: ${APP_VERSION:-dev}
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-seva}:${POSTGRES_PASSWORD:-seva}@postgres:5432/${POSTGRES_DB:-seva}
+      REDIS_URL: redis://valkey:6379/0
     depends_on:
       postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    # Healthy only when /api/health answers 200 (database and Valkey both reachable).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Background worker (SAQ). Same image as the backend, different command.
+  worker:
+    build:
+      context: ../../backend
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    command: ["saq", "app.worker.settings"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-seva}:${POSTGRES_PASSWORD:-seva}@postgres:5432/${POSTGRES_DB:-seva}
+      REDIS_URL: redis://valkey:6379/0
+    depends_on:
+      # The backend runs the migrations first, so wait until it is healthy.
+      backend:
         condition: service_healthy
 
   frontend:
@@ -39,8 +69,10 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
 
 volumes:
   postgres_data:

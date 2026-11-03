@@ -40,3 +40,23 @@ uv run python -m app.export_openapi ../frontend/openapi.json
 cd ../frontend
 npm run gen:api
 ```
+
+## Health checks
+
+Two URLs tell you if the stack is alive:
+
+- `GET http://localhost/api/health` checks Postgres and Valkey.
+- `GET http://localhost/api/health/worker` checks the background worker (it must have sent a heartbeat in the last 30 seconds).
+
+`200` means all good. `503` means something is down; the body names it (`dependency_unavailable`, or `worker_unavailable` for the worker).
+
+See a 503 yourself:
+
+```bash
+docker compose -f infra/compose/docker-compose.yml stop worker
+# wait about 35 seconds
+curl -si http://localhost/api/health/worker   # 503 worker_unavailable
+docker compose -f infra/compose/docker-compose.yml start worker
+```
+
+Same idea with `stop valkey` and `/api/health` (503 naming `redis`).
