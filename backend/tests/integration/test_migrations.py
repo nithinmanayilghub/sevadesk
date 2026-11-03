@@ -3,9 +3,9 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
+from tests.integration.conftest import ALEMBIC_INI
 
 from app.core.db import get_engine
-from tests.integration.conftest import ALEMBIC_INI
 
 
 def test_alembic_has_one_head():
