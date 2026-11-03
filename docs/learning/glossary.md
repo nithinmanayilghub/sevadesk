@@ -15,3 +15,12 @@ Plain-word meanings. Newest terms at the bottom.
 - **FastAPI** - A Python framework for building web APIs. It also writes the OpenAPI description for us.
 - **Postgres** - Our database. It stores data in tables and keeps it safe, even if the app restarts.
 - **Docker** - A tool that runs programs in sealed boxes called containers. Each box has everything the program needs, so it runs the same on every computer.
+- **Health check** - A small test that asks a program, "Can you do your job now?" It answers yes or no.
+- **Readiness** - A program is ready when it runs and its dependencies (database, cache) answer. Compose `service_healthy` waits for this.
+- **Heartbeat** - A signal a program sends again and again to show it is alive. If the signal stops, the program is probably dead.
+- **TTL** - Time to live. A stored key deletes itself after this time. Our worker heartbeat has a TTL of 30 s.
+- **Cron** - A rule that runs a job on a schedule. Ours runs the heartbeat every 10 s.
+- **SAQ** - Simple Async Queue. A Python tool that runs background jobs from a queue. Our worker uses it.
+- **Valkey / Redis** - A fast store that keeps data in memory. We use it for queues and the heartbeat. Valkey is the open-source copy of Redis; they speak the same protocol.
+- **Error envelope** - One fixed shape for every API error: `{"error": {"code", "message"}}`.
+- **503** - HTTP status "Service Unavailable". The API runs, but something it needs does not work.
