@@ -11,6 +11,8 @@ from evals.scoring import compare_to_baseline, score_checks
 
 EVALS_DIR = Path(__file__).resolve().parent
 NAME_WIDTH = 19  # column width for check names in the printed table
+# Every case needs these fields: the runner sends "message", and the checks read "expected_contains".
+REQUIRED_CASE_FIELDS = ("id", "message", "expected_contains")
 
 
 class BadInput(Exception):
@@ -22,8 +24,34 @@ def load_json(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise BadInput(f"file not found: {path}")
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise BadInput(f"cannot read {path}: {error}")
+
+
+def validate(dataset: object, dataset_path: Path, baseline: object, baseline_path: Path) -> None:
+    # Check the shape of both files before we use them, so a broken file gives a clear
+    # message (exit 2) instead of a crash somewhere in the middle of the run.
+    if not isinstance(dataset, dict):
+        raise BadInput(f"dataset must be a JSON object: {dataset_path}")
+    for field in ("name", "version"):
+        if not isinstance(dataset.get(field), str):
+            raise BadInput(f'dataset needs a text field "{field}": {dataset_path}')
+    cases = dataset.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise BadInput(f"dataset has no cases (cases must be a non-empty list): {dataset_path}")
+    for index, case in enumerate(cases):
+        if not isinstance(case, dict):
+            raise BadInput(f"case {index} must be a JSON object: {dataset_path}")
+        missing = [field for field in REQUIRED_CASE_FIELDS if not isinstance(case.get(field), str)]
+        if missing:
+            raise BadInput(f"case {case.get('id', index)} is missing {', '.join(missing)}: {dataset_path}")
+
+    if not isinstance(baseline, dict) or not isinstance(baseline.get("scores"), dict):
+        raise BadInput(f'baseline needs a "scores" object: {baseline_path}')
+    for name, score in baseline["scores"].items():
+        # bool is a kind of int in Python, so rule it out on purpose.
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            raise BadInput(f'baseline score for "{name}" must be a number: {baseline_path}')
 
 
 def run_cases(cases: list[dict]) -> list[dict[str, bool]]:
@@ -42,21 +70,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default=EVALS_DIR / "results" / "latest.json", type=Path)
     args = parser.parse_args(argv)
 
+    # Only file problems are caught here. A bug inside the Agent or a check keeps its
+    # real error message, so it is never mistaken for a bad input file.
     try:
         dataset = load_json(args.dataset)
         baseline = load_json(args.baseline)
-        cases = dataset.get("cases") or []
-        if not cases:
-            raise BadInput(f"dataset has no cases: {args.dataset}")
-        scores = score_checks(run_cases(cases))
-        baseline_scores = baseline["scores"]
-    except KeyError as error:
-        print(f"ERROR: missing field {error} in the dataset or baseline file")
-        return 2
+        validate(dataset, args.dataset, baseline, args.baseline)
     except BadInput as error:
         print(f"ERROR: {error}")
         return 2
 
+    scores = score_checks(run_cases(dataset["cases"]))
+    baseline_scores = baseline["scores"]
     failures = compare_to_baseline(scores, baseline_scores)
 
     # Print one line per check, then any failures, then PASS or FAIL.
