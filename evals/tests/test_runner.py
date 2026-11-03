@@ -19,7 +19,7 @@ def test_runner_passes_on_placeholder(tmp_path):
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["prompt_version"] == "placeholder-v1"
     assert result["dataset_version"] == "1"
-    assert result["scores"] == {"reply_not_empty": 1.0, "contains_expected": 1.0}
+    assert result["scores"] == {"reply_not_empty": 1.0, "contains_expected": 1.0,"reply_is_short":1.0}
     assert result["passed"] is True
 
 
