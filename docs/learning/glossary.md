@@ -32,3 +32,21 @@ Plain-word meanings. Newest terms at the bottom.
 - **Golden Dataset** - The reviewed set of test cases that the Evals use. Today it has one placeholder case; Epic 7 adds 30 real ones.
 - **Exit code** - The number a program gives back when it ends. `0` means ok; any other number means a problem. CI reads it.
 - **Placeholder** - A simple stand-in for something that does not exist yet.
+- **CI** - Continuous Integration. A robot that runs your checks on every change, on a clean machine.
+- **Pipeline / Job / Step** - A pipeline is the whole CI run. A job is one stage of it. A step is one command inside a job.
+- **Lint** - A tool reads your code and warns about style problems and common bugs. Ours: ruff (Python) and ESLint (frontend).
+- **Formatter** - A tool that only changes how code looks (spaces, line breaks). It does not change what the code does.
+- **Import contract** - A rule about which files may import which. Ours: `app.core` must not import the entry points.
+- **Coverage** - The share of code lines that tests run. Our backend must stay at 80% or more.
+- **Alembic head** - The newest migration. The repo must have exactly one.
+- **Downgrade** - A migration step that undoes an upgrade. We test that the database can go to empty and back.
+- **OpenAPI drift** - The API changed, but the saved `openapi.json` and frontend types did not. CI fails when this happens.
+- **Branch protection** - GitHub rules on a branch, such as "checks must pass before a merge" and "no force pushes".
+- **Required check** - A CI check that must be green before GitHub allows a merge.
+- **Pull request (PR)** - A request to merge one branch into another. CI runs on it.
+- **Fork** - A copy of a repo owned by someone else. A fork PR always gets a read-only token.
+- **GITHUB_TOKEN** - The temporary key a workflow gets. We keep it read-only, except in the `build` job on `main`.
+- **Container image** - A saved package of a program and everything it needs. Docker starts containers from it.
+- **Multi-arch image** - One image name that works on two chip types: amd64 (most PCs) and arm64 (Apple chips, some servers).
+- **GHCR** - GitHub Container Registry, `ghcr.io`. The place where we store our images.
+- **QEMU** - An emulator. It lets an amd64 machine build the arm64 image.
