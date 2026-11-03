@@ -44,3 +44,10 @@ def test_ci_only_build_on_main_can_write_packages():
     assert "packages: write" in build
     assert f"push: ${{{{ {PUSH_CONDITION} }}}}" in build
     assert f"if: {PUSH_CONDITION}" in build  # the ghcr.io login step
+
+
+# Behaviour: every setup-uv step pins Python 3.14 with a real input (not an ignored one).
+def test_ci_pins_python_version():
+    text = _text()
+    assert "python-version-file" not in text
+    assert text.count('python-version: "3.14"') == text.count("astral-sh/setup-uv@") == 3

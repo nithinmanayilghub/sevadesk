@@ -9,10 +9,11 @@ on:
   push:
     branches: [main]
 
-# A new push to the same branch cancels the older run that is still going.
+# A new push to a PR branch cancels the older run that is still going.
+# Runs on main are never cancelled, so every merged commit gets its images.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Every job can only READ the code by default. Only the build job asks for more.
 permissions:
@@ -32,7 +33,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.13.6"
-          python-version-file: backend/.python-version
+          # Must match backend/.python-version.
+          python-version: "3.14"
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
@@ -68,7 +70,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.13.6"
-          python-version-file: backend/.python-version
+          # Must match backend/.python-version.
+          python-version: "3.14"
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
@@ -108,7 +111,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.13.6"
-          python-version-file: backend/.python-version
+          # Must match backend/.python-version.
+          python-version: "3.14"
       - name: Install Python dependencies
         run: uv sync --project backend --frozen
       - name: Run the eval smoke set
@@ -121,6 +125,9 @@ jobs:
     name: build
     needs: eval
     runs-on: ubuntu-latest
+    # Fork PRs always get a read-only token from GitHub. The login and push steps
+    # run only on a push to main. A PR from a branch in this same repo does get a
+    # write-capable token during the build: an accepted gap.
     permissions:
       contents: read
       packages: write
