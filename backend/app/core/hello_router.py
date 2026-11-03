@@ -14,7 +14,7 @@ class HelloResponse(BaseModel):
     version: str
 
 
-@router.get("/hello", operation_id="get_hello")
+@router.get("/hello", operation_id="get_hello_proof")
 def get_hello(session: SessionDep) -> HelloResponse:
     return HelloResponse(
         message=get_hello_value(session),
