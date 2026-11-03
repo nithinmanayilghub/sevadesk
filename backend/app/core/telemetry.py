@@ -6,13 +6,14 @@ import logging
 import os
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from opentelemetry import trace
+from opentelemetry import propagate, trace
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -211,3 +212,18 @@ def add_request_id(app: FastAPI) -> None:
             return response
         finally:
             request_id_var.reset(token)
+
+
+@contextmanager
+def job_span(name: str, traceparent: str | None, request_id: str | None) -> Iterator[None]:
+    """Run a worker job inside a span that continues the trace named by traceparent."""
+    # extract() reads the text label back into a "parent" context. No label = a new trace.
+    parent = propagate.extract({"traceparent": traceparent} if traceparent else {})
+    token = request_id_var.set(request_id)
+    try:
+        tracer = trace.get_tracer(__name__)
+        # CONSUMER = this span handles a message that someone else sent.
+        with tracer.start_as_current_span(name, context=parent, kind=trace.SpanKind.CONSUMER):
+            yield
+    finally:
+        request_id_var.reset(token)
