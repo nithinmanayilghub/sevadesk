@@ -10,9 +10,7 @@ from app.core.settings import get_settings
 
 async def write_heartbeat(ctx: dict) -> None:
     # Store the current time; the key expires on its own if the worker stops.
-    await ctx["redis"].set(
-        HEARTBEAT_KEY, datetime.now(UTC).isoformat(), ex=HEARTBEAT_TTL_SECONDS
-    )
+    await ctx["redis"].set(HEARTBEAT_KEY, datetime.now(UTC).isoformat(), ex=HEARTBEAT_TTL_SECONDS)
 
 
 async def startup(ctx: dict) -> None:

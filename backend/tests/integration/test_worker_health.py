@@ -5,9 +5,9 @@ import asyncio
 
 import redis.asyncio
 
+from app.core.db import get_engine
 from app.core.health import HEARTBEAT_KEY
 from app.core.redis_client import get_redis
-from app.core.db import get_engine
 from app.core.settings import get_settings
 
 BAD_REDIS = "redis://127.0.0.1:1/0"  # port 1 refuses at once
@@ -73,9 +73,7 @@ def test_worker_health_503_when_redis_down(client, monkeypatch):
     clear_caches()
     response = client.get("/api/health/worker")
     assert response.status_code == 503
-    assert response.json() == {
-        "error": {"code": "dependency_unavailable", "message": "Not reachable: redis"}
-    }
+    assert response.json() == {"error": {"code": "dependency_unavailable", "message": "Not reachable: redis"}}
 
 
 def test_worker_settings_schedule_heartbeat(client):

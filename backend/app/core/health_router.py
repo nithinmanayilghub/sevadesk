@@ -28,7 +28,7 @@ def get_health() -> HealthResponse:
             message="Not reachable: " + ", ".join(failing),
             status_code=503,
         )
-    return HealthResponse(status="ok", database="ok", redis="ok",version=get_settings().app_version)
+    return HealthResponse(status="ok", database="ok", redis="ok", version=get_settings().app_version)
 
 
 class WorkerHealthResponse(BaseModel):
@@ -39,12 +39,12 @@ class WorkerHealthResponse(BaseModel):
 def get_worker_health() -> WorkerHealthResponse:
     try:
         alive = check_worker_heartbeat()
-    except redis.RedisError:
+    except redis.RedisError as error:
         raise AppError(
             code="dependency_unavailable",
             message="Not reachable: redis",
             status_code=503,
-        )
+        ) from error
     if not alive:
         raise AppError(
             code="worker_unavailable",

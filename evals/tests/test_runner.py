@@ -19,7 +19,7 @@ def test_runner_passes_on_placeholder(tmp_path):
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["prompt_version"] == "placeholder-v1"
     assert result["dataset_version"] == "1"
-    assert result["scores"] == {"reply_not_empty": 1.0, "contains_expected": 1.0,"reply_is_short":1.0}
+    assert result["scores"] == {"reply_not_empty": 1.0, "contains_expected": 1.0, "reply_is_short": 1.0}
     assert result["passed"] is True
 
 
@@ -34,10 +34,14 @@ def test_runner_prints_score_per_check(tmp_path, capsys):
 
 def test_runner_fails_below_baseline(tmp_path, capsys):
     # Behaviour: a score below the baseline exits 1, so CI can fail on it.
-    dataset = write_json(tmp_path / "d.json", {
-        "name": "placeholder", "version": "1",
-        "cases": [{"id": "x", "message": "Hello", "expected_contains": "booking"}],
-    })
+    dataset = write_json(
+        tmp_path / "d.json",
+        {
+            "name": "placeholder",
+            "version": "1",
+            "cases": [{"id": "x", "message": "Hello", "expected_contains": "booking"}],
+        },
+    )
     out = tmp_path / "r.json"
     assert main(["--dataset", dataset, "--out", str(out)]) == 1
     output = capsys.readouterr().out
@@ -54,7 +58,8 @@ def test_runner_rejects_empty_dataset(tmp_path, capsys):
 
 
 GOOD_DATASET = {
-    "name": "placeholder", "version": "1",
+    "name": "placeholder",
+    "version": "1",
     "cases": [{"id": "greeting-en", "message": "Hello", "expected_contains": "namaste"}],
 }
 GOOD_BASELINE = {"dataset": "placeholder", "scores": {"reply_not_empty": 1.0, "contains_expected": 1.0}}
@@ -69,7 +74,10 @@ GOOD_BASELINE = {"dataset": "placeholder", "scores": {"reply_not_empty": 1.0, "c
         ("dataset", ["not", "an", "object"]),  # dataset is a list
         ("dataset", {"name": "placeholder", "cases": GOOD_DATASET["cases"]}),  # version is missing
         ("dataset", {"name": "placeholder", "version": "1", "cases": "Hello"}),  # cases is not a list
-        ("dataset", {"name": "placeholder", "version": "1", "cases": [{"id": "x", "message": "Hello"}]}),  # case field missing
+        (
+            "dataset",
+            {"name": "placeholder", "version": "1", "cases": [{"id": "x", "message": "Hello"}]},
+        ),  # case field missing
     ],
 )
 def test_runner_rejects_malformed_file(tmp_path, capsys, which, content):
