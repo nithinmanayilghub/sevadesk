@@ -25,3 +25,10 @@ Plain-word meanings. Newest terms at the bottom.
 - **Error envelope** - One fixed shape for every error we raise on purpose (an `AppError`): `{"error": {"code", "message"}}`. FastAPI's own 422 and 500 errors do not use it yet.
 - **503** - HTTP status "Service Unavailable". The API runs, but something it needs does not work.
 - **Worker** - A second program that runs beside the website. It does slow jobs in the background (for example, asking the AI for a reply), so the website can answer people fast.
+- **Eval** - An automated exam for the AI Agent. It gives the Agent fixed test messages and checks each reply in code.
+- **Check** - A small piece of code that looks at one reply and says pass or fail.
+- **Score** - The share of cases that passed one check, from 0.00 to 1.00.
+- **Baseline** - The best scores so far, saved in `evals/baseline.json`. A score below it fails the eval.
+- **Golden Dataset** - The reviewed set of test cases that the Evals use. Today it has one placeholder case; Epic 7 adds 30 real ones.
+- **Exit code** - The number a program gives back when it ends. `0` means ok; any other number means a problem. CI reads it.
+- **Placeholder** - A simple stand-in for something that does not exist yet.
