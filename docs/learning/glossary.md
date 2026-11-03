@@ -24,3 +24,4 @@ Plain-word meanings. Newest terms at the bottom.
 - **Valkey / Redis** - A fast store that keeps data in memory. We use it for queues and the heartbeat. Valkey is the open-source copy of Redis; they speak the same protocol.
 - **Error envelope** - One fixed shape for every error we raise on purpose (an `AppError`): `{"error": {"code", "message"}}`. FastAPI's own 422 and 500 errors do not use it yet.
 - **503** - HTTP status "Service Unavailable". The API runs, but something it needs does not work.
+- **Worker** - A second program that runs beside the website. It does slow jobs in the background (for example, asking the AI for a reply), so the website can answer people fast.
