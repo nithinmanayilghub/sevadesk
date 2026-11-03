@@ -16,3 +16,6 @@ __pycache__/
 .pytest_cache/
 node_modules/
 .next/
+
+# Eval run results (outputs, not source)
+evals/results/

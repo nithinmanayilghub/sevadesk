@@ -1,0 +1,7 @@
+{
+  "name": "placeholder",
+  "version": "1",
+  "cases": [
+    {"id": "greeting-en", "message": "Hello", "expected_contains": "namaste"}
+  ]
+}

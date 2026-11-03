@@ -1,0 +1,7 @@
+{
+  "dataset": "placeholder",
+  "scores": {
+    "reply_not_empty": 1.0,
+    "contains_expected": 1.0
+  }
+}
