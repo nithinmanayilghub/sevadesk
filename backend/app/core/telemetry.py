@@ -23,6 +23,7 @@ from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import Event, ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, SpanExportResult
+from opentelemetry.trace import Status
 
 from app.core.masking import mask
 
@@ -42,6 +43,10 @@ _STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) 
 _LIBRARY_LOGGERS = ("uvicorn", "uvicorn.error", "saq")
 
 
+# Turns an exception into the usual "Traceback (most recent call last): ..." text.
+_TRACEBACK_FORMATTER = logging.Formatter()
+
+
 def _extras(record: logging.LogRecord) -> dict:
     return {k: v for k, v in record.__dict__.items() if k not in _STANDARD_ATTRS}
 
@@ -53,8 +58,18 @@ class MaskingFilter(logging.Filter):
         # getMessage() joins msg and args ("call %s" + "987...") so the masker sees the full text.
         record.msg = mask(record.getMessage())
         record.args = None
+        # Put the request ID on the record itself, so the OTLP export (Loki) has it too.
+        record.request_id = request_id_var.get()
         for key, value in _extras(record).items():
             setattr(record, key, mask(value, key=key))
+        if record.exc_info:
+            # A stack trace can hold personal data. Turn it into masked text now, and remove
+            # the raw exception, so no handler (stdout or OTLP) can print the unmasked one.
+            record.exception = mask(_TRACEBACK_FORMATTER.formatException(record.exc_info))
+            record.exc_info = None
+            record.exc_text = None
+        if record.stack_info:
+            record.stack_info = mask(record.stack_info)
         return True  # never drop a line; only change it
 
 
@@ -73,11 +88,9 @@ class JsonFormatter(logging.Formatter):
             # Same hex format Grafana shows: 32 chars for trace, 16 for span.
             "trace_id": format(span_context.trace_id, "032x") if has_span else None,
             "span_id": format(span_context.span_id, "016x") if has_span else None,
+            # Extras include "exception" (masked stack trace text), set by MaskingFilter.
             **_extras(record),
         }
-        if record.exc_info:
-            # A stack trace can hold data too, so it is masked as well.
-            line["exception"] = mask(self.formatException(record.exc_info))
         return json.dumps(line, default=str, ensure_ascii=False)
 
 
@@ -132,7 +145,8 @@ class MaskingSpanExporter(SpanExporter):
                 ],
                 links=span.links,
                 kind=span.kind,
-                status=span.status,
+                # An error inside a span puts the error text here, e.g. "ValueError: bad phone ...".
+                status=Status(span.status.status_code, mask(span.status.description)),
                 start_time=span.start_time,
                 end_time=span.end_time,
                 instrumentation_scope=span.instrumentation_scope,
@@ -216,6 +230,14 @@ def add_request_id(app: FastAPI) -> None:
                 },
             )
             return response
+        except Exception:
+            # An unhandled error (a 500). Log it HERE, while the request ID and the span still
+            # exist, so the line you most need has both IDs. Then let FastAPI send the 500.
+            logger.exception(
+                "request failed",
+                extra={"method": request.method, "path": request.url.path},
+            )
+            raise
         finally:
             request_id_var.reset(token)
 

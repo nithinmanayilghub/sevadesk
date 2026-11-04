@@ -8,16 +8,18 @@ FIELD_PLACEHOLDER = "[MASKED]"
 # One digit: Latin 0-9 or Devanagari ०-९ (U+0966 to U+096F).
 # We list them on purpose; we do not use \d, which also matches many other scripts.
 _DIGIT = "[0-9०-९]"
+# A digit or an ASCII letter: used only to check the edges of a match.
+_DIGIT_OR_LETTER = "[0-9०-९A-Za-z]"
 
-# A phone number is:
-#   (?<!DIGIT)          - not stuck to a digit on the left
+# A phone number is (letters next to it mean it is part of an ID, like a hex request ID):
+#   (?<!DIGIT|LETTER)   - not stuck to a digit or an ASCII letter on the left
 #   \+?                 - an optional "+" (as in +91)
 #   DIGIT(?:[ -]?DIGIT){9,12}
 #                       - 10 to 13 digits; one space or hyphen may sit between two digits
-#   (?!DIGIT)           - not stuck to a digit on the right
+#   (?!DIGIT|LETTER)    - not stuck to a digit or an ASCII letter on the right
 # 10 digits = a mobile number; up to 13 covers +91, a leading 0, and landlines with an STD code.
 # Shorter numbers (dates, PIN codes, counts) are left alone.
-_PHONE_RE = re.compile(rf"(?<!{_DIGIT})\+?{_DIGIT}(?:[ -]?{_DIGIT}){{9,12}}(?!{_DIGIT})")
+_PHONE_RE = re.compile(rf"(?<!{_DIGIT_OR_LETTER})\+?{_DIGIT}(?:[ -]?{_DIGIT}){{9,12}}(?!{_DIGIT_OR_LETTER})")
 
 
 def mask(value: object, key: str | None = None) -> object:

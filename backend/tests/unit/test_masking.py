@@ -42,3 +42,9 @@ def test_mask_nested_structures():
 
 def test_mask_keeps_tuple_type():
     assert mask(("ring 9876543210", 5)) == ("ring [PHONE]", 5)
+
+
+def test_mask_leaves_hex_ids():
+    # Digits inside an ID (letters on either side) are not a phone number.
+    assert mask("id 3f9876543210ab") == "id 3f9876543210ab"
+    assert mask("ref:9876543210") == "ref:[PHONE]"
