@@ -1,0 +1,15 @@
+# Demo front door. The site address is the domain, so Caddy gets a free TLS certificate
+# (Let's Encrypt) on its own and redirects http to https. DEMO_DOMAIN comes from .env.
+# /api/* goes to the backend, everything else to the frontend (same rules as local).
+{$DEMO_DOMAIN} {
+	# Start (or join) a trace for every request and pass "traceparent" on to the backend.
+	tracing {
+		span "{http.request.method} {http.request.uri.path}"
+	}
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
