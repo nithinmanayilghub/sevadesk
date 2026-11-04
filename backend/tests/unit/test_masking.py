@@ -48,3 +48,9 @@ def test_mask_leaves_hex_ids():
     # Digits inside an ID (letters on either side) are not a phone number.
     assert mask("id 3f9876543210ab") == "id 3f9876543210ab"
     assert mask("ref:9876543210") == "ref:[PHONE]"
+
+
+def test_mask_phone_field_by_key():
+    assert mask(9876543210, key="customer_phone") == "[PHONE]"
+    assert mask("98765 43210", key="Phone") == "[PHONE]"
+    assert mask(None, key="phone") is None

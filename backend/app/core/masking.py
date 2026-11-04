@@ -1,5 +1,5 @@
 # The ONE masking function (AD-13, NFR-8). Logs, spans, and exports all pass through mask().
-# It hides Indian phone numbers in text, and the whole value of any field named like "address".
+# It hides Indian phone numbers in text, and the whole value of any field named like "address" or "phone".
 import re
 
 PHONE_PLACEHOLDER = "[PHONE]"
@@ -27,6 +27,9 @@ def mask(value: object, key: str | None = None) -> object:
     # A field named like "address" (e.g. "home_address") is hidden completely.
     if key is not None and "address" in key.lower() and value is not None:
         return FIELD_PLACEHOLDER
+    # A field named like "phone" (e.g. "customer_phone") is hidden completely, even a number.
+    if key is not None and "phone" in key.lower() and value is not None:
+        return PHONE_PLACEHOLDER
     if isinstance(value, str):
         return _PHONE_RE.sub(PHONE_PLACEHOLDER, value)
     if isinstance(value, dict):
