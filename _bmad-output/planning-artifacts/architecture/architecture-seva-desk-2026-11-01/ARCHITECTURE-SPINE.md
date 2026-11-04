@@ -306,6 +306,8 @@ flowchart TB
 - Operations: Grafana alerts on API error rate, worker health, and daily agent cost; AWS budget alert at $5; Anthropic monthly limit.
 - AWS: public subnets with strict security groups, no NAT Gateway; secrets in Secrets Manager; `terraform destroy` after each session. Demo secrets live in an env file on the server, outside Git.
 - Idle-cost guard: the worker polls Valkey, not Postgres; the expiry sweep runs hourly; polls with no change stop at Valkey (AD-7), so Neon can sleep when idle.
+- Oracle account: Pay-As-You-Go (decided 2026-11-04, AR-24). Still $0 inside Always Free limits; idle VMs are not reclaimed. Budget alert at $1.
+- Demo domain: `<ip-with-dashes>.sslip.io` (no DNS account; it changes if the VM IP changes).
 - Demo placement: the Neon region is the closest one to the Oracle VM region (both in or near India) to keep query round trips short. The demo Valkey container has AOF persistence on, so queued jobs survive a restart.
 
 ### Core entities
@@ -366,4 +368,4 @@ erDiagram
 
 ## Open Questions
 
-- **Oracle account tier** — upgrade to Pay-As-You-Go (still $0 inside free limits) so idle VMs are not reclaimed? Decide before the demo deploy story.
+- None open. (Oracle account tier: decided 2026-11-04, see Deployment & environments.)
