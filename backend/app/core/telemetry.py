@@ -39,7 +39,7 @@ _STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) 
 }
 
 # Loggers owned by libraries. We remove their own handlers so their lines reach our JSON handler.
-_LIBRARY_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access", "saq")
+_LIBRARY_LOGGERS = ("uvicorn", "uvicorn.error", "saq")
 
 
 def _extras(record: logging.LogRecord) -> dict:
@@ -97,6 +97,12 @@ def setup_logging() -> None:
         library_logger = logging.getLogger(name)
         library_logger.handlers.clear()
         library_logger.propagate = True
+
+    # Uvicorn's access line is off: our "request finished" line (with request_id) replaces it.
+    # Uvicorn writes access lines only if this logger has a handler somewhere, so we cut it off.
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.handlers.clear()
+    access_logger.propagate = False
 
 
 # ---------------------------------------------------------------- traces

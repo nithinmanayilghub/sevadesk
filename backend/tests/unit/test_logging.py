@@ -71,6 +71,16 @@ def test_extra_address_field_is_masked(read_lines):
 def test_uvicorn_loggers_use_root_json_handler(read_lines):
     setup_logging()  # second call: must not add a second handler
     assert len(logging.getLogger().handlers) == 1
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "saq"):
+    for name in ("uvicorn", "uvicorn.error", "saq"):
         assert logging.getLogger(name).handlers == []
         assert logging.getLogger(name).propagate is True
+
+
+def test_uvicorn_access_log_is_off(read_lines):
+    # Our "request finished" line replaces uvicorn's access line.
+    # (We do not assert hasHandlers(): pytest adds its own capture handlers to
+    # non-propagating loggers, so it is always True inside a test.)
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.info('127.0.0.1:1 - "GET / HTTP/1.1" 200')
+    assert access_logger.propagate is False
+    assert [line for line in read_lines() if line["logger"] == "uvicorn.access"] == []
