@@ -50,3 +50,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **Multi-arch image** - One image name that works on two chip types: amd64 (most PCs) and arm64 (Apple chips, some servers).
 - **GHCR** - GitHub Container Registry, `ghcr.io`. The place where we store our images.
 - **QEMU** - An emulator. It lets an amd64 machine build the arm64 image.
+- **Span** - One timed step of work, like "the SQL query took 1 ms". It has a start time, a length, and notes (attributes).
+- **Trace** - The tree of spans for one request. All its spans share one trace ID, so tools can draw them as one picture.
+- **traceparent** - A short text label, like `00-<trace id>-<span id>-01`. It carries the trace ID from one program to the next, in an HTTP header or inside a job.
+- **Context propagation** - Passing the traceparent along, so the next program joins the same trace instead of starting a new one.
+- **OpenTelemetry (OTel)** - An open standard and set of libraries for traces, logs, and metrics. Many tools (Grafana, Datadog, …) accept it, so you can switch tools without changing code.
+- **OTLP** - The OpenTelemetry Protocol: the format OTel uses to send data. We send it over HTTP to port 4318.
+- **Exporter** - The part of the app that sends spans or logs out, to a collector or a tool.
+- **Collector** - A relay program. It receives telemetry from all apps and sends it to one destination, set by config.
+- **PII masking** - Hiding personal data (Personally Identifiable Information), like phone numbers and addresses, before it is stored or sent.
+- **Waterfall view** - The trace picture in Grafana. Each bar is a span: where it starts is when it began, its length is how long it took.
