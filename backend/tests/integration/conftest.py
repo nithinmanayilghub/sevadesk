@@ -5,12 +5,14 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.valkey import ValkeyContainer
 
 from app.core.db import get_engine
 from app.core.redis_client import get_redis
 from app.core.settings import get_settings
+from app.core.telemetry import add_span_exporter, flush_telemetry
 from app.main import app
 
 # alembic.ini lives in backend/, two folders above this file's folder.
@@ -35,6 +37,29 @@ def valkey():
 def redis_url(valkey) -> str:
     # redis-py does not accept the valkey:// scheme, so build redis:// ourselves.
     return f"redis://{valkey.get_host()}:{valkey.get_exposed_port()}/0"
+
+
+class SpanRecorder:
+    """Keeps every finished span in memory, so tests can check the trace."""
+
+    def __init__(self):
+        self.memory = InMemorySpanExporter()
+        # The same door every real exporter uses, so test spans are masked too.
+        add_span_exporter(self.memory)
+
+    def clear(self) -> None:
+        # Flush first: spans from earlier work (e.g. migrations) may still wait in the batch.
+        flush_telemetry()
+        self.memory.clear()
+
+    def finished(self) -> list:
+        flush_telemetry()  # the batch processor sends spans later; push them out now
+        return list(self.memory.get_finished_spans())
+
+
+@pytest.fixture(scope="session")
+def spans() -> SpanRecorder:
+    return SpanRecorder()
 
 
 @pytest.fixture

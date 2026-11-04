@@ -1,4 +1,6 @@
-# Runs the whole local stack: Caddy -> frontend/backend -> Postgres (+ Valkey). Only Caddy is exposed.
+# Runs the whole local stack: Caddy -> frontend/backend -> Postgres (+ Valkey, worker).
+# Telemetry: everything -> otel-collector -> local Grafana (lgtm), or Grafana Cloud via .env.
+# Exposed ports: Caddy (80) and the local Grafana UI (3001).
 services:
   postgres:
     image: postgres:18
@@ -30,6 +32,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-seva}:${POSTGRES_PASSWORD:-seva}@postgres:5432/${POSTGRES_DB:-seva}
       REDIS_URL: redis://valkey:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +56,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-seva}:${POSTGRES_PASSWORD:-seva}@postgres:5432/${POSTGRES_DB:-seva}
       REDIS_URL: redis://valkey:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       # The backend runs the migrations first, so wait until it is healthy.
       backend:
@@ -68,11 +72,31 @@ services:
       - "80:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      # Caddy 2.11 exports its spans over OTLP/HTTP (port 4318), like the backend and worker.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: sevadesk-caddy
     depends_on:
       backend:
         condition: service_healthy
       frontend:
         condition: service_started
+
+  # One relay for all telemetry. Change the destination in .env, not in code.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      OTLP_EXPORT_ENDPOINT: ${OTLP_EXPORT_ENDPOINT:-http://lgtm:4318}
+      OTLP_EXPORT_AUTH: ${OTLP_EXPORT_AUTH:-}
+
+  # Local Grafana with Tempo (traces) and Loki (logs) in one container. UI: http://localhost:3001
+  lgtm:
+    image: grafana/otel-lgtm:0.39.0
+    ports:
+      - "3001:3000"
 
 volumes:
   postgres_data:

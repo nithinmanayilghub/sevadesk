@@ -82,3 +82,17 @@ gh pr create --base main --fill
 gh pr checks --watch
 gh pr merge --merge --delete-branch
 ```
+
+## Observability (logs and traces)
+
+Every request makes one trace (a tree of timed steps for one request): Caddy → FastAPI → Postgres → the worker job. Every backend and worker log line is JSON with a `request_id` and a `trace_id`. Phone numbers and address fields are masked by `backend/app/core/masking.py` before anything leaves the app.
+
+Where the data goes:
+
+```
+backend, worker, Caddy  →  otel-collector  →  local Grafana (default)  or  Grafana Cloud
+```
+
+- Local: open http://localhost (to make a trace), then http://localhost:3001 → Explore → **Tempo** → Search → service `sevadesk-caddy`. Logs are under **Loki**.
+- Grafana Cloud: set `OTLP_EXPORT_ENDPOINT` and `OTLP_EXPORT_AUTH` in `infra/compose/.env` (see `.env.example`), then restart only the collector: `docker compose up -d otel-collector`. No code changes.
+- Backend logs in the terminal: `docker compose logs backend worker --tail 20`.

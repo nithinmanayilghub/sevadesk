@@ -1,5 +1,10 @@
 # Caddy is the single front door: /api/* goes to the backend, everything else to the frontend.
 :80 {
+	# Start (or join) a trace for every request and pass "traceparent" on to the backend.
+	# This is the first span of each trace. Exports to the collector, set by OTEL_* env vars.
+	tracing {
+		span "{http.request.method} {http.request.uri.path}"
+	}
 	handle /api/* {
 		reverse_proxy backend:8000
 	}

@@ -1,0 +1,28 @@
+# OpenTelemetry Collector: one relay for all telemetry. Apps and Caddy send here;
+# the collector forwards to ONE destination set by env vars (local Grafana or Grafana Cloud).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318 # HTTP: Caddy, backend, and worker send here
+
+processors:
+  batch: {} # group items before sending: fewer, bigger requests
+
+exporters:
+  otlp_http:
+    # Default: the local Grafana container. For Grafana Cloud, set both vars in infra/compose/.env.
+    endpoint: ${env:OTLP_EXPORT_ENDPOINT}
+    headers:
+      Authorization: ${env:OTLP_EXPORT_AUTH}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http]
