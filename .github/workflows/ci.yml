@@ -1,5 +1,5 @@
 # CI: runs on every pull request and every push to main.
-# Four jobs run one after another: lint -> test -> eval -> build.
+# Five jobs run one after another: lint -> test -> eval -> build -> deploy (deploy: main only).
 # If one job fails, the next ones do not run, and the PR cannot be merged.
 name: CI
 
@@ -143,17 +143,16 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # The worker runs the same image as the backend (only the command differs),
-      # so we build once and tag the image with both names.
-      - name: Build backend and worker image
+      # The worker runs this same image (only the command differs), so there is no worker image.
+      # APP_VERSION = the commit SHA, so /api/v1/hello shows exactly which commit is running.
+      - name: Build backend image (also used by the worker)
         uses: docker/build-push-action@v7.4.0
         with:
           context: backend
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: |
-            ghcr.io/nithinmanayilghub/sevadesk-backend:${{ github.sha }}
-            ghcr.io/nithinmanayilghub/sevadesk-worker:${{ github.sha }}
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: ghcr.io/nithinmanayilghub/sevadesk-backend:${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
       - name: Build frontend image
@@ -165,3 +164,41 @@ jobs:
           tags: ghcr.io/nithinmanayilghub/sevadesk-frontend:${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
+
+  # Job 5: put this commit on the demo server. Only after a green build on main, never on a PR.
+  # The server runs deploy.sh: pull -> migrate -> start. Then we check the public URL.
+  # Main runs never overlap (see "concurrency" at the top), so two deploys never race.
+  deploy:
+    name: deploy
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # The "demo" environment holds the SSH secrets; GitHub also lists each deploy there.
+    environment:
+      name: demo
+      url: https://${{ vars.DEMO_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # The private key lets us log in. known_hosts proves the server is really ours.
+      - name: Set up SSH
+        env:
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          DEMO_SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEMO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      # Copy the demo files from this commit, so the server always matches git.
+      - name: Copy demo files to the server
+        run: |
+          scp infra/demo/docker-compose.yml infra/demo/Caddyfile infra/demo/deploy.sh \
+            infra/compose/otel-collector.yaml ubuntu@${{ vars.DEMO_HOST }}:/opt/sevadesk/
+      - name: Deploy (migrate, then start the new version)
+        run: ssh ubuntu@${{ vars.DEMO_HOST }} /opt/sevadesk/deploy.sh ${{ github.sha }}
+      # The public check: the hello page must answer with THIS commit as its version.
+      - name: Check the public demo URL
+        run: |
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors \
+            https://${{ vars.DEMO_DOMAIN }}/api/v1/hello \
+            | jq -e --arg v "${{ github.sha }}" '.version == $v'

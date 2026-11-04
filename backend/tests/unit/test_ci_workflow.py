@@ -24,12 +24,13 @@ def test_ci_workflow_never_uses_pull_request_target():
     assert "pull_request_target" not in _text()
 
 
-# Behaviour: the four jobs exist and each one waits for the one before it.
+# Behaviour: the five jobs exist and each one waits for the one before it.
 def test_ci_jobs_run_in_order():
     assert "needs:" not in _job_block("lint")
     assert re.search(r"^    needs: lint$", _job_block("test"), re.M)
     assert re.search(r"^    needs: test$", _job_block("eval"), re.M)
     assert re.search(r"^    needs: eval$", _job_block("build"), re.M)
+    assert re.search(r"^    needs: build$", _job_block("deploy"), re.M)
 
 
 # Behaviour: only the build job can write packages, and it pushes only on main.
@@ -38,7 +39,7 @@ def test_ci_only_build_on_main_can_write_packages():
     top_level = text.split("\njobs:\n", 1)[0]
     assert re.search(r"^permissions:\n  contents: read$", top_level, re.M)
     assert "packages: write" not in top_level
-    for job in ("lint", "test", "eval"):
+    for job in ("lint", "test", "eval", "deploy"):
         assert "packages: write" not in _job_block(job)
     build = _job_block("build")
     assert "packages: write" in build
@@ -51,3 +52,26 @@ def test_ci_pins_python_version():
     text = _text()
     assert "python-version-file" not in text
     assert text.count('python-version: "3.14"') == text.count("astral-sh/setup-uv@") == 3
+
+
+# Behaviour: only a push to main, after a green build, can deploy. PRs never reach the secrets.
+def test_deploy_runs_only_on_main_after_build():
+    deploy = _job_block("deploy")
+    assert f"if: {PUSH_CONDITION}" in deploy
+    assert "name: demo" in deploy
+    # SSH must check the server's identity (known_hosts); never skip that check.
+    assert "StrictHostKeyChecking=no" not in _text()
+
+
+# Behaviour: the job deploys this exact commit, then checks the public URL reports it.
+def test_deploy_checks_the_public_url_for_this_commit():
+    deploy = _job_block("deploy")
+    assert "/opt/sevadesk/deploy.sh ${{ github.sha }}" in deploy
+    assert "/api/v1/hello" in deploy
+    assert ".version == $v" in deploy
+
+
+# Behaviour: the backend image reports its commit as its version; the worker reuses that image.
+def test_images_carry_the_commit_version():
+    assert "APP_VERSION=${{ github.sha }}" in _job_block("build")
+    assert "sevadesk-worker" not in _text()
