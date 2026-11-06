@@ -45,6 +45,7 @@ def test_deploy_runs_migration_before_starting_new_version(tmp_path):
         "IMAGE_TAG=abc123 compose pull",
         "IMAGE_TAG=abc123 compose run --rm --no-deps backend alembic upgrade head",
         "IMAGE_TAG=abc123 compose up -d --remove-orphans --wait --wait-timeout 180",
+        "IMAGE_TAG=abc123 image prune -f",
     ]
     assert "deployed abc123" in result.stdout
 

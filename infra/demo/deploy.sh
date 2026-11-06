@@ -34,4 +34,7 @@ fi
 #    and fails (non-zero exit) if one is not healthy within 180 seconds.
 docker compose up -d --remove-orphans --wait --wait-timeout 180
 
+# Delete images that no container uses, so the disk does not fill up.
+docker image prune -f
+
 echo "deployed $IMAGE_TAG"
