@@ -32,7 +32,17 @@ Compute → Instances → Create instance:
 - SSH keys: upload YOUR public key (for example `~/.ssh/id_ed25519.pub`).
 - Boot volume: 50 GB.
 
-"Out of capacity" error: try another availability domain, or try again later.
+"Out of capacity" error: Oracle has no free ARM space right now. Use the retry script instead of the web form.
+It needs the OCI CLI (`uv tool install oci-cli`, then `oci setup config`, then upload the public key in User settings → API keys).
+It also needs a VCN with a public subnet and an internet gateway (VCN wizard: "Create VCN with Internet Connectivity").
+
+```bash
+COMPARTMENT_ID=<tenancy OCID> AVAILABILITY_DOMAIN=<from: oci iam availability-domain list> \
+SUBNET_ID=<public subnet OCID> IMAGE_ID=<Ubuntu 24.04 aarch64 image OCID> \
+infra/demo/launch-vm.sh
+```
+
+It tries 4 OCPU / 24 GB, then 2 OCPU / 12 GB, every minute, until one works. It can take hours or days.
 
 Note the **public IP**. Your domain is that IP with dashes plus `.sslip.io`.
 Example: IP `140.238.1.2` → `140-238-1-2.sslip.io`.
