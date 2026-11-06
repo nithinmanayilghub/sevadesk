@@ -19,7 +19,7 @@ Do the parts in order. Never paste a password, token, or private key into a chat
 ### 1. Oracle account
 
 1. Sign up at cloud.oracle.com. Pick the **home region** with care: you cannot change it later, and free ARM VMs live only there. Pick **India South (Hyderabad)** or **India West (Mumbai)**.
-2. Billing → **Upgrade to Pay As You Go**. You stay at $0 while you use only Always Free resources. Oracle does not take back idle VMs on this tier.
+2. Stay on **Always Free** (decided 2026-11-06). Pay As You Go needs a ~₹10,000 temporary card hold. Risk: Oracle can take back an idle free VM; then make a new VM and run this runbook again.
 3. Billing → Budgets → **Create budget**: $1 per month, alert at 100% to your email. Any charge then sends you an email.
 
 ### 2. The VM

@@ -12,7 +12,7 @@
 
 ## User decisions (2026-11-04)
 
-- Oracle account: upgrade to **Pay-As-You-Go** (still $0 inside Always Free limits; idle VMs are not reclaimed). Add a budget alert.
+- Oracle account: ~~Pay-As-You-Go~~ → **Always Free** (changed 2026-11-06: the PAYG card hold was declined). Risk accepted: an idle free VM can be reclaimed. Budget alert $1 is set.
 - Domain: **sslip.io** — `DEMO_DOMAIN=<ip-with-dashes>.sslip.io` (example `140-238-1-2.sslip.io`). No DNS account.
 - Accounts: user has **no Oracle and no Neon account yet** → Task 4 is a step-by-step runbook the user follows.
 
