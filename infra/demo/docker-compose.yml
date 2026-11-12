@@ -1,4 +1,4 @@
-# The always-on demo stack on the Oracle VM. It lives in /opt/sevadesk/ on the server.
+# The always-on demo stack on the demo VM (a DigitalOcean droplet). It lives in /opt/sevadesk/ on the server.
 # It runs the images CI pushed for one commit (IMAGE_TAG, set by deploy.sh). It never builds.
 # Postgres is Neon (outside this VM). Secrets come from /opt/sevadesk/.env, which is not in git.
 # Internet -> Caddy (80/443, TLS) -> frontend / backend. Telemetry -> otel-collector -> Grafana Cloud.
