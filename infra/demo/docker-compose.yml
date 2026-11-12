@@ -1,0 +1,90 @@
+# The always-on demo stack on the demo VM (a DigitalOcean droplet). It lives in /opt/sevadesk/ on the server.
+# It runs the images CI pushed for one commit (IMAGE_TAG, set by deploy.sh). It never builds.
+# Postgres is Neon (outside this VM). Secrets come from /opt/sevadesk/.env, which is not in git.
+# Internet -> Caddy (80/443, TLS) -> frontend / backend. Telemetry -> otel-collector -> Grafana Cloud.
+
+# Shared by backend and worker: the same image, env, and restart rule (only the command differs).
+x-backend: &backend
+  image: ghcr.io/nithinmanayilghub/sevadesk-backend:${IMAGE_TAG:?IMAGE_TAG is set by deploy.sh}
+  restart: unless-stopped
+  environment:
+    DATABASE_URL: ${DATABASE_URL:?set in .env}
+    REDIS_URL: redis://valkey:6379/0
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+services:
+  valkey:
+    image: valkey/valkey:9.0
+    restart: unless-stopped
+    # AOF on: every change is written to disk, so queued jobs survive a restart.
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    <<: *backend
+    depends_on:
+      valkey:
+        condition: service_healthy
+    # Only checks that the API port answers. It does NOT call the database health route:
+    # a database query every few seconds would keep Neon awake all day (AR-22).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8000), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Background worker (SAQ). Same image as the backend, different command. Idle, it talks to Valkey only.
+  worker:
+    <<: *backend
+    command: ["saq", "app.worker.settings"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    image: ghcr.io/nithinmanayilghub/sevadesk-frontend:${IMAGE_TAG:?IMAGE_TAG is set by deploy.sh}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11.7
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # TLS certificates: keep them, or each restart asks Let's Encrypt again
+      - caddy_config:/config
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?set in .env}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: sevadesk-caddy
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  # Same collector config as local (copied here by CI). Here it always sends to Grafana Cloud.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      OTLP_EXPORT_ENDPOINT: ${OTLP_EXPORT_ENDPOINT:?set in .env}
+      OTLP_EXPORT_AUTH: ${OTLP_EXPORT_AUTH:?set in .env}
+
+volumes:
+  valkey_data:
+  caddy_data:
+  caddy_config:

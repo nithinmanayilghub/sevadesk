@@ -60,3 +60,19 @@ Plain-word meanings. Newest terms at the bottom.
 - **Collector** - A relay program. It receives telemetry from all apps and sends it to one destination, set by config.
 - **PII masking** - Hiding personal data (Personally Identifiable Information), like phone numbers and addresses, before it is stored or sent.
 - **Waterfall view** - The trace picture in Grafana. Each bar is a span: where it starts is when it began, its length is how long it took.
+- **VM (virtual machine)** - A rented computer in a data centre. One big server is split into pieces; each piece acts like its own computer. Our demo runs on one DigitalOcean droplet.
+- **SSH** - A safe way to log in to another computer over the internet and run commands there. It uses a key pair instead of a password.
+- **Key pair** - Two linked files. The private key stays secret with you. The public key goes to the other side. Together they prove who you are.
+- **Deploy key** - A key pair only for the CI deploy job. Its private half is a GitHub secret; its public half is on the VM.
+- **known_hosts** - A list of servers your SSH client trusts. It stops a fake server from pretending to be ours.
+- **GHCR** - GitHub Container Registry: GitHub's store for Docker images (`ghcr.io`).
+- **GitHub environment** - A named target (ours is `demo`) that holds its own secrets and variables and lists every deploy.
+- **sslip.io** - A free name service: `140-238-1-2.sslip.io` always points to IP `140.238.1.2`. It gives us a domain name, so Caddy can get an HTTPS certificate.
+- **AOF (append-only file)** - Valkey writes every change to a file on disk, so data survives a restart.
+- **Migrate first, then switch** - Deploy order: change the database, and only then start the new code. A failed migration leaves the old version running.
+- **`set -e`** - A shell setting: stop the script at the first command that fails.
+- **Out of capacity** - The cloud has no free space for the VM size you asked for right now. It is temporary; try again later.
+- **Droplet** - DigitalOcean's name for a VM.
+- **Swap** - Disk space that Linux uses as extra memory when the real memory is full. Slow, but it stops a crash at a memory peak.
+- **Base64** - A way to write any data with 64 safe letters (`A–Z`, `a–z`, `0–9`, `+`, `/`). It often ends with `=` or `==` as padding.
+- **Passphrase** - A password that protects a private key file. Without it, the key file alone is enough to log in, so keep that file private.

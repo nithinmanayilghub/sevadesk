@@ -284,7 +284,7 @@ flowchart TB
     LW[worker]
     LB & LW --> LP[(Postgres)] & LR[(Valkey)]
   end
-  subgraph demo[demo - Oracle Cloud Always Free ARM VM, always on]
+  subgraph demo[demo - DigitalOcean 2 GB droplet, always on]
     DC[Caddy + TLS] --> DF[Next.js] & DB[FastAPI]
     DW[worker]
     DV[(Valkey container)]
@@ -306,7 +306,9 @@ flowchart TB
 - Operations: Grafana alerts on API error rate, worker health, and daily agent cost; AWS budget alert at $5; Anthropic monthly limit.
 - AWS: public subnets with strict security groups, no NAT Gateway; secrets in Secrets Manager; `terraform destroy` after each session. Demo secrets live in an env file on the server, outside Git.
 - Idle-cost guard: the worker polls Valkey, not Postgres; the expiry sweep runs hourly; polls with no change stop at Valkey (AD-7), so Neon can sleep when idle.
-- Demo placement: the Neon region is the closest one to the Oracle VM region (both in or near India) to keep query round trips short. The demo Valkey container has AOF persistence on, so queued jobs survive a restart.
+- Demo host: **DigitalOcean droplet**, Basic 2 GB / 1 vCPU / 50 GB, Bangalore, Ubuntu 24.04 x64, $12/month billed per hour (decided 2026-11-12, AR-24; replaces Oracle Always Free: no free ARM capacity in Hyderabad for days, and the PAYG card hold of ~₹10,000 was declined). Measured fit: the 6 containers use ~300 MB, the server ~740 MB of 2 GB, plus a 2 GB swap file for the deploy peak. If memory grows, resize to 4 GB ("CPU and RAM only"). Oracle Always Free stays a ₹0 fallback; the runbook works on any Ubuntu VM with a `ubuntu` user. Set-up and recovery: `infra/demo/README.md`.
+- Demo domain: `<ip-with-dashes>.sslip.io` (no DNS account; it changes if the VM IP changes).
+- Demo placement: the Neon region (Singapore) is the closest one to the droplet (Bangalore) to keep query round trips short. The demo Valkey container has AOF persistence on, so queued jobs survive a restart.
 
 ### Core entities
 
@@ -366,4 +368,4 @@ erDiagram
 
 ## Open Questions
 
-- **Oracle account tier** — upgrade to Pay-As-You-Go (still $0 inside free limits) so idle VMs are not reclaimed? Decide before the demo deploy story.
+- None open. (Demo host: decided 2026-11-12, see Deployment & environments.)

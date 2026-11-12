@@ -41,7 +41,7 @@ development_status:
   1-3-eval-harness-with-a-placeholder-eval: done
   1-4-ci-pipeline-blocks-bad-merges: done
   1-5-one-trace-across-the-whole-request: done
-  1-6-merge-to-main-deploys-the-demo: backlog
+  1-6-merge-to-main-deploys-the-demo: done
   1-7-one-command-aws-staging-deploy-and-destroy: backlog
   epic-1-retrospective: optional
 
