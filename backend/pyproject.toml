@@ -11,6 +11,7 @@ dependencies = [
     "opentelemetry-instrumentation-psycopg==0.66b2",
     "opentelemetry-sdk==1.45.2",
     "psycopg[binary]==3.3.6",
+    "pwdlib[argon2]==0.3.1",
     "pydantic==2.14.2",
     "pydantic-settings==2.16.2",
     "redis==7.4.1",
@@ -42,6 +43,21 @@ name = "core depends on no entry point"
 type = "forbidden"
 source_modules = ["app.core"]
 forbidden_modules = ["app.main", "app.worker", "app.export_openapi"]
+
+# AD-2: business may call accounts, accounts may call core, never the other way.
+[[tool.importlinter.contracts]]
+name = "module layers: business -> accounts -> core"
+type = "layers"
+layers = ["app.modules.business", "app.modules.accounts", "app.core"]
+
+# AD-2: other modules use accounts only through its front door (service.py).
+[[tool.importlinter.contracts]]
+name = "business uses accounts only through its front door"
+type = "forbidden"
+source_modules = ["app.modules.business"]
+forbidden_modules = ["app.modules.accounts.models", "app.modules.accounts.repository"]
+# Indirect is fine: business -> accounts.service -> accounts.repository is the front door working.
+allow_indirect_imports = true
 
 # Coverage gate: CI fails if less than 80% of the app code is run by tests.
 [tool.coverage.run]

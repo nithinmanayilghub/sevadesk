@@ -9,7 +9,9 @@ APP_DIR = Path(__file__).resolve().parents[2] / "app"
 ALLOWED = {
     "fastapi",
     "pydantic",
+    "pydantic_core",  # part of pydantic: custom validation messages
     "pydantic_settings",
+    "pwdlib",  # Argon2id password hashing (AD-5)
     "sqlalchemy",
     "alembic",
     "redis",
