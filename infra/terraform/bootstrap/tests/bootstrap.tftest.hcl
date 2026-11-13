@@ -108,7 +108,7 @@ run "trust_pins_the_environment" {
   assert {
     condition = anytrue([
       for s in jsondecode(aws_iam_role.deployer.assume_role_policy).Statement :
-      try(s.Condition.StringEquals["token.actions.githubusercontent.com:sub"], "") == "repo:nithinmanayilghub/sevadesk:environment:aws-staging"
+      try(s.Condition.StringEquals["token.actions.githubusercontent.com:sub"], "") == "repo:nithinmanayilghub@71773426/sevadesk@1441590930:environment:aws-staging"
       && try(s.Condition.StringEquals["token.actions.githubusercontent.com:aud"], "") == "sts.amazonaws.com"
       && try(s.Principal.Federated, "") == "arn:aws:iam::111122223333:oidc-provider/token.actions.githubusercontent.com"
     ])

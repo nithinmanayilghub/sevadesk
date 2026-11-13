@@ -154,6 +154,9 @@ resource "aws_iam_role" "deployer" {
     Statement = [
       {
         # GitHub Actions, but only a job in environment aws-staging of this repo (that job waits for approval).
+        # The repo uses GitHub's "immutable subject": owner@<owner id>/repo@<repo id>. The IDs never change,
+        # so a new repo that takes the same name later still does not match. (Check: gh api
+        # repos/<owner>/<repo>/actions/oidc/customization/sub -> sub_claim_prefix.)
         Sid       = "GitHubAwsStagingEnvironment"
         Effect    = "Allow"
         Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
@@ -161,7 +164,7 @@ resource "aws_iam_role" "deployer" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-            "token.actions.githubusercontent.com:sub" = "repo:nithinmanayilghub/sevadesk:environment:aws-staging"
+            "token.actions.githubusercontent.com:sub" = "repo:nithinmanayilghub@71773426/sevadesk@1441590930:environment:aws-staging"
           }
         }
       },
