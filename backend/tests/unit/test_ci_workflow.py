@@ -71,6 +71,17 @@ def test_deploy_checks_the_public_url_for_this_commit():
     assert ".version == $v" in deploy
 
 
+# Behaviour: every PR checks the Terraform files (format, validate, and the mock tests of both stacks).
+def test_lint_runs_terraform_tests():
+    lint = _job_block("lint")
+    assert "hashicorp/setup-terraform@" in lint
+    assert "terraform fmt -check -recursive infra/terraform" in lint
+    for stack in ("bootstrap", "staging"):
+        assert f"-chdir=infra/terraform/{stack} init -backend=false" in lint
+        assert f"-chdir=infra/terraform/{stack} validate" in lint
+        assert f"-chdir=infra/terraform/{stack} test" in lint
+
+
 # Behaviour: the backend image reports its commit as its version; the worker reuses that image.
 def test_images_carry_the_commit_version():
     assert "APP_VERSION=${{ github.sha }}" in _job_block("build")

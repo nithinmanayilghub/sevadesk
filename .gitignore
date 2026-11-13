@@ -22,3 +22,9 @@ evals/results/
 
 # Coverage data files
 .coverage
+
+# Terraform: provider downloads, state files (they hold secrets), personal variable files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars

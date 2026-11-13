@@ -1,5 +1,6 @@
 # CI: runs on every pull request and every push to main.
 # Five jobs run one after another: lint -> test -> eval -> build -> deploy (deploy: main only).
+# AWS staging is a separate, hand-started workflow (aws-staging.yml).
 # If one job fails, the next ones do not run, and the PR cannot be merged.
 name: CI
 
@@ -50,6 +51,23 @@ jobs:
       - name: Import rules (import-linter)
         working-directory: backend
         run: uv run lint-imports
+      # Terraform: format, syntax, and the mock tests (fake AWS: no credentials, no cost).
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.17.2
+          terraform_wrapper: false
+      - name: Terraform format check
+        run: terraform fmt -check -recursive infra/terraform
+      - name: Terraform bootstrap stack (validate + tests)
+        run: |
+          terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
+          terraform -chdir=infra/terraform/bootstrap validate
+          terraform -chdir=infra/terraform/bootstrap test
+      - name: Terraform staging stack (validate + tests)
+        run: |
+          terraform -chdir=infra/terraform/staging init -backend=false -input=false
+          terraform -chdir=infra/terraform/staging validate
+          terraform -chdir=infra/terraform/staging test
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
