@@ -42,7 +42,7 @@ development_status:
   1-4-ci-pipeline-blocks-bad-merges: done
   1-5-one-trace-across-the-whole-request: done
   1-6-merge-to-main-deploys-the-demo: done
-  1-7-one-command-aws-staging-deploy-and-destroy: backlog
+  1-7-one-command-aws-staging-deploy-and-destroy: done
   epic-1-retrospective: optional
 
   epic-2: backlog

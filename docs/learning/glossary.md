@@ -76,3 +76,17 @@ Plain-word meanings. Newest terms at the bottom.
 - **Swap** - Disk space that Linux uses as extra memory when the real memory is full. Slow, but it stops a crash at a memory peak.
 - **Base64** - A way to write any data with 64 safe letters (`A–Z`, `a–z`, `0–9`, `+`, `/`). It often ends with `=` or `==` as padding.
 - **Passphrase** - A password that protects a private key file. Without it, the key file alone is enough to log in, so keep that file private.
+- **Terraform** - A tool that reads text files describing cloud resources, and then creates, changes, or deletes resources until the cloud matches the files ("infrastructure as code").
+- **Terraform state** - Terraform's memory: a file listing what it created and the real IDs. Without it, Terraform cannot change or delete those resources. Ours lives in an S3 bucket, so the laptop and GitHub share it.
+- **`terraform plan` / `apply` / `destroy`** - Plan shows what would change and changes nothing. Apply makes the changes. Destroy deletes everything that the state lists.
+- **Mock provider** - A fake AWS used by `terraform test`. No AWS calls, no credentials, no cost. It invents IDs, so tests set fixed values where an assert needs them.
+- **IAM role** - A set of AWS rights that a person or a program borrows for a short time. No stored keys.
+- **Trust policy** - The part of a role that says WHO may borrow it (ours: one GitHub environment and the laptop user).
+- **Permissions boundary** - A hard upper limit on a role. Even if the role gets more rights attached, it can never do more than the boundary allows.
+- **OIDC (GitHub to AWS)** - GitHub gives a running job a short-lived signed token that says "repo X, environment Y". AWS checks it and lends the role. No AWS keys are stored in GitHub.
+- **Fargate** - AWS runs our containers for us. We never manage a server.
+- **ECS task definition / service** - The task definition is the recipe for a container (image, size, settings). The service keeps one copy running and restarts it if it dies.
+- **ALB (Application Load Balancer)** - AWS's front door. It sends `/api/*` to the backend and everything else to the frontend, like Caddy does on the demo.
+- **Security group** - A firewall around one resource. It lists who may connect, by port and by source.
+- **NAT gateway** - A paid AWS box (about $1 per day) that lets private servers reach the internet. We avoid it: our tasks sit in public subnets with public IPs, guarded by security groups.
+- **Environment protection rule** - A GitHub rule on an environment (ours: `aws-staging`) that makes a job wait for a named person to click "Approve".

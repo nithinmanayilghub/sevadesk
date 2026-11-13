@@ -1,0 +1,63 @@
+# AWS staging: deploy or destroy, started by hand (Actions -> aws-staging -> Run workflow).
+# It never runs on a push or a PR: staging costs money every hour it exists.
+# The job runs in the "aws-staging" environment. Its protection rule makes the run WAIT until
+# you click "Approve" (and allows only the main branch). See infra/terraform/README.md.
+name: aws-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "deploy (build or update staging) or destroy (remove all of it)"
+        type: choice
+        options: [deploy, destroy]
+        default: deploy
+      image_tag:
+        description: "Commit SHA of the images to run (empty = the commit this run is on). CI must have built it."
+        type: string
+        required: false
+
+# id-token: write lets this workflow ask GitHub for a short-lived login token (OIDC).
+# AWS trusts that token only from the aws-staging environment of this repo. No AWS keys are stored.
+permissions:
+  contents: read
+  id-token: write
+
+# Never two staging runs at once (Terraform's S3 lock would stop the second one anyway).
+concurrency:
+  group: aws-staging
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    name: ${{ inputs.action }} aws-staging
+    runs-on: ubuntu-latest
+    # Second lock next to the environment's branch rule: only from main, where CI built the images.
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: aws-staging
+    env:
+      AWS_REGION: ap-south-1
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_boundary_arn: ${{ secrets.BOUNDARY_ARN }}
+      # Passed as an env var, never pasted into the shell line, so input text cannot run as a command.
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.17.2
+          # The wrapper adds extra text to command output, which breaks "terraform output -raw url".
+          terraform_wrapper: false
+      # Borrow the deployer role for this run. The account ID is hidden in the (public) logs.
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+          mask-aws-account-id: true
+      - name: Deploy (build or update, then check the live page)
+        if: inputs.action == 'deploy'
+        run: infra/terraform/deploy.sh "$IMAGE_TAG"
+      - name: Destroy (remove everything, then prove nothing billable is left)
+        if: inputs.action == 'destroy'
+        run: infra/terraform/destroy.sh
