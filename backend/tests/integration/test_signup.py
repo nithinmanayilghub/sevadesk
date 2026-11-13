@@ -94,6 +94,19 @@ def test_invalid_input_lists_each_field(client):
     ]
 
 
+def test_nul_character_in_name_is_refused(client):
+    response = client.post(
+        "/api/v1/signup",
+        json={
+            "business_name": "Shop\u0000",
+            "email": "abcxyz01@gmail.com",
+            "password": "Kuttimamanjanpettumama123*@#$",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"] == [{"field": "business_name", "message": "Enter your business name."}]
+
+
 def test_too_long_input_is_refused(client):
     response = client.post("/api/v1/signup", json={"business_name": "x" * 101, "email": email(), "password": "p" * 129})
     assert response.status_code == 422

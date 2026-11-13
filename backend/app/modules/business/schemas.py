@@ -23,7 +23,8 @@ class SignupRequest(BaseModel):
     @classmethod
     def clean_business_name(cls, value: str) -> str:
         value = value.strip()
-        if not value:
+        # Postgres cannot store the NUL character (\x00), so refuse it here as a field error.
+        if not value or "\x00" in value:
             raise PydanticCustomError("business_name_empty", "Enter your business name.")
         if len(value) > MAX_NAME:
             raise PydanticCustomError("business_name_long", "Use at most 100 characters.")
