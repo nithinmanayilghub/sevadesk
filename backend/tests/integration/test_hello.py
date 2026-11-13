@@ -10,9 +10,9 @@ def test_hello_reads_value_from_database(client):
     assert response.json() == {"message": "Namaste from SevaDesk", "version": "test-1"}
 
 
-def test_migration_creates_only_app_meta(client):
+def test_migration_creates_expected_tables(client):
     tables = set(inspect(get_engine()).get_table_names())
-    assert tables == {"alembic_version", "app_meta"}
+    assert tables == {"alembic_version", "app_meta", "businesses", "users", "sessions", "memberships"}
 
 
 def test_openapi_schema_lists_hello(client):

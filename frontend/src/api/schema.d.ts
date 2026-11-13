@@ -55,10 +55,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign Up */
+        post: operations["sign_up"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ErrorBody */
+        ErrorBody: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Fields */
+            fields?: components["schemas"]["FieldError"][] | null;
+        };
+        /**
+         * ErrorEnvelope
+         * @description The error response shape, for the OpenAPI schema (so the frontend types know it).
+         */
+        ErrorEnvelope: {
+            error: components["schemas"]["ErrorBody"];
+        };
+        /** FieldError */
+        FieldError: {
+            /** Field */
+            field: string;
+            /** Message */
+            message: string;
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
@@ -76,6 +116,25 @@ export interface components {
             message: string;
             /** Version */
             version: string;
+        };
+        /** SignupRequest */
+        SignupRequest: {
+            /** Business Name */
+            business_name: string;
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /** SignupResponse */
+        SignupResponse: {
+            /**
+             * Business Id
+             * Format: uuid
+             */
+            business_id: string;
+            /** Business Name */
+            business_name: string;
         };
         /** WorkerHealthResponse */
         WorkerHealthResponse: {
@@ -147,6 +206,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerHealthResponse"];
+                };
+            };
+        };
+    };
+    sign_up: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

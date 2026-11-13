@@ -90,3 +90,15 @@ Plain-word meanings. Newest terms at the bottom.
 - **Security group** - A firewall around one resource. It lists who may connect, by port and by source.
 - **NAT gateway** - A paid AWS box (about $1 per day) that lets private servers reach the internet. We avoid it: our tasks sit in public subnets with public IPs, guarded by security groups.
 - **Environment protection rule** - A GitHub rule on an environment (ours: `aws-staging`) that makes a job wait for a named person to click "Approve".
+- **Tenant** - One customer company that shares the app with others. In SevaDesk, a tenant is one Business. Its rows carry its `business_id`.
+- **Multi-tenancy** - Many tenants in one database. The code must make sure each tenant sees only its own rows.
+- **ContextVar** - A Python variable with a separate value for each request. We keep the current Business in one, so requests never mix.
+- **System scope** - A rare, logged permission to look across all Businesses, for example "does this email already exist?" during sign-up. Only listed callers may use it.
+- **Hash** - A one-way scramble of data. You can check a password against it, but you cannot get the password back from it.
+- **Salt** - Random data mixed into each password hash, so two people with the same password get different hashes.
+- **Argon2id** - A slow, memory-hungry password hash. Slow on purpose, so guessing millions of passwords costs too much.
+- **Rollback** - Undoing every change in a transaction after an error, so the database stays as it was.
+- **Flush** - Sending pending changes (INSERTs) to the database now, inside the open transaction, without committing them.
+- **Design token** - A named design value, like `--brand: #047857`. Components use the name, so one file changes the whole look.
+- **unicode-range** - A font rule that says which characters a font file covers. The browser downloads the file only if the page uses one of those characters.
+- **Layers contract** - An import-linter rule: higher layers may import lower ones, never the reverse (`business` → `accounts` → `core`).

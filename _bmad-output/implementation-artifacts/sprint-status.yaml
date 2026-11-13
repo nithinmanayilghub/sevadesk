@@ -45,8 +45,8 @@ development_status:
   1-7-one-command-aws-staging-deploy-and-destroy: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-owner-signs-up-and-creates-a-business: backlog
+  epic-2: in-progress
+  2-1-owner-signs-up-and-creates-a-business: done
   2-2-log-in-log-out-and-the-app-shell: backlog
   2-3-tenant-isolation-is-tested-on-every-pull-request: backlog
   2-4-role-based-access: backlog
