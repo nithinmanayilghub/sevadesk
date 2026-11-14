@@ -1,4 +1,5 @@
 # Integration test fixtures: a real Postgres in Docker, migrated, plus an API client.
+import uuid
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from app.main import app
 
 # alembic.ini lives in backend/, two folders above this file's folder.
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
+GOOD_PASSWORD = "correct horse battery"
 
 
 @pytest.fixture(scope="session")
@@ -95,3 +97,17 @@ def make_client(migrated_db):
 @pytest.fixture
 def client(make_client):
     return make_client()
+
+
+@pytest.fixture
+def sign_up_owner(make_client):
+    """Sign up a new Business; returns (logged-in client, business_id). Call it once per Owner."""
+
+    def sign_up() -> tuple[TestClient, uuid.UUID]:
+        owner = make_client()
+        body = {"business_name": "Test Shop", "email": f"{uuid.uuid4().hex}@example.com", "password": GOOD_PASSWORD}
+        response = owner.post("/api/v1/signup", json=body)
+        assert response.status_code == 201, response.text
+        return owner, uuid.UUID(response.json()["business_id"])
+
+    return sign_up
