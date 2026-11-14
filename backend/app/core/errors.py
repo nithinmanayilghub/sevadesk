@@ -46,7 +46,8 @@ class AppError(Exception):
         self.headers = headers  # optional response headers, e.g. {"Retry-After": "900"}
 
 
-def _envelope(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
+def error_response(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
+    """Build the one error envelope. Public, so middleware (which runs outside the handlers) uses it too."""
     body = ErrorBody(code=code, message=message, fields=fields or None)
     # exclude_none leaves "fields" out when there are none.
     return JSONResponse(status_code=status_code, content={"error": body.model_dump(exclude_none=True)})
@@ -66,16 +67,16 @@ def _field_errors(exc: RequestValidationError) -> list[FieldError]:
 
 def register_error_handlers(app: FastAPI) -> None:
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        response = _envelope(exc.status_code, exc.code, exc.message, exc.fields)
+        response = error_response(exc.status_code, exc.code, exc.message, exc.fields)
         response.headers.update(exc.headers or {})
         return response
 
     async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        return _envelope(422, "validation_error", "Some fields need fixing.", _field_errors(exc))
+        return error_response(422, "validation_error", "Some fields need fixing.", _field_errors(exc))
 
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
         # The request middleware also logs the error; the client never sees its text.
-        return _envelope(500, "internal_error", "Something went wrong. Please try again.")
+        return error_response(500, "internal_error", "Something went wrong. Please try again.")
 
     app.add_exception_handler(AppError, handle_app_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
