@@ -16,7 +16,7 @@ from contextvars import ContextVar
 logger = logging.getLogger(__name__)
 
 # Callers allowed to enter system scope. Each new one must be added here on purpose.
-SYSTEM_SCOPE_CALLERS: frozenset[str] = frozenset({"signup"})
+SYSTEM_SCOPE_CALLERS: frozenset[str] = frozenset({"signup", "login"})
 
 _business_id: ContextVar[uuid.UUID | None] = ContextVar("business_id", default=None)
 _in_system_scope: ContextVar[bool] = ContextVar("in_system_scope", default=False)
@@ -53,6 +53,20 @@ def system_scope(caller: str) -> Iterator[None]:
         raise ValueError(f"{caller!r} may not use system_scope")
     # Audit line: who used the exception. No email or other personal data here.
     logger.info("system_scope entered", extra={"caller": caller})
+    token = _in_system_scope.set(True)
+    try:
+        yield
+    finally:
+        _in_system_scope.reset(token)
+
+
+@contextmanager
+def session_lookup() -> Iterator[None]:
+    """AD-3 source (a): staff session -> membership. Only accounts.service.resolve_session uses it.
+
+    It allows the same global lookups as system_scope, but writes no audit line:
+    it runs on every logged-in request, so a line each time would bury the rare real ones.
+    """
     token = _in_system_scope.set(True)
     try:
         yield

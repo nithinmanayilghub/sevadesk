@@ -11,6 +11,15 @@ class Role(StrEnum):
     TECHNICIAN = "technician"
 
 
+class Actor(BaseModel):
+    """Who is making this request, built from their session (AD-4). Services check Roles on it."""
+
+    user_id: uuid.UUID
+    membership_id: uuid.UUID
+    business_id: uuid.UUID
+    roles: set[Role]
+
+
 class OwnerCreated(BaseModel):
     user_id: uuid.UUID
     membership_id: uuid.UUID

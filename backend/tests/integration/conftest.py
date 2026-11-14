@@ -63,7 +63,8 @@ def spans() -> SpanRecorder:
 
 
 @pytest.fixture
-def client(pg, redis_url, monkeypatch):
+def migrated_db(pg, redis_url, monkeypatch):
+    """A migrated Postgres and a Valkey, for tests that use the DB without the API."""
     monkeypatch.setenv("DATABASE_URL", pg.get_connection_url())
     monkeypatch.setenv("REDIS_URL", redis_url)
     monkeypatch.setenv("APP_VERSION", "test-1")
@@ -72,6 +73,11 @@ def client(pg, redis_url, monkeypatch):
     get_engine.cache_clear()
     get_redis.cache_clear()
     command.upgrade(Config(str(ALEMBIC_INI)), "head")
-    yield TestClient(app)
+    yield
     # Close pooled connections so nothing is left open after the test.
     get_engine().dispose()
+
+
+@pytest.fixture
+def client(migrated_db):
+    return TestClient(app)
