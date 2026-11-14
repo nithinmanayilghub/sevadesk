@@ -19,6 +19,11 @@ class UserRepository:
         require_system_scope()
         return self.session.scalar(select(exists().where(User.email == email)))
 
+    def get_by_email(self, email: str) -> User | None:
+        # Log-in looks a user up across all Businesses: system scope only (AD-3).
+        require_system_scope()
+        return self.session.scalars(select(User).where(User.email == email)).one_or_none()
+
     def add(self, email: str, password_hash: str) -> User:
         user = User(email=email, password_hash=password_hash)
         self.session.add(user)

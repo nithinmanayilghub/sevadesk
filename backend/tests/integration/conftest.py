@@ -73,11 +73,25 @@ def migrated_db(pg, redis_url, monkeypatch):
     get_engine.cache_clear()
     get_redis.cache_clear()
     command.upgrade(Config(str(ALEMBIC_INI)), "head")
+    # Empty Valkey: the log-in counters (per IP) would otherwise pile up across tests.
+    get_redis().flushdb()
     yield
     # Close pooled connections so nothing is left open after the test.
     get_engine().dispose()
 
 
+def _make_client(**kwargs) -> TestClient:
+    # https: the browser sends a Secure cookie back only over https, and so does the test client.
+    # Origin: the same site, as a browser sends on POST (the CSRF guard checks it, AD-5).
+    return TestClient(app, base_url="https://testserver", headers={"Origin": "https://testserver"}, **kwargs)
+
+
 @pytest.fixture
-def client(migrated_db):
-    return TestClient(app)
+def make_client(migrated_db):
+    """Build extra clients, e.g. make_client(raise_server_exceptions=False) or a second browser."""
+    return _make_client
+
+
+@pytest.fixture
+def client(make_client):
+    return make_client()
