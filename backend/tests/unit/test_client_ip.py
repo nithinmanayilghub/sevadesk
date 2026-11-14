@@ -35,3 +35,9 @@ def test_ipv6_is_grouped_by_its_slash_64():
     # One home or phone gets a whole /64 block, so each address alone is easy to change.
     assert client_ip(request("2001:db8::1")) == "2001:db8::/64"
     assert client_ip(request("2001:db8::ffff")) == "2001:db8::/64"
+
+
+def test_ipv4_mapped_ipv6_is_treated_as_ipv4():
+    # "::ffff:1.2.3.4" is an IPv4 address in an IPv6 wrapper. Without unwrapping it,
+    # every such client lands in the same block "::/64" and shares one rate limit.
+    assert client_ip(request("::ffff:1.2.3.4")) == "1.2.3.4"

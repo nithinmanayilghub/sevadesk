@@ -18,6 +18,10 @@ def client_ip(request: Request) -> str:
         except ValueError:
             ip = None  # not an IP: ignore the header
         if ip is not None:
+            # "::ffff:1.2.3.4" is an IPv4 address in an IPv6 wrapper. Unwrap it first, or
+            # every such client falls into the same block "::/64" and shares one limit.
+            if ip.version == 6 and ip.ipv4_mapped:
+                ip = ip.ipv4_mapped
             if ip.version == 6:
                 # One home or phone gets a whole /64 block of IPv6 addresses, so we count
                 # the block, not the single address.
