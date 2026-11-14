@@ -1,6 +1,7 @@
 "use client";
 // Sign-up form (FR-7). The backend owns every validation rule: this form sends the fields
 // and shows each error the backend returns next to its field (UX-DR33).
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,11 @@ type FieldErrors = Partial<Record<Field, string>>;
 const GENERAL_ERROR = "Something went wrong. Please try again.";
 
 export function SignupForm() {
+  const router = useRouter();
   const [values, setValues] = useState<Record<Field, string>>({ business_name: "", email: "", password: "" });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [createdName, setCreatedName] = useState<string | null>(null);
   const inputs = useRef<Partial<Record<Field, HTMLInputElement | null>>>({});
 
   // After new field errors appear on screen, move focus to the first field that has one.
@@ -36,7 +37,8 @@ export function SignupForm() {
     try {
       const { data, error } = await api.POST("/api/v1/signup", { body: values });
       if (data) {
-        setCreatedName(data.business_name);
+        // Sign-up also logged the new Owner in (story 2.2), so go straight to the Dashboard.
+        router.replace("/app");
         return;
       }
       // Keep only errors for fields this form shows; anything else becomes a general error.
@@ -54,15 +56,6 @@ export function SignupForm() {
     } finally {
       setBusy(false);
     }
-  }
-
-  if (createdName) {
-    // Story 2.2 adds log-in and sends the Owner on to the app.
-    return (
-      <p role="status" className="rounded-lg border bg-card p-6 text-card-foreground">
-        Your Business “{createdName}” is ready.
-      </p>
-    );
   }
 
   // One labelled field, with an optional always-visible hint and its error underneath.
