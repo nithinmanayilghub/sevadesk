@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, FieldError
 from app.core.tenancy import system_scope
+
 # "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
 from app.modules.accounts.emails import clean_email as clean_email
 from app.modules.accounts.models import Membership
