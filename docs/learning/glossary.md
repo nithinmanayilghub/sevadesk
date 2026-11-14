@@ -102,3 +102,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **Design token** - A named design value, like `--brand: #047857`. Components use the name, so one file changes the whole look.
 - **unicode-range** - A font rule that says which characters a font file covers. The browser downloads the file only if the page uses one of those characters.
 - **Layers contract** - An import-linter rule: higher layers may import lower ones, never the reverse (`business` → `accounts` → `core`).
+- **Session token** - A long random string the server gives the browser at log-in. The browser sends it back on every request; the server looks it up to know who you are.
+- **Cookie flags** - Rules on a cookie. `HttpOnly`: page scripts cannot read it. `Secure`: sent only over https. `SameSite=Lax`: not sent when another site POSTs to us. `__Host-` name prefix: only our exact site can set it.
+- **CSRF** - Cross-site request forgery. A page on another site makes your browser send a request to us, with your cookie. We stop it by checking the `Origin` header.
+- **Origin header** - A header the browser adds to a request. It names the site that started the request. A page cannot change it.
+- **Rate limit** - A cap on how many tries one key (an account, an IP) gets in a time window. After the cap: a fixed lock (429).
+- **Race condition** - A bug that appears only when two things run at the same moment, for example 10 log-in tries that all read a count of 0.
+- **X-Forwarded-For** - A header a proxy adds with the client's IP. Only the last value (written by our own proxy) can be trusted.
+- **User enumeration** - Finding out which emails have accounts from different replies or reply times. We give the same reply and do the same work for both.
+- **NFKC** - A Unicode rule that turns characters typed different ways (like "é") into one form, so the same password always matches.
+- **Back-forward cache (bfcache)** - A frozen copy of a page that the browser shows on Back without loading it again. The `pageshow` event with `persisted: true` tells the page it was restored.

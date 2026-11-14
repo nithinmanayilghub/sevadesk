@@ -1,4 +1,4 @@
-// Tests for SignupForm: labels, the request it sends, success, field errors, general errors,
+// Tests for SignupForm: labels, the request it sends, going on to the app, field errors,
 // and the busy state while the request runs.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -6,9 +6,13 @@ import { api } from "@/api/client";
 import { SignupForm } from "./SignupForm";
 
 vi.mock("@/api/client", () => ({ api: { POST: vi.fn() } }));
+// The form calls useRouter() to go on to the app, so every test needs this mock.
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 const POST = vi.mocked(api.POST);
 beforeEach(() => {
   POST.mockReset();
+  replace.mockReset();
 });
 
 function fillAndSubmit() {
@@ -35,17 +39,17 @@ test("sends the three fields to the sign-up endpoint", async () => {
   POST.mockResolvedValue({ data: { business_id: "b1", business_name: "Sharma Plumbing" } } as never);
   render(<SignupForm />);
   fillAndSubmit();
-  await screen.findByRole("status");
+  await vi.waitFor(() => expect(POST).toHaveBeenCalled());
   expect(POST).toHaveBeenCalledWith("/api/v1/signup", {
     body: { business_name: "Sharma Plumbing", email: "owner@shop.in", password: "correct horse battery" },
   });
 });
 
-test("shows the success message", async () => {
+test("goes on to the Dashboard after sign-up (the Owner is now logged in)", async () => {
   POST.mockResolvedValue({ data: { business_id: "b1", business_name: "Sharma Plumbing" } } as never);
   render(<SignupForm />);
   fillAndSubmit();
-  expect(await screen.findByRole("status")).toHaveTextContent("Your Business “Sharma Plumbing” is ready.");
+  await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/app"));
 });
 
 test("shows field errors next to fields and focuses the first one", async () => {
@@ -65,7 +69,7 @@ test("shows field errors next to fields and focuses the first one", async () => 
     "At least 12 characters. Use at least 12 characters.",
   );
   // Email comes before password on the form, so focus goes to email.
-  expect(document.activeElement).toBe(email);
+  await vi.waitFor(() => expect(document.activeElement).toBe(email)); // the effect may run a moment later
 });
 
 test("shows a taken email next to the email field", async () => {

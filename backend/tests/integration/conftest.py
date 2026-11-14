@@ -63,7 +63,8 @@ def spans() -> SpanRecorder:
 
 
 @pytest.fixture
-def client(pg, redis_url, monkeypatch):
+def migrated_db(pg, redis_url, monkeypatch):
+    """A migrated Postgres and a Valkey, for tests that use the DB without the API."""
     monkeypatch.setenv("DATABASE_URL", pg.get_connection_url())
     monkeypatch.setenv("REDIS_URL", redis_url)
     monkeypatch.setenv("APP_VERSION", "test-1")
@@ -72,6 +73,25 @@ def client(pg, redis_url, monkeypatch):
     get_engine.cache_clear()
     get_redis.cache_clear()
     command.upgrade(Config(str(ALEMBIC_INI)), "head")
-    yield TestClient(app)
+    # Empty Valkey: the log-in counters (per IP) would otherwise pile up across tests.
+    get_redis().flushdb()
+    yield
     # Close pooled connections so nothing is left open after the test.
     get_engine().dispose()
+
+
+def _make_client(**kwargs) -> TestClient:
+    # https: the browser sends a Secure cookie back only over https, and so does the test client.
+    # Origin: the same site, as a browser sends on POST (the CSRF guard checks it, AD-5).
+    return TestClient(app, base_url="https://testserver", headers={"Origin": "https://testserver"}, **kwargs)
+
+
+@pytest.fixture
+def make_client(migrated_db):
+    """Build extra clients, e.g. make_client(raise_server_exceptions=False) or a second browser."""
+    return _make_client
+
+
+@pytest.fixture
+def client(make_client):
+    return make_client()

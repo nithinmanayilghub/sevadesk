@@ -55,7 +55,12 @@ layers = ["app.modules.business", "app.modules.accounts", "app.core"]
 name = "business uses accounts only through its front door"
 type = "forbidden"
 source_modules = ["app.modules.business"]
-forbidden_modules = ["app.modules.accounts.models", "app.modules.accounts.repository"]
+# The front doors are service.py and dependencies.py (the HTTP front door, AD-2 note, story 2.2).
+forbidden_modules = [
+    "app.modules.accounts.models",
+    "app.modules.accounts.repository",
+    "app.modules.accounts.router",
+]
 # Indirect is fine: business -> accounts.service -> accounts.repository is the front door working.
 allow_indirect_imports = true
 

@@ -9,6 +9,7 @@ from app.core.tenancy import (
     TenantContextMissing,
     current_business_id,
     require_system_scope,
+    session_lookup,
     system_scope,
     tenant_scope,
 )
@@ -46,6 +47,23 @@ def test_require_system_scope_only_inside():
         require_system_scope()
     with system_scope("signup"):
         require_system_scope()
+    with pytest.raises(SystemScopeRequired):
+        require_system_scope()
+
+
+def test_login_is_an_allowed_caller_but_session_is_not():
+    # Behaviour: log-in may do the email lookup; the session lookup has its own quiet guard.
+    with system_scope("login"):
+        require_system_scope()
+    with pytest.raises(ValueError), system_scope("session"):
+        pass
+
+
+def test_session_lookup_allows_global_lookup_without_a_log_line(caplog):
+    # Behaviour: session -> membership (AD-3 source (a)) runs on every request, so it is quiet.
+    with caplog.at_level(logging.DEBUG, logger="app.core.tenancy"), session_lookup():
+        require_system_scope()
+    assert caplog.records == []
     with pytest.raises(SystemScopeRequired):
         require_system_scope()
 

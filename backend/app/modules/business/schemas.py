@@ -1,15 +1,13 @@
 # Request and response shapes for sign-up. The backend owns all validation rules;
 # each message here is shown next to its field on the sign-up form.
-import re
 import uuid
 
 from pydantic import BaseModel, field_validator
 from pydantic_core import PydanticCustomError
 
-# A simple shape check: something@something.something, no spaces.
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+from app.modules.accounts import service as accounts_service
+
 MAX_NAME = 100
-MAX_EMAIL = 254
 MIN_PASSWORD = 12
 MAX_PASSWORD = 128
 
@@ -33,11 +31,8 @@ class SignupRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def clean_email(cls, value: str) -> str:
-        # Lowercase, so "Owner@Shop.com" and "owner@shop.com" are one account.
-        value = value.strip().lower()
-        if len(value) > MAX_EMAIL or not _EMAIL_RE.match(value):
-            raise PydanticCustomError("email_invalid", "Enter a valid email address.")
-        return value
+        # One rule for sign-up and log-in, owned by accounts (D8).
+        return accounts_service.clean_email(value)
 
     @field_validator("password")
     @classmethod

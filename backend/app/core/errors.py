@@ -30,15 +30,24 @@ class ErrorEnvelope(BaseModel):
 class AppError(Exception):
     """Raise this anywhere in a route to send a clean error to the client."""
 
-    def __init__(self, code: str, message: str, status_code: int, fields: list[FieldError] | None = None):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int,
+        fields: list[FieldError] | None = None,
+        headers: dict[str, str] | None = None,
+    ):
         super().__init__(message)
         self.code = code  # short machine-readable name, e.g. "dependency_unavailable"
         self.message = message  # human-readable sentence
         self.status_code = status_code  # HTTP status, e.g. 503
         self.fields = fields  # optional per-field errors
+        self.headers = headers  # optional response headers, e.g. {"Retry-After": "900"}
 
 
-def _envelope(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
+def error_response(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
+    """Build the one error envelope. Public, so middleware (which runs outside the handlers) uses it too."""
     body = ErrorBody(code=code, message=message, fields=fields or None)
     # exclude_none leaves "fields" out when there are none.
     return JSONResponse(status_code=status_code, content={"error": body.model_dump(exclude_none=True)})
@@ -58,14 +67,16 @@ def _field_errors(exc: RequestValidationError) -> list[FieldError]:
 
 def register_error_handlers(app: FastAPI) -> None:
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        return _envelope(exc.status_code, exc.code, exc.message, exc.fields)
+        response = error_response(exc.status_code, exc.code, exc.message, exc.fields)
+        response.headers.update(exc.headers or {})
+        return response
 
     async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        return _envelope(422, "validation_error", "Some fields need fixing.", _field_errors(exc))
+        return error_response(422, "validation_error", "Some fields need fixing.", _field_errors(exc))
 
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
         # The request middleware also logs the error; the client never sees its text.
-        return _envelope(500, "internal_error", "Something went wrong. Please try again.")
+        return error_response(500, "internal_error", "Something went wrong. Please try again.")
 
     app.add_exception_handler(AppError, handle_app_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)

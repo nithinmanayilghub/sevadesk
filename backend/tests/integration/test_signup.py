@@ -3,14 +3,12 @@
 import uuid
 
 import sqlalchemy.orm
-from fastapi.testclient import TestClient
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.db import get_engine
-from app.main import app
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.models import Membership, User
 from app.modules.accounts.repository import UserRepository
@@ -107,6 +105,13 @@ def test_nul_character_in_name_is_refused(client):
     assert response.json()["error"]["fields"] == [{"field": "business_name", "message": "Enter your business name."}]
 
 
+def test_nul_in_email_is_a_field_error(client):
+    # Before story 2.2 this reached Postgres and gave a 500.
+    response = sign_up(client, email="a\x00b@example.com")
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"] == [{"field": "email", "message": "Enter a valid email address."}]
+
+
 def test_too_long_input_is_refused(client):
     response = client.post("/api/v1/signup", json={"business_name": "x" * 101, "email": email(), "password": "p" * 129})
     assert response.status_code == 422
@@ -131,27 +136,27 @@ def test_password_spaces_are_kept(client):
     assert not hasher.verify(password.strip(), password_hash)
 
 
-def test_crash_mid_signup_leaves_nothing(client, monkeypatch):
+def test_crash_mid_signup_leaves_nothing(client, make_client, monkeypatch):
     before = counts()
 
     def crash(*args, **kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(accounts_service, "create_owner", crash)
-    response = sign_up(TestClient(app, raise_server_exceptions=False))
+    response = sign_up(make_client(raise_server_exceptions=False))
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
     assert counts() == before
 
 
-def test_failed_commit_gives_500_and_saves_nothing(client, monkeypatch):
+def test_failed_commit_gives_500_and_saves_nothing(client, make_client, monkeypatch):
     before = counts()
 
     def fail(self, *args, **kwargs):
         raise RuntimeError("commit failed")
 
     monkeypatch.setattr(sqlalchemy.orm.SessionTransaction, "commit", fail)
-    response = sign_up(TestClient(app, raise_server_exceptions=False))
+    response = sign_up(make_client(raise_server_exceptions=False))
     monkeypatch.undo()
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"

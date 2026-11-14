@@ -80,3 +80,17 @@ def test_unexpected_error_gives_500_envelope():
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
     assert "secret detail" not in response.text
+
+
+def test_app_error_can_send_headers():
+    # A 429 tells the client how long to wait in the Retry-After header.
+    app = FastAPI()
+    register_error_handlers(app)
+
+    @app.get("/slow-down")
+    def slow_down():
+        raise AppError(code="too_many_attempts", message="wait", status_code=429, headers={"Retry-After": "900"})
+
+    response = TestClient(app).get("/slow-down")
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "900"
