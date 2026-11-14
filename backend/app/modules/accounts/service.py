@@ -1,5 +1,7 @@
 # The accounts front door (AD-2): other modules call only these functions.
 # accounts owns users, sessions, and memberships, so all password logic lives here.
+import unicodedata
+
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy.exc import IntegrityError
@@ -7,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, FieldError
 from app.core.tenancy import system_scope
+# "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
+from app.modules.accounts.emails import clean_email as clean_email
 from app.modules.accounts.models import Membership
 from app.modules.accounts.repository import MembershipRepository, UserRepository
 from app.modules.accounts.schemas import OwnerCreated, Role
@@ -27,8 +31,17 @@ class EmailTaken(AppError):
         )
 
 
+def _normalize(plain: str) -> str:
+    # NFKC: one character typed two ways ("é", or "e" + accent) becomes one form (D6).
+    return unicodedata.normalize("NFKC", plain)
+
+
 def hash_password(plain: str) -> str:
-    return _password_hash.hash(plain)
+    return _password_hash.hash(_normalize(plain))
+
+
+def verify_password(plain: str, password_hash: str) -> bool:
+    return _password_hash.verify(_normalize(plain), password_hash)
 
 
 def _is_email_unique_violation(error: IntegrityError) -> bool:

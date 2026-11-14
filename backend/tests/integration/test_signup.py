@@ -107,6 +107,13 @@ def test_nul_character_in_name_is_refused(client):
     assert response.json()["error"]["fields"] == [{"field": "business_name", "message": "Enter your business name."}]
 
 
+def test_nul_in_email_is_a_field_error(client):
+    # Before story 2.2 this reached Postgres and gave a 500.
+    response = sign_up(client, email="a\x00b@example.com")
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"] == [{"field": "email", "message": "Enter a valid email address."}]
+
+
 def test_too_long_input_is_refused(client):
     response = client.post("/api/v1/signup", json={"business_name": "x" * 101, "email": email(), "password": "p" * 129})
     assert response.status_code == 422
