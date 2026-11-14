@@ -47,7 +47,7 @@ development_status:
 
   epic-2: in-progress
   2-1-owner-signs-up-and-creates-a-business: done
-  2-2-log-in-log-out-and-the-app-shell: backlog
+  2-2-log-in-log-out-and-the-app-shell: done
   2-3-tenant-isolation-is-tested-on-every-pull-request: backlog
   2-4-role-based-access: backlog
   2-5-invite-team-members-and-manage-the-team: backlog

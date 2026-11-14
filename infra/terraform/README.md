@@ -114,6 +114,8 @@ infra/terraform/deploy.sh "$(git rev-parse origin/main)"
   `aws elasticache wait replication-group-deleted --replication-group-id sevadesk-staging-cache`.
 - Done when it prints `staging is live: http://sevadesk-staging-....ap-south-1.elb.amazonaws.com`.
   It is HTTP, not HTTPS: there is no domain name for staging, so there is no certificate.
+  **Log-in needs TLS on the ALB:** browsers drop the `Secure` session cookie over plain HTTP, so on
+  staging a log-in returns 200 but the next page sends you back to `/login` (Story 2.2, deferred).
 - Logs: AWS console → CloudWatch → Log groups → `/ecs/sevadesk-staging`. The backend stream shows the
   Alembic migration lines before Uvicorn starts.
 
