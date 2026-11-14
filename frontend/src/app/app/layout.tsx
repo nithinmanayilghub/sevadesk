@@ -9,9 +9,21 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   const [roles, setRoles] = useState<string[] | null>(null);
 
   useEffect(() => {
-    api.GET("/api/v1/me").then(({ data }) => {
-      if (data) setRoles(data.roles);
-    });
+    function checkSession() {
+      api.GET("/api/v1/me").then(({ data }) => {
+        if (data) setRoles(data.roles);
+      });
+    }
+    checkSession();
+
+    // Back after log-out: Chrome may show a frozen copy of this page from its back-forward
+    // cache, without loading it again. "persisted" says so. Ask the server again: a 401
+    // then sends the browser to /login, so nobody sees the old session's screen.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) checkSession();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   if (!roles) {
