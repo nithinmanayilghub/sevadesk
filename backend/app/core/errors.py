@@ -30,12 +30,20 @@ class ErrorEnvelope(BaseModel):
 class AppError(Exception):
     """Raise this anywhere in a route to send a clean error to the client."""
 
-    def __init__(self, code: str, message: str, status_code: int, fields: list[FieldError] | None = None):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int,
+        fields: list[FieldError] | None = None,
+        headers: dict[str, str] | None = None,
+    ):
         super().__init__(message)
         self.code = code  # short machine-readable name, e.g. "dependency_unavailable"
         self.message = message  # human-readable sentence
         self.status_code = status_code  # HTTP status, e.g. 503
         self.fields = fields  # optional per-field errors
+        self.headers = headers  # optional response headers, e.g. {"Retry-After": "900"}
 
 
 def _envelope(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
@@ -58,7 +66,9 @@ def _field_errors(exc: RequestValidationError) -> list[FieldError]:
 
 def register_error_handlers(app: FastAPI) -> None:
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        return _envelope(exc.status_code, exc.code, exc.message, exc.fields)
+        response = _envelope(exc.status_code, exc.code, exc.message, exc.fields)
+        response.headers.update(exc.headers or {})
+        return response
 
     async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         return _envelope(422, "validation_error", "Some fields need fixing.", _field_errors(exc))
