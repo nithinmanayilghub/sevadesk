@@ -35,6 +35,8 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # The tenant-isolation suite (FR-11). CI runs it as its own step: pytest -m isolation.
 markers = ["isolation: tenant-isolation suite (FR-11)"]
+# A typo in a marker name is an error, not a silent "0 tests".
+addopts = "--strict-markers"
 
 # Import rules (AD-2): core must not depend on any entry point.
 [tool.importlinter]
