@@ -46,6 +46,17 @@ class AppError(Exception):
         self.headers = headers  # optional response headers, e.g. {"Retry-After": "900"}
 
 
+class NotFound(AppError):
+    """404: the record does not exist, OR it belongs to another Business (FR-11).
+
+    Both cases get the same answer on purpose, so a caller cannot learn that
+    another Business's record exists.
+    """
+
+    def __init__(self):
+        super().__init__(code="not_found", message="We could not find that.", status_code=404)
+
+
 def error_response(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
     """Build the one error envelope. Public, so middleware (which runs outside the handlers) uses it too."""
     body = ErrorBody(code=code, message=message, fields=fields or None)

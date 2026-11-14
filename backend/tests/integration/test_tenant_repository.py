@@ -13,6 +13,8 @@ from app.modules.accounts.models import Membership, UserSession
 from app.modules.accounts.repository import MembershipRepository, UserRepository
 from app.modules.business.repository import BusinessRepository
 
+pytestmark = pytest.mark.isolation
+
 
 def unique_email() -> str:
     return f"{uuid.uuid4().hex}@example.com"
@@ -100,3 +102,15 @@ def test_email_exists_needs_system_scope(session):
     with system_scope("signup"):
         assert UserRepository(session).email_exists(email) is True
         assert UserRepository(session).email_exists(unique_email()) is False
+
+
+def test_get_or_raise_hides_other_business(session):
+    # Behaviour: asking for another shop's row raises NotFound (a 404), never returns it.
+    from app.core.errors import NotFound  # imported here, so the other tests still run before it exists
+
+    business_a = BusinessRepository(session).add("A")
+    business_b = BusinessRepository(session).add("B")
+    membership_b = make_membership(session, business_b.id)
+    with tenant_scope(business_a.id), pytest.raises(NotFound) as caught:
+        MembershipRepository(session).get_or_raise(membership_b.id)
+    assert caught.value.status_code == 404

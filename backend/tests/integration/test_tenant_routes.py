@@ -2,6 +2,7 @@
 # The routes live in a test-only probe app (probe_app.py); the cookie comes from a real sign-up.
 import pytest
 from fastapi.testclient import TestClient
+from tests.integration.conftest import assert_not_found, membership_is_active, membership_of
 from tests.integration.probe_app import build_probe_app
 
 pytestmark = pytest.mark.isolation
@@ -44,3 +45,32 @@ def test_probe_without_cookie_is_401(make_client):
     # Behaviour: no cookie, no Actor, no Business: 401.
     response = TestClient(build_probe_app(), base_url="https://testserver").get("/probe/business")
     assert response.status_code == 401
+
+
+def test_read_own_record_by_id_is_200(sign_up_owner):
+    # Behaviour: a shop can read its own row by id.
+    a, a_id = sign_up_owner()
+    response = probe_client(a).get(f"/probe/memberships/{membership_of(a_id)}")
+    assert response.status_code == 200
+    assert response.json() == {"id": str(membership_of(a_id))}
+
+
+def test_read_other_business_by_id_is_404(sign_up_owner):
+    # Behaviour: shop A asks for shop B's row by id and gets our "not found" error.
+    (a, _), (_, b_id) = sign_up_owner(), sign_up_owner()
+    assert_not_found(probe_client(a).get(f"/probe/memberships/{membership_of(b_id)}"))
+
+
+def test_write_own_record_changes_it(sign_up_owner):
+    # Behaviour (positive control): the probe write really writes, so the next test means something.
+    a, a_id = sign_up_owner()
+    assert probe_client(a).post(f"/probe/memberships/{membership_of(a_id)}/deactivate").status_code == 204
+    assert membership_is_active(a_id) is False
+
+
+def test_write_other_business_by_id_is_404_and_changes_nothing(sign_up_owner):
+    # Behaviour: shop A tries to change shop B's row: "not found", and B's row stays the same.
+    (a, _), (b, b_id) = sign_up_owner(), sign_up_owner()
+    assert_not_found(probe_client(a).post(f"/probe/memberships/{membership_of(b_id)}/deactivate"))
+    assert membership_is_active(b_id) is True
+    assert b.get("/api/v1/me").status_code == 200
