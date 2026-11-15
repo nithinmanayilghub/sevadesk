@@ -1,5 +1,7 @@
 # Integration tests: a logged-in route runs inside its own Business's tenant scope (story 2.3, AD-3).
 # The routes live in a test-only probe app (probe_app.py); the cookie comes from a real sign-up.
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from tests.integration.conftest import assert_not_found, membership_is_active, membership_of
@@ -74,3 +76,10 @@ def test_write_other_business_by_id_is_404_and_changes_nothing(sign_up_owner):
     assert_not_found(probe_client(a).post(f"/probe/memberships/{membership_of(b_id)}/deactivate"))
     assert membership_is_active(b_id) is True
     assert b.get("/api/v1/me").status_code == 200
+
+
+def test_read_missing_id_is_same_404(sign_up_owner):
+    # Behaviour: an id that does not exist gets the exact same 404 as another shop's id.
+    a, _ = sign_up_owner()
+    missing_id = uuid.uuid7()
+    assert_not_found(probe_client(a).get(f"/probe/memberships/{missing_id}"))
