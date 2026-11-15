@@ -54,6 +54,14 @@ def test_empty_roles_get_nothing(permission):
     assert permissions_for(set()) == []
 
 
+def test_staff_cannot_manage_setup_but_can_see_dashboard():
+    # Behaviour: Staff may see the Dashboard, but only the Owner may manage setup.
+    staff = make_actor({Role.STAFF})
+    with pytest.raises(Forbidden):
+        require_roles(staff, Permission.MANAGE_SETUP)
+    require_roles(staff, Permission.SEE_DASHBOARD)
+
+
 def test_permissions_for_technician_only():
     # Behaviour: a Technician-only User may only see their own Bookings.
     assert permissions_for({Role.TECHNICIAN}) == [Permission.SEE_OWN_BOOKINGS]
