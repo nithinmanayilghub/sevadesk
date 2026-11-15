@@ -102,6 +102,11 @@ jobs:
         working-directory: frontend
         run: npm ci
       # Testcontainers starts Postgres and Valkey using the runner's Docker.
+      # Its own step, so a cross-Business leak shows by name in the log (FR-11).
+      # The main branch requires this job, so a failure here blocks the merge.
+      - name: Tenant isolation suite (FR-11)
+        working-directory: backend
+        run: uv run pytest -m isolation
       - name: Backend tests (coverage gate)
         working-directory: backend
         run: uv run pytest --cov

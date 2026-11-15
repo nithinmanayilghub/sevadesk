@@ -86,3 +86,11 @@ def test_lint_runs_terraform_tests():
 def test_images_carry_the_commit_version():
     assert "APP_VERSION=${{ github.sha }}" in _job_block("build")
     assert "sevadesk-worker" not in _text()
+
+
+# Behaviour: CI runs the tenant-isolation suite (FR-11) as its own named step, before the full run.
+def test_ci_runs_the_isolation_suite():
+    test = _job_block("test")
+    assert "Tenant isolation suite (FR-11)" in test
+    assert "uv run pytest -m isolation" in test
+    assert test.index("Tenant isolation suite (FR-11)") < test.index("Backend tests (coverage gate)")
