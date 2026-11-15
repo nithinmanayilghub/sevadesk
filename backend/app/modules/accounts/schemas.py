@@ -16,6 +16,18 @@ class Role(StrEnum):
     TECHNICIAN = "technician"
 
 
+class Permission(StrEnum):
+    """One member per row of the FR-10 table. permissions.py says which Roles may do each.
+
+    A later action with no FR-10 row (e.g. delete a Customer) adds its own member.
+    """
+
+    MANAGE_SETUP = "manage_setup"  # Services, Working Hours, and team
+    USE_INBOX_AND_BOOKINGS = "use_inbox_and_bookings"  # the Inbox, and approve Bookings
+    SEE_OWN_BOOKINGS = "see_own_bookings"  # the Bookings assigned to you
+    SEE_DASHBOARD = "see_dashboard"
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
