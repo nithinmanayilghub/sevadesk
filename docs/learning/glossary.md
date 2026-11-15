@@ -118,3 +118,8 @@ Plain-word meanings. Newest terms at the bottom.
 - **Context copy into a thread pool** - When FastAPI runs a sync route in a worker thread, it copies the request's ContextVars into it. Values set inside a sync dependency are not copied back.
 - **404-not-403** - Answer "not found" for another Business's record, so the caller cannot learn that it exists.
 - **Positive control** - A test that shows the normal case works (for example, a write really writes), so a "nothing changed" result in another test is real.
+- **Authorization** - Checking what a known User may do. Authentication (log-in) answers "who are you"; authorization answers "may you do this".
+- **Permission** - One action from the FR-10 table, like `manage_setup`. The backend says which Roles have it.
+- **403 Forbidden** - "We know who you are, but your Role may not do this." Not the same as 401 ("log in first") or 404 ("not found").
+- **Union of Roles** - A User with two Roles may do everything either Role may do.
+- **BOM** - Byte order mark: 3 hidden bytes some Windows tools put at the start of a UTF-8 file. Most code tools do not want them.
