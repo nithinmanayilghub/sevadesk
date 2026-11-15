@@ -182,12 +182,25 @@ export interface components {
         };
         /**
          * MeResponse
-         * @description What the app needs to know about the logged-in User: their Roles, for the nav.
+         * @description What the app needs to know about the logged-in User: their Roles, and what they may do.
+         *
+         *     The app shows or hides nav items and pages from `permissions` (UX-DR27). It never
+         *     works the rules out itself: the FR-10 table lives only in the backend (AD-5).
          */
         MeResponse: {
             /** Roles */
             roles: components["schemas"]["Role"][];
+            /** Permissions */
+            permissions: components["schemas"]["Permission"][];
         };
+        /**
+         * Permission
+         * @description One member per row of the FR-10 table. permissions.py says which Roles may do each.
+         *
+         *     A later action with no FR-10 row (e.g. delete a Customer) adds its own member.
+         * @enum {string}
+         */
+        Permission: "manage_setup" | "use_inbox_and_bookings" | "see_own_bookings" | "see_dashboard";
         /**
          * Role
          * @enum {string}

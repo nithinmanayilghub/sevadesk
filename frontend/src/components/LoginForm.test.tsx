@@ -31,8 +31,8 @@ test("every control has a text label, and there is a sign-up link", () => {
   expect(screen.getByRole("link", { name: "Create your Business" })).toHaveAttribute("href", "/signup");
 });
 
-test("sends email and password, then goes to the landing page for the Roles", async () => {
-  POST.mockResolvedValue({ data: { roles: ["technician"] } } as never);
+test("sends email and password, then goes to the landing page for the permissions", async () => {
+  POST.mockResolvedValue({ data: { roles: ["technician"], permissions: ["see_own_bookings"] } } as never);
   render(<LoginForm />);
   fillAndSubmit();
   await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/app/calendar"));

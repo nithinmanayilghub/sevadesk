@@ -57,6 +57,18 @@ class NotFound(AppError):
         super().__init__(code="not_found", message="We could not find that.", status_code=404)
 
 
+class Forbidden(AppError):
+    """403: we know who you are, but your Role may not do this (FR-10).
+
+    Services raise it BEFORE they look up any record, so a 403 never tells a
+    caller whether a record exists. Raising it also rolls back the request's
+    transaction (core/db.py), so a forbidden request changes nothing.
+    """
+
+    def __init__(self):
+        super().__init__(code="forbidden", message="You don't have access to this.", status_code=403)
+
+
 def error_response(status_code: int, code: str, message: str, fields: list[FieldError] | None = None) -> JSONResponse:
     """Build the one error envelope. Public, so middleware (which runs outside the handlers) uses it too."""
     body = ErrorBody(code=code, message=message, fields=fields or None)

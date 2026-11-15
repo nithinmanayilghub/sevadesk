@@ -38,8 +38,8 @@ export function LoginForm() {
     try {
       const { data, error } = await api.POST("/api/v1/login", { body: values });
       if (data) {
-        // The session cookie is set; go to the right first screen for the Roles.
-        router.replace(landingPath(data.roles));
+        // The session cookie is set; go to the right first screen for what this User may do.
+        router.replace(landingPath(data.permissions));
         return;
       }
       const errors: FieldErrors = {};

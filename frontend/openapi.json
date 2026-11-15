@@ -457,14 +457,33 @@
             },
             "type": "array",
             "title": "Roles"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "type": "array",
+            "title": "Permissions"
           }
         },
         "type": "object",
         "required": [
-          "roles"
+          "roles",
+          "permissions"
         ],
         "title": "MeResponse",
-        "description": "What the app needs to know about the logged-in User: their Roles, for the nav."
+        "description": "What the app needs to know about the logged-in User: their Roles, and what they may do.\n\nThe app shows or hides nav items and pages from `permissions` (UX-DR27). It never\nworks the rules out itself: the FR-10 table lives only in the backend (AD-5)."
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "manage_setup",
+          "use_inbox_and_bookings",
+          "see_own_bookings",
+          "see_dashboard"
+        ],
+        "title": "Permission",
+        "description": "One member per row of the FR-10 table. permissions.py says which Roles may do each.\n\nA later action with no FR-10 row (e.g. delete a Customer) adds its own member."
       },
       "Role": {
         "type": "string",

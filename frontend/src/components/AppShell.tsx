@@ -4,17 +4,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { isUnder, type Permission } from "@/lib/access";
 import { navItems, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-function isCurrent(pathname: string, href: string): boolean {
-  // "/app" is the Dashboard only; the others also match their sub-pages (e.g. /app/inbox/123).
-  return href === "/app" ? pathname === "/app" : pathname === href || pathname.startsWith(`${href}/`);
-}
-
 function NavLinks({ items, pathname, vertical }: { items: NavItem[]; pathname: string; vertical: boolean }) {
   return items.map(({ href, label, icon: Icon }) => {
-    const current = isCurrent(pathname, href);
+    const current = isUnder(pathname, href);
     return (
       <Link
         key={href}
@@ -34,9 +30,9 @@ function NavLinks({ items, pathname, vertical }: { items: NavItem[]; pathname: s
   });
 }
 
-export function AppShell({ roles, children }: { roles: string[]; children: ReactNode }) {
+export function AppShell({ permissions, children }: { permissions: Permission[]; children: ReactNode }) {
   const pathname = usePathname();
-  const items = navItems(roles);
+  const items = navItems(permissions);
   return (
     <div className="flex min-h-full flex-1">
       <nav aria-label="Sidebar" className="hidden w-60 shrink-0 flex-col gap-1 border-r bg-card p-4 lg:flex">

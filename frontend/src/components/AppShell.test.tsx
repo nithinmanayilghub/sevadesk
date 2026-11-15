@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/app/calendar" }));
 
 test("shows the Owner's items in both navs, and marks the current page", () => {
   render(
-    <AppShell roles={["owner", "technician"]}>
+    <AppShell permissions={["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"]}>
       <p>page body</p>
     </AppShell>,
   );
@@ -22,6 +22,6 @@ test("shows the Owner's items in both navs, and marks the current page", () => {
 });
 
 test("a Technician-only User sees no Dashboard", () => {
-  render(<AppShell roles={["technician"]}>x</AppShell>);
+  render(<AppShell permissions={["see_own_bookings"]}>x</AppShell>);
   expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
 });

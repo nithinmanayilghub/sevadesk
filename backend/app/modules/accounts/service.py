@@ -19,6 +19,11 @@ from app.core.tenancy import session_lookup, system_scope
 # "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
 from app.modules.accounts.emails import clean_email as clean_email
 from app.modules.accounts.models import Membership
+
+# Role checks (FR-10), re-exported the same way: other modules call accounts_service.require_roles.
+from app.modules.accounts.permissions import assigned_bookings_filter as assigned_bookings_filter
+from app.modules.accounts.permissions import permissions_for as permissions_for
+from app.modules.accounts.permissions import require_roles as require_roles
 from app.modules.accounts.repository import MembershipRepository, SessionRepository, UserRepository
 from app.modules.accounts.schemas import Actor, OwnerCreated, Role
 

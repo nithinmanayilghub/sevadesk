@@ -1,20 +1,25 @@
 "use client";
 // Layout for every /app page: asks the backend who is logged in, then shows the app shell.
 // No session? GET /api/v1/me returns 401, and the API client sends the User to /login.
+// A page the User's Role may not open shows "You don't have access to this page." (UX-DR27).
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { AppShell } from "@/components/AppShell";
+import { NoAccess } from "@/components/NoAccess";
 import { Button } from "@/components/ui/button";
+import { canOpen, type Permission } from "@/lib/access";
 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
-  const [roles, setRoles] = useState<string[] | null>(null);
+  const pathname = usePathname();
+  const [permissions, setPermissions] = useState<Permission[] | null>(null);
   const [failed, setFailed] = useState(false);
 
   const checkSession = useCallback(() => {
     api
       .GET("/api/v1/me")
       .then(({ data, response }) => {
-        if (data) setRoles(data.roles);
+        if (data) setPermissions(data.permissions);
         // 401 = not logged in: the API client is already on its way to /login.
         // Anything else (500, 503: e.g. the demo database waking up) gets a message and a retry.
         else if (response.status !== 401) setFailed(true);
@@ -50,9 +55,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </div>
     );
   }
-  if (!roles) {
+  if (!permissions) {
     // A plain placeholder block while we wait (UX-DR25 skeleton style).
     return <div aria-busy="true" aria-label="Loading" className="m-6 h-24 animate-pulse rounded-lg bg-muted" />;
   }
-  return <AppShell roles={roles}>{children}</AppShell>;
+  return <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>;
 }
