@@ -50,7 +50,10 @@ def test_login_sets_a_safe_cookie(client):
     address = new_owner(client)
     response = log_in(client, address)
     assert response.status_code == 200
-    assert response.json() == {"roles": ["owner", "technician"]}
+    assert response.json() == {
+        "roles": ["owner", "technician"],
+        "permissions": ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"],
+    }
     cookie = response.headers["set-cookie"]
     assert cookie.startswith(f"{SESSION_COOKIE}=")
     for flag in ("HttpOnly", "Secure", "SameSite=lax", "Path=/"):

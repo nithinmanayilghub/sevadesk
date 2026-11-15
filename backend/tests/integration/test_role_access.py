@@ -85,6 +85,15 @@ def test_new_roles_apply_on_next_request(sign_up_owner):
     assert client.get("/probe/permissions/manage_setup").status_code == 403
 
 
+def test_me_lists_only_own_permissions(sign_up_owner):
+    # Behaviour: /me tells the app what THIS User may do, so it can hide the rest (UX-DR27).
+    owner, business_id = sign_up_owner()
+    set_owner_roles(business_id, ["technician"])
+    response = owner.get("/api/v1/me")
+    assert response.status_code == 200
+    assert response.json() == {"roles": ["technician"], "permissions": ["see_own_bookings"]}
+
+
 @pytest.mark.isolation
 def test_other_business_record_is_404_for_owner(sign_up_owner):
     # Behaviour: the Owner passes the Role check, then the tenant filter answers 404 (FR-11).

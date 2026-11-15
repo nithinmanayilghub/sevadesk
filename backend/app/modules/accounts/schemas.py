@@ -50,9 +50,14 @@ class LoginRequest(BaseModel):
 
 
 class MeResponse(BaseModel):
-    """What the app needs to know about the logged-in User: their Roles, for the nav."""
+    """What the app needs to know about the logged-in User: their Roles, and what they may do.
+
+    The app shows or hides nav items and pages from `permissions` (UX-DR27). It never
+    works the rules out itself: the FR-10 table lives only in the backend (AD-5).
+    """
 
     roles: list[Role]
+    permissions: list[Permission]
 
 
 class Actor(BaseModel):

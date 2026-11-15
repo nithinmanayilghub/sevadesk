@@ -7,7 +7,7 @@ from app.core.errors import ErrorEnvelope
 from app.core.session_cookie import SessionTokenCookie, clear_session_cookie, set_session_cookie
 from app.modules.accounts import service
 from app.modules.accounts.dependencies import ActorDep
-from app.modules.accounts.schemas import LoginRequest, MeResponse
+from app.modules.accounts.schemas import LoginRequest, MeResponse, Role
 
 router = APIRouter(prefix="/api/v1")
 
@@ -27,7 +27,7 @@ def log_in(
     service.end_session(session, old_token)
     token, actor = service.log_in(session, body.email, body.password, client_ip(request))
     set_session_cookie(response, token)
-    return MeResponse(roles=sorted(actor.roles))
+    return _me(actor.roles)
 
 
 @router.post("/logout", status_code=204, operation_id="log_out")
@@ -39,4 +39,9 @@ def log_out(response: Response, session: SessionDep, token: SessionTokenCookie =
 
 @router.get("/me", operation_id="get_me", responses={401: _ERROR})
 def get_me(actor: ActorDep) -> MeResponse:
-    return MeResponse(roles=sorted(actor.roles))
+    return _me(actor.roles)
+
+
+def _me(roles: set[Role]) -> MeResponse:
+    # One place builds the "who am I" answer, for both log-in and /me.
+    return MeResponse(roles=sorted(roles), permissions=service.permissions_for(roles))
