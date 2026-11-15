@@ -2,12 +2,19 @@
 # Every tenant table inherits TenantModel; every tenant repository extends TenantRepository.
 # The base adds "WHERE business_id = <current Business>" to every query and sets
 # business_id on every insert. Repository methods never take business_id from callers.
+#
+# A new tenant table must also (checked by tests/integration/test_tenant_schema.py):
+# - have UniqueConstraint("business_id", "id"), and
+# - link to another tenant table with BOTH columns:
+#   ForeignKeyConstraint(["business_id", "x_id"], ["x.business_id", "x.id"]).
+#   Then the database itself refuses a row that points into another Business.
 import uuid
 
 from sqlalchemy import ForeignKey, Select, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.core.db import Base
+from app.core.errors import NotFound
 from app.core.tenancy import current_business_id
 
 
@@ -32,6 +39,13 @@ class TenantRepository[ModelT: TenantModel]:
 
     def get(self, id: uuid.UUID) -> ModelT | None:
         return self.session.scalars(self._select().where(self.model.id == id)).one_or_none()
+
+    def get_or_raise(self, id: uuid.UUID) -> ModelT:
+        # get() already hides other Businesses' rows, so "missing" and "not yours" look the same.
+        row = self.get(id)
+        if row is None:
+            raise NotFound()
+        return row
 
     def add(self, row: ModelT) -> ModelT:
         # Always the current Business: a caller cannot choose another one.

@@ -1,4 +1,5 @@
 # Integration test fixtures: a real Postgres in Docker, migrated, plus an API client.
+import uuid
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,8 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.valkey import ValkeyContainer
 
@@ -14,9 +17,11 @@ from app.core.redis_client import get_redis
 from app.core.settings import get_settings
 from app.core.telemetry import add_span_exporter, flush_telemetry
 from app.main import app
+from app.modules.accounts.models import Membership
 
 # alembic.ini lives in backend/, two folders above this file's folder.
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
+GOOD_PASSWORD = "correct horse battery"
 
 
 @pytest.fixture(scope="session")
@@ -95,3 +100,39 @@ def make_client(migrated_db):
 @pytest.fixture
 def client(make_client):
     return make_client()
+
+
+@pytest.fixture
+def sign_up_owner(make_client):
+    """Sign up a new Business; returns (logged-in client, business_id). Call it once per Owner."""
+
+    def sign_up() -> tuple[TestClient, uuid.UUID]:
+        owner = make_client()
+        body = {"business_name": "Test Shop", "email": f"{uuid.uuid4().hex}@example.com", "password": GOOD_PASSWORD}
+        response = owner.post("/api/v1/signup", json=body)
+        assert response.status_code == 201, response.text
+        return owner, uuid.UUID(response.json()["business_id"])
+
+    return sign_up
+
+
+def assert_not_found(response) -> None:
+    """Our own 404 (FR-11). A plain "no such address" 404 from the router does not count."""
+    assert response.status_code == 404, response.text
+    assert response.json() == {"error": {"code": "not_found", "message": "We could not find that."}}
+
+
+def _owner_membership(business_id: uuid.UUID) -> Membership:
+    # A direct database read, outside the app's tenant rules, so the test sees the truth.
+    with Session(get_engine()) as session:
+        return session.scalars(select(Membership).where(Membership.business_id == business_id)).one()
+
+
+def membership_of(business_id: uuid.UUID) -> uuid.UUID:
+    """The id of the Owner's membership row in this Business."""
+    return _owner_membership(business_id).id
+
+
+def membership_is_active(business_id: uuid.UUID) -> bool:
+    """Is the Owner's membership in this Business still active?"""
+    return _owner_membership(business_id).is_active
