@@ -5,12 +5,20 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { api } from "@/api/client";
 import AppLayout from "./layout";
 
+// The current page. vi.hoisted makes it exist before the mock below runs; each test may change it.
+const location = vi.hoisted(() => ({ pathname: "/app" }));
 vi.mock("@/api/client", () => ({ api: { GET: vi.fn() } }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/app" }));
+vi.mock("next/navigation", () => ({ usePathname: () => location.pathname }));
 const GET = vi.mocked(api.GET);
+const OWNER = {
+  roles: ["owner", "technician"],
+  permissions: ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"],
+};
+const TECHNICIAN = { roles: ["technician"], permissions: ["see_own_bookings"] };
 beforeEach(() => {
+  location.pathname = "/app";
   GET.mockReset();
-  GET.mockResolvedValue({ data: { roles: ["owner"] } } as never);
+  GET.mockResolvedValue({ data: OWNER } as never);
 });
 
 function restoreFromBackForwardCache() {
@@ -24,6 +32,23 @@ test("shows the shell for the logged-in User", async () => {
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   expect(await screen.findByRole("navigation", { name: "Main" })).toBeInTheDocument();
   expect(GET).toHaveBeenCalledWith("/api/v1/me");
+});
+
+test("a Technician-only User on a forbidden page sees the no-access message in the normal shell", async () => {
+  location.pathname = "/app/inbox";
+  GET.mockResolvedValue({ data: TECHNICIAN } as never);
+  render(<AppLayout params={Promise.resolve({})}>inbox body</AppLayout>);
+  expect(await screen.findByRole("heading", { name: "You don't have access to this page." })).toBeInTheDocument();
+  expect(screen.queryByText("inbox body")).not.toBeInTheDocument();
+  // The nav stays, so the User can go to a page they may use.
+  expect(screen.getAllByRole("link", { name: "Calendar" }).length).toBeGreaterThan(0);
+});
+
+test("an Owner on the same page sees the page itself", async () => {
+  location.pathname = "/app/inbox";
+  render(<AppLayout params={Promise.resolve({})}>inbox body</AppLayout>);
+  expect(await screen.findByText("inbox body")).toBeInTheDocument();
+  expect(screen.queryByText("You don't have access to this page.")).not.toBeInTheDocument();
 });
 
 // Regression (final review): any failure other than 401 left the loading block on screen forever.

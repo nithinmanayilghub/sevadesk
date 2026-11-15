@@ -3,12 +3,12 @@ import { expect, test } from "vitest";
 import { landingPath, shouldRedirectToLogin } from "./auth";
 
 test("Owner and Staff land on the Dashboard", () => {
-  expect(landingPath(["owner", "technician"])).toBe("/app");
-  expect(landingPath(["staff"])).toBe("/app");
+  expect(landingPath(["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"])).toBe("/app");
+  expect(landingPath(["use_inbox_and_bookings", "see_own_bookings", "see_dashboard"])).toBe("/app");
 });
 
 test("Technician-only Users land on the Calendar", () => {
-  expect(landingPath(["technician"])).toBe("/app/calendar");
+  expect(landingPath(["see_own_bookings"])).toBe("/app/calendar");
 });
 
 test("a 401 from any other call sends the User to /login", () => {

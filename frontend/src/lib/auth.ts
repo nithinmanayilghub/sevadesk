@@ -1,9 +1,12 @@
 // Log-in helpers. Role checks that protect data live in the backend only (AD-5);
 // these only choose which screen to show.
 
-// UX-DR18: Owner and Staff start on the Dashboard; Technician-only Users on the Calendar.
-export function landingPath(roles: string[]): "/app" | "/app/calendar" {
-  return roles.includes("owner") || roles.includes("staff") ? "/app" : "/app/calendar";
+import type { Permission } from "@/lib/access";
+
+// UX-DR18: Users who may see the Dashboard (Owner, Staff) start there; Technician-only
+// Users start on the Calendar.
+export function landingPath(permissions: Permission[]): "/app" | "/app/calendar" {
+  return permissions.includes("see_dashboard") ? "/app" : "/app/calendar";
 }
 
 // A 401 means "no valid session" (logged out, or idle for 7 days): go to /login.
