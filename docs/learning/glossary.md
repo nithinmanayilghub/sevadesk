@@ -112,3 +112,9 @@ Plain-word meanings. Newest terms at the bottom.
 - **User enumeration** - Finding out which emails have accounts from different replies or reply times. We give the same reply and do the same work for both.
 - **NFKC** - A Unicode rule that turns characters typed different ways (like "é") into one form, so the same password always matches.
 - **Back-forward cache (bfcache)** - A frozen copy of a page that the browser shows on Back without loading it again. The `pageshow` event with `persisted: true` tells the page it was restored.
+- **Tenant isolation suite** - The tests marked `isolation`. They list every endpoint and prove that one Business cannot reach another Business's data. CI runs them as their own step.
+- **Composite foreign key** - A link that uses two columns, like `(business_id, membership_id)` → `(business_id, id)`. The database then refuses a link into another Business.
+- **Banned API** - A Ruff rule (`TID251`) that blocks an import, like `sqlalchemy.text`, outside allowed folders.
+- **Context copy into a thread pool** - When FastAPI runs a sync route in a worker thread, it copies the request's ContextVars into it. Values set inside a sync dependency are not copied back.
+- **404-not-403** - Answer "not found" for another Business's record, so the caller cannot learn that it exists.
+- **Positive control** - A test that shows the normal case works (for example, a write really writes), so a "nothing changed" result in another test is real.
