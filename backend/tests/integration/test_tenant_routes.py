@@ -5,20 +5,9 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 from tests.integration.conftest import assert_not_found, membership_is_active, membership_of
-from tests.integration.probe_app import build_probe_app
+from tests.integration.probe_app import build_probe_app, probe_client
 
 pytestmark = pytest.mark.isolation
-
-
-def probe_client(owner: TestClient, **kwargs) -> TestClient:
-    """A client for the probe app that carries the Owner's session cookie."""
-    return TestClient(
-        build_probe_app(),
-        base_url="https://testserver",
-        headers={"Origin": "https://testserver"},
-        cookies=owner.cookies,
-        **kwargs,
-    )
 
 
 def test_logged_in_route_runs_in_own_business(sign_up_owner):

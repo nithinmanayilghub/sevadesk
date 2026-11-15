@@ -7,7 +7,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.valkey import ValkeyContainer
@@ -136,3 +136,12 @@ def membership_of(business_id: uuid.UUID) -> uuid.UUID:
 def membership_is_active(business_id: uuid.UUID) -> bool:
     """Is the Owner's membership in this Business still active?"""
     return _owner_membership(business_id).is_active
+
+
+def set_owner_roles(business_id: uuid.UUID, roles: list[str]) -> None:
+    """Give the one membership in this Business new Roles (a direct database write).
+
+    The session cookie stays valid: the next request reads the new Roles.
+    """
+    with Session(get_engine()) as session, session.begin():
+        session.execute(update(Membership).where(Membership.business_id == business_id).values(roles=roles))

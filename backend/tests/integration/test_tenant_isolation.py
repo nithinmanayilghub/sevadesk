@@ -14,13 +14,10 @@ from dataclasses import dataclass
 import pytest
 from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
-from sqlalchemy import update
-from sqlalchemy.orm import Session
+from tests.integration.conftest import set_owner_roles
 
-from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
-from app.modules.accounts.models import Membership
 
 pytestmark = pytest.mark.isolation
 
@@ -48,10 +45,7 @@ def two_owners(sign_up_owner) -> TwoOwners:
 
 def check_me(owners: TwoOwners) -> None:
     # Give B different roles first (A keeps "owner, technician" from sign-up), so a mix-up shows.
-    with Session(get_engine()) as session, session.begin():
-        session.execute(
-            update(Membership).where(Membership.business_id == owners.b_business_id).values(roles=["owner"])
-        )
+    set_owner_roles(owners.b_business_id, ["owner"])
     assert owners.a.get("/api/v1/me").json()["roles"] == ["owner", "technician"]
     assert owners.b.get("/api/v1/me").json()["roles"] == ["owner"]
 
