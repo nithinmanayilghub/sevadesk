@@ -2,6 +2,12 @@
 # Every tenant table inherits TenantModel; every tenant repository extends TenantRepository.
 # The base adds "WHERE business_id = <current Business>" to every query and sets
 # business_id on every insert. Repository methods never take business_id from callers.
+#
+# A new tenant table must also (checked by tests/integration/test_tenant_schema.py):
+# - have UniqueConstraint("business_id", "id"), and
+# - link to another tenant table with BOTH columns:
+#   ForeignKeyConstraint(["business_id", "x_id"], ["x.business_id", "x.id"]).
+#   Then the database itself refuses a row that points into another Business.
 import uuid
 
 from sqlalchemy import ForeignKey, Select, select
