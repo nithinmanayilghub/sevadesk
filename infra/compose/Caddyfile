@@ -2,14 +2,7 @@
 :80 {
 	# Start (or join) a trace for every request and pass "traceparent" on to the backend.
 	# This is the first span of each trace. Exports to the collector, set by OTEL_* env vars.
-	# The invite page path holds a secret token (/invite/<token>), so its span name is FIXED:
-	# trace viewers must never see a working invite link (story 2.5).
-	@invite path /invite/*
-	tracing @invite {
-		span "GET /invite/{token}"
-	}
-	@not_invite not path /invite/*
-	tracing @not_invite {
+	tracing {
 		span "{http.request.method} {http.request.uri.path}"
 	}
 	handle /api/* {

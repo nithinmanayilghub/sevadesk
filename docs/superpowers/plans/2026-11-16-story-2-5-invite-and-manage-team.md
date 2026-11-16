@@ -4,7 +4,7 @@
 
 **Goal:** An Owner creates a single-use, 7-day invite link with one or more Roles; the invited person opens `/invite/{token}`, sets a password, and is logged in; on Settings → Team the Owner changes Roles and deactivates members.
 
-**Architecture:** `accounts` owns the new tenant table `invites` (only a SHA-256 hash of the token is stored, like sessions). Owner actions live in a new `accounts/team.py` + `accounts/team_router.py`; each one calls `require_roles(actor, MANAGE_SETUP)` first. Invite accept has no session, so it finds the invite in an audited `system_scope("invite_accept")`, locks the row (`SELECT … FOR UPDATE`), then creates the User + membership inside `tenant_scope(invite.business_id)`. The token travels only in POST bodies, never in an API path, because request logs record the path (`core/telemetry.py:227`); Caddy gives `/invite/*` page requests a fixed span name, so traces never hold the token either. The frontend reads permissions from a small React context, shows a "Team" link on More for Owners, and has two new pages.
+**Architecture:** `accounts` owns the new tenant table `invites` (only a SHA-256 hash of the token is stored, like sessions). Owner actions live in a new `accounts/team.py` + `accounts/team_router.py`; each one calls `require_roles(actor, MANAGE_SETUP)` first. Invite accept has no session, so it finds the invite in an audited `system_scope("invite_accept")`, locks the row (`SELECT … FOR UPDATE`), then creates the User + membership inside `tenant_scope(invite.business_id)`. The token travels only in POST bodies, never in an API path, because request logs record the path (`core/telemetry.py:227`); the OpenTelemetry Collector rewrites `/invite/<token>` to `/invite/:token` in every span (name and `url.path`), so traces never hold the token either (changed during Task 8, see there). The frontend reads permissions from a small React context, shows a "Team" link on More for Owners, and has two new pages.
 
 **Tech Stack:** FastAPI, Pydantic, SQLAlchemy, Alembic, pytest + testcontainers (Python 3.14); Next.js 16, React 19, Vitest, openapi-typescript; Caddy.
 
@@ -291,6 +291,8 @@ Sign-up and invite-accept must use the same password rule and the same "make a U
 ---
 
 ### Task 8: Accept invite page `/invite/{token}` + token-free traces (STANDARD)
+
+> **Changed during execution (2026-11-16, User chose "Collector rule"):** the live trace check found that Caddy ALSO writes the full path into the span attribute `url.path`, which Caddy cannot turn off; and Caddy read `{token}` as an empty placeholder. So the Caddyfile change below was undone. Instead, `infra/compose/otel-collector.yaml` (CI copies it to the demo too) has a `transform/hide_invite_token` processor, first in the traces pipeline, that rewrites the span name and `url.path` to `/invite/:token`. Test: `backend/tests/unit/test_collector_hides_invite_tokens.py`. Live proof: a fresh token appeared 0 times in Tempo; both page traces were named `GET /invite/:token`.
 
 **Files:**
 - Create: `frontend/src/app/invite/[token]/page.tsx`
