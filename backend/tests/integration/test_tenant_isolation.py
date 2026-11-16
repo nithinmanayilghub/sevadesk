@@ -16,7 +16,7 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from tests.integration.conftest import set_owner_roles
+from tests.integration.conftest import assert_not_found, set_owner_roles
 
 from app.core.db import get_engine
 from app.main import app
@@ -77,6 +77,26 @@ def check_create_invite(owners: TwoOwners) -> None:
     assert owners.b_business_id not in owned_by.values()
 
 
+def _owner_membership_id(client: TestClient) -> uuid.UUID:
+    [me] = [m for m in client.get("/api/v1/team").json()["members"] if m["is_you"]]
+    return uuid.UUID(me["membership_id"])
+
+
+def check_list_team(owners: TwoOwners) -> None:
+    # A's team list holds only A's own member: none of B's.
+    a_members = owners.a.get("/api/v1/team").json()["members"]
+    b_ids = {m["membership_id"] for m in owners.b.get("/api/v1/team").json()["members"]}
+    assert len(a_members) == 1
+    assert not {m["membership_id"] for m in a_members} & b_ids
+
+
+def check_update_member(owners: TwoOwners) -> None:
+    # A tries to change B's Owner (a valid body): 404, and B's Roles stay the same.
+    b_owner_id = _owner_membership_id(owners.b)
+    assert_not_found(owners.a.patch(f"/api/v1/team/members/{b_owner_id}", json={"roles": ["owner"]}))
+    assert owners.b.get("/api/v1/me").json()["roles"] == ["owner", "technician"]
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -91,6 +111,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/me"): check_me,
     ("POST", "/api/v1/logout"): check_logout,
     ("POST", "/api/v1/team/invites"): check_create_invite,
+    ("GET", "/api/v1/team"): check_list_team,
+    ("PATCH", "/api/v1/team/members/{membership_id}"): check_update_member,
 }
 
 

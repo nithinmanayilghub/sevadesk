@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from app.modules.accounts.emails import clean_email
@@ -142,3 +142,39 @@ class AcceptInviteRequest(BaseModel):
     @classmethod
     def check_password(cls, value: str) -> str:
         return check_new_password(value)
+
+
+class TeamMember(BaseModel):
+    membership_id: uuid.UUID
+    email: str
+    roles: list[Role]
+    is_active: bool
+    is_you: bool  # this row is the caller's own membership
+
+
+class TeamResponse(BaseModel):
+    members: list[TeamMember]  # oldest first
+    # True when the caller is the only active Technician: the page says "Just you for now" (UX-DR29).
+    just_you: bool
+
+
+class MemberUpdate(BaseModel):
+    """A change to one member. Leave a field out (or null) to keep it as it is."""
+
+    roles: list[Role] | None = None
+    is_active: bool | None = None
+
+    @field_validator("roles")
+    @classmethod
+    def check_roles(cls, value: list[Role] | None) -> list[Role] | None:
+        if value is None:
+            return None
+        if not value:
+            raise PydanticCustomError("roles_empty", "Choose at least one Role.")
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def check_something_changes(self) -> MemberUpdate:
+        if self.roles is None and self.is_active is None:
+            raise PydanticCustomError("nothing_to_change", "Nothing to change.")
+        return self

@@ -13,6 +13,7 @@ from app.core.db import get_engine
 from app.core.tenancy import tenant_scope
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.models import Membership, UserSession
+from app.modules.accounts.repository import SessionRepository
 from app.modules.accounts.schemas import Role
 from app.modules.business.repository import BusinessRepository
 
@@ -109,3 +110,10 @@ def test_end_session_deletes_the_row():
         accounts_service.end_session(s, "nope")  # unknown token: no error
     with pytest.raises(accounts_service.NotAuthenticated):
         resolve(token)
+
+
+def test_touch_on_a_deleted_session_does_not_fail():
+    # Regression (story 2.5): a member is deactivated while their request runs, so their
+    # session row is gone. Updating last_seen_at must then change nothing, not crash with a 500.
+    with Session(get_engine()) as s, s.begin():
+        SessionRepository(s).touch(uuid.uuid7(), datetime.now(UTC))

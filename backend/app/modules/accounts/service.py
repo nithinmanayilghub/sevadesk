@@ -175,7 +175,8 @@ def resolve_session(session: Session, token: str | None) -> Actor:
         raise NotAuthenticated()
 
     if now - row.last_seen_at > SESSION_TOUCH_INTERVAL:
-        row.last_seen_at = now  # saved when the request's transaction commits
+        # A direct UPDATE: if this session was deleted meanwhile, it changes nothing (no 500).
+        SessionRepository(session).touch(row.id, now)
 
     return _actor(membership)
 
@@ -275,3 +276,15 @@ def accept_invite(session: Session, token: str, password: str) -> tuple[str, Act
     # Only after the User exists: an EmailTaken above leaves the invite unused.
     invite.used_at = datetime.now(UTC)
     return start_session(session, membership.user_id), _actor(membership)
+
+
+# ---------------------------------------------------------------- team (AR-7)
+
+
+def active_technician_ids(session: Session) -> list[uuid.UUID]:
+    """The membership ids of the active Technicians in the current Business, oldest first.
+
+    The ONE place that says who counts as an active Technician (AR-7). Bookings use it later
+    to assign jobs. Runs inside a tenant_scope.
+    """
+    return MembershipRepository(session).active_technician_ids()

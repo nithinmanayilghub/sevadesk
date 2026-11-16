@@ -1,7 +1,8 @@
-# Database access for accounts. Only accounts/service.py uses this file (AD-2).
+# Database access for accounts. Only accounts' own files use it (service.py, team.py); other modules never do (AD-2).
 import uuid
+from datetime import datetime
 
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, exists, select, update
 from sqlalchemy.orm import Session
 
 from app.core.repository import TenantRepository
@@ -48,6 +49,15 @@ class SessionRepository:
     def delete_by_token_hash(self, token_hash: str) -> None:
         self.session.execute(delete(UserSession).where(UserSession.token_hash == token_hash))
 
+    def delete_for_user(self, user_id: uuid.UUID) -> None:
+        # Log a User out everywhere at once (deactivation, AD-5).
+        self.session.execute(delete(UserSession).where(UserSession.user_id == user_id))
+
+    def touch(self, session_id: uuid.UUID, now: datetime) -> None:
+        # One direct UPDATE, not a change on the loaded row: if the row was deleted meanwhile
+        # (the member was just deactivated), this changes 0 rows instead of crashing.
+        self.session.execute(update(UserSession).where(UserSession.id == session_id).values(last_seen_at=now))
+
 
 class MembershipRepository(TenantRepository[Membership]):
     model = Membership
@@ -57,6 +67,25 @@ class MembershipRepository(TenantRepository[Membership]):
         # to LEARN the Business. Allowed only in session_lookup / system scope (AD-3).
         require_system_scope()
         return self.session.scalars(select(Membership).where(Membership.user_id == user_id)).one_or_none()
+
+    def list_with_emails(self) -> list[tuple[Membership, str]]:
+        # Every member of the current Business with their email, oldest first.
+        query = (
+            self._select()  # the tenant filter
+            .add_columns(User.email)
+            .join(User, User.id == Membership.user_id)
+            .order_by(Membership.created_at, Membership.id)
+        )
+        return [(membership, email) for membership, email in self.session.execute(query)]
+
+    def active_technician_ids(self) -> list[uuid.UUID]:
+        # Active members of the current Business that hold the Technician Role.
+        query = (
+            self._select()
+            .where(Membership.is_active, Membership.roles.contains(["technician"]))
+            .order_by(Membership.created_at, Membership.id)
+        )
+        return [membership.id for membership in self.session.scalars(query)]
 
 
 class InviteRepository(TenantRepository[Invite]):
