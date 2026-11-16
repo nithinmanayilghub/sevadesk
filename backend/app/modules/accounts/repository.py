@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.repository import TenantRepository
 from app.core.tenancy import require_system_scope
-from app.modules.accounts.models import Membership, User, UserSession
+from app.modules.accounts.models import Invite, Membership, User, UserSession
 
 
 class UserRepository:
@@ -57,3 +57,8 @@ class MembershipRepository(TenantRepository[Membership]):
         # to LEARN the Business. Allowed only in session_lookup / system scope (AD-3).
         require_system_scope()
         return self.session.scalars(select(Membership).where(Membership.user_id == user_id)).one_or_none()
+
+
+class InviteRepository(TenantRepository[Invite]):
+    # The base class adds the tenant filter and sets business_id on add (AD-3).
+    model = Invite
