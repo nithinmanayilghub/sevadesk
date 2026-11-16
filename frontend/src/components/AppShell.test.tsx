@@ -1,10 +1,14 @@
 // Tests for AppShell: a bottom tab bar (mobile) and a sidebar (desktop) with the Role's items,
 // and the current page marked for screen readers.
 import { render, screen, within } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { AppShell } from "./AppShell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/app/calendar" }));
+const path = vi.hoisted(() => ({ current: "/app/calendar" }));
+vi.mock("next/navigation", () => ({ usePathname: () => path.current }));
+beforeEach(() => {
+  path.current = "/app/calendar";
+});
 
 test("shows the Owner's items in both navs, and marks the current page", () => {
   render(
@@ -24,4 +28,13 @@ test("shows the Owner's items in both navs, and marks the current page", () => {
 test("a Technician-only User sees no Dashboard", () => {
   render(<AppShell permissions={["see_own_bookings"]}>x</AppShell>);
   expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+});
+
+test("on a settings page, More is the current item", () => {
+  path.current = "/app/settings/team";
+  render(<AppShell permissions={["manage_setup", "see_own_bookings"]}>x</AppShell>);
+  for (const name of ["Main", "Sidebar"]) {
+    const nav = within(screen.getByRole("navigation", { name }));
+    expect(nav.getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
+  }
 });

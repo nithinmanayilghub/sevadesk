@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { NoAccess } from "@/components/NoAccess";
 import { Button } from "@/components/ui/button";
 import { canOpen, type Permission } from "@/lib/access";
+import { PermissionsProvider } from "@/lib/permissions";
 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   const pathname = usePathname();
@@ -59,5 +60,10 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
     // A plain placeholder block while we wait (UX-DR25 skeleton style).
     return <div aria-busy="true" aria-label="Loading" className="m-6 h-24 animate-pulse rounded-lg bg-muted" />;
   }
-  return <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>;
+  return (
+    // The provider shares the permissions with every page, so a page can hide its own buttons.
+    <PermissionsProvider permissions={permissions}>
+      <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
+    </PermissionsProvider>
+  );
 }

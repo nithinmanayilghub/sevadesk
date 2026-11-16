@@ -12,11 +12,12 @@ export function isUnder(pathname: string, href: string): boolean {
 }
 
 // Pages that need a permission. Any path NOT listed is open to every logged-in User
-// (Calendar and More are for all Roles). Owner-only pages, like the settings pages,
+// (Calendar and More are for all Roles). Each Owner-only page, like a settings page,
 // must add their row here in their own story.
 const PAGE_RULES: { href: string; needs: Permission }[] = [
   { href: "/app", needs: "see_dashboard" },
   { href: "/app/inbox", needs: "use_inbox_and_bookings" },
+  { href: "/app/settings/team", needs: "manage_setup" },
 ];
 
 export function canOpen(pathname: string, permissions: Permission[]): boolean {

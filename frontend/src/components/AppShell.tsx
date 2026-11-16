@@ -9,8 +9,8 @@ import { navItems, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 function NavLinks({ items, pathname, vertical }: { items: NavItem[]; pathname: string; vertical: boolean }) {
-  return items.map(({ href, label, icon: Icon }) => {
-    const current = isUnder(pathname, href);
+  return items.map(({ href, label, icon: Icon, alsoActiveUnder = [] }) => {
+    const current = [href, ...alsoActiveUnder].some((path) => isUnder(pathname, path));
     return (
       <Link
         key={href}
