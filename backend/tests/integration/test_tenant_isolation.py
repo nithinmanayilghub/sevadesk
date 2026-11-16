@@ -83,6 +83,8 @@ NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/health/worker"): "is the worker up; reads no Business data",
     ("POST", "/api/v1/signup"): "creates a brand-new Business; there is no other Business to reach",
     ("POST", "/api/v1/login"): "logs in by email and password; returns only the caller's own roles",
+    ("POST", "/api/v1/invites/preview"): "no session; the Business comes from the secret token's own invite row",
+    ("POST", "/api/v1/invites/accept"): "no session; the Business comes from the secret token's own invite row",
 }
 
 ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {

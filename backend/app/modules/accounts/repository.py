@@ -62,3 +62,13 @@ class MembershipRepository(TenantRepository[Membership]):
 class InviteRepository(TenantRepository[Invite]):
     # The base class adds the tenant filter and sets business_id on add (AD-3).
     model = Invite
+
+    def find_by_token_hash(self, token_hash: str, *, lock: bool) -> Invite | None:
+        # The invited person has no session, so we look the invite up to LEARN the Business:
+        # no tenant filter, so system scope only (AD-3). lock=True adds FOR UPDATE: a second
+        # accept of the same invite then waits until the first one commits.
+        require_system_scope()
+        query = select(Invite).where(Invite.token_hash == token_hash)
+        if lock:
+            query = query.with_for_update()
+        return self.session.scalars(query).one_or_none()

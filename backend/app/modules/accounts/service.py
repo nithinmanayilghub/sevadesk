@@ -14,20 +14,20 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError, FieldError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
-from app.core.tenancy import session_lookup, system_scope
+from app.core.tenancy import session_lookup, system_scope, tenant_scope
 
 # "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
 from app.modules.accounts.emails import clean_email as clean_email
-from app.modules.accounts.models import Membership
+from app.modules.accounts.models import Invite, Membership
 
 # Role checks (FR-10), re-exported the same way: other modules call accounts_service.require_roles.
 from app.modules.accounts.permissions import assigned_bookings_filter as assigned_bookings_filter
 from app.modules.accounts.permissions import permissions_for as permissions_for
 from app.modules.accounts.permissions import require_roles as require_roles
-from app.modules.accounts.repository import MembershipRepository, SessionRepository, UserRepository
+from app.modules.accounts.repository import InviteRepository, MembershipRepository, SessionRepository, UserRepository
 
 # The new-password rule, re-exported: business checks sign-up passwords through this front door.
-from app.modules.accounts.schemas import Actor, OwnerCreated, Role
+from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role
 from app.modules.accounts.schemas import check_new_password as check_new_password
 
 # A session with no request for this long is refused (D1).
@@ -235,3 +235,43 @@ def log_in(session: Session, email: str, password: str, ip: str) -> tuple[str, A
     account_limiter.clear(account_key)
     ip_limiter.undo(ip)
     return start_session(session, user.id), _actor(membership)
+
+
+# ---------------------------------------------------------------- invite accept (FR-9, AD-3)
+
+
+class InviteInvalid(AppError):
+    # One answer for unknown, used, and expired: a caller learns nothing about which it was.
+    def __init__(self):
+        super().__init__(code="invite_invalid", message="This invite is no longer valid.", status_code=404)
+
+
+def _valid_invite(session: Session, token: str, *, lock: bool) -> Invite:
+    """The invite for this raw token, or InviteInvalid. lock=True holds the row until commit."""
+    # The invited person has no session: finding the invite searches every Business (AD-3 (d)).
+    with system_scope("invite_accept"):
+        invite = InviteRepository(session).find_by_token_hash(hash_token(token), lock=lock)
+    if invite is None or invite.used_at is not None or datetime.now(UTC) >= invite.expires_at:
+        raise InviteInvalid()
+    return invite
+
+
+def preview_invite(session: Session, token: str) -> InvitePreview:
+    """Who is invited. A read only, so it takes no lock."""
+    return InvitePreview(email=_valid_invite(session, token, lock=False).email)
+
+
+def accept_invite(session: Session, token: str, password: str) -> tuple[str, Actor]:
+    """Make the invited User and membership, mark the invite used, and log in. Returns (token, Actor).
+
+    The row lock makes a second accept of the same invite wait; it then sees used_at and fails.
+    No commit here (AD-15): if any step fails, the whole request rolls back, invite included.
+    """
+    invite = _valid_invite(session, token, lock=True)
+    # The tenant is server-derived: it comes from the invite row the secret token found.
+    with tenant_scope(invite.business_id):
+        roles = {Role(role) for role in invite.roles}
+        membership = _create_user(session, invite.email, password, roles, caller="invite_accept")
+    # Only after the User exists: an EmailTaken above leaves the invite unused.
+    invite.used_at = datetime.now(UTC)
+    return start_session(session, membership.user_id), _actor(membership)

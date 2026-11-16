@@ -16,7 +16,7 @@ from contextvars import ContextVar
 logger = logging.getLogger(__name__)
 
 # Callers allowed to enter system scope. Each new one must be added here on purpose.
-SYSTEM_SCOPE_CALLERS: frozenset[str] = frozenset({"signup", "login"})
+SYSTEM_SCOPE_CALLERS: frozenset[str] = frozenset({"signup", "login", "invite_accept"})
 
 _business_id: ContextVar[uuid.UUID | None] = ContextVar("business_id", default=None)
 _in_system_scope: ContextVar[bool] = ContextVar("in_system_scope", default=False)

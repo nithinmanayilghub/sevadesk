@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.modules.accounts.emails import clean_email
@@ -119,3 +119,26 @@ class InviteCreated(BaseModel):
 
     token: str
     expires_at: datetime
+
+
+# A real token is 43 characters (32 random bytes, base64). The cap stops huge inputs (NFR-5).
+MAX_TOKEN = 64
+
+
+class InviteTokenRequest(BaseModel):
+    # The token goes in the body, never in an API path: request logs record the path.
+    token: str = Field(max_length=MAX_TOKEN)
+
+
+class InvitePreview(BaseModel):
+    email: str
+
+
+class AcceptInviteRequest(BaseModel):
+    token: str = Field(max_length=MAX_TOKEN)
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def check_password(cls, value: str) -> str:
+        return check_new_password(value)

@@ -1,4 +1,5 @@
-# HTTP routes for log-in, log-out and "who am I" (story 2.2, FR-8, AD-5).
+# HTTP routes for log-in, log-out, "who am I" (story 2.2, FR-8, AD-5), and invite accept
+# (story 2.5, FR-9): accepting an invite also logs the person in.
 from fastapi import APIRouter, Request, Response
 
 from app.core.client_ip import client_ip
@@ -7,7 +8,14 @@ from app.core.errors import ErrorEnvelope
 from app.core.session_cookie import SessionTokenCookie, clear_session_cookie, set_session_cookie
 from app.modules.accounts import service
 from app.modules.accounts.dependencies import ActorDep
-from app.modules.accounts.schemas import LoginRequest, MeResponse, Role
+from app.modules.accounts.schemas import (
+    AcceptInviteRequest,
+    InvitePreview,
+    InviteTokenRequest,
+    LoginRequest,
+    MeResponse,
+    Role,
+)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -35,6 +43,27 @@ def log_out(response: Response, session: SessionDep, token: SessionTokenCookie =
     # No ActorDep: an expired or unknown session can still log out without an error.
     service.end_session(session, token)
     clear_session_cookie(response)
+
+
+@router.post("/invites/preview", operation_id="preview_invite", responses={404: _ERROR, 422: _ERROR})
+def preview_invite(body: InviteTokenRequest, session: SessionDep) -> InvitePreview:
+    # POST, not GET /invites/{token}: request logs record the path, and the token is a secret.
+    return service.preview_invite(session, body.token)
+
+
+@router.post(
+    "/invites/accept",
+    operation_id="accept_invite",
+    responses={404: _ERROR, 409: _ERROR, 422: _ERROR},
+)
+def accept_invite(
+    body: AcceptInviteRequest, response: Response, session: SessionDep, old_token: SessionTokenCookie = None
+) -> MeResponse:
+    # A shared phone: end the previous person's session first (D11).
+    service.end_session(session, old_token)
+    token, actor = service.accept_invite(session, body.token, body.password)
+    set_session_cookie(response, token)
+    return _me(actor.roles)
 
 
 @router.get("/me", operation_id="get_me", responses={401: _ERROR})
