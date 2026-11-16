@@ -14,10 +14,14 @@ from dataclasses import dataclass
 import pytest
 from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from tests.integration.conftest import set_owner_roles
 
+from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
+from app.modules.accounts.models import Invite
 
 pytestmark = pytest.mark.isolation
 
@@ -57,6 +61,22 @@ def check_logout(owners: TwoOwners) -> None:
     assert owners.b.get("/api/v1/me").status_code == 200
 
 
+def _invite_business_ids() -> dict[str, uuid.UUID]:
+    # A direct database read: which Business owns each invite, by email.
+    with Session(get_engine()) as session:
+        return {invite.email: invite.business_id for invite in session.scalars(select(Invite))}
+
+
+def check_create_invite(owners: TwoOwners) -> None:
+    # A's invite belongs to A's Business; B gets nothing new.
+    email = f"{uuid.uuid4().hex}@example.com"
+    body = {"email": email, "roles": ["staff"]}
+    assert owners.a.post("/api/v1/team/invites", json=body).status_code == 201
+    owned_by = _invite_business_ids()
+    assert owned_by[email] == owners.a_business_id
+    assert owners.b_business_id not in owned_by.values()
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -68,6 +88,7 @@ NO_TENANT_DATA: dict[tuple[str, str], str] = {
 ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/me"): check_me,
     ("POST", "/api/v1/logout"): check_logout,
+    ("POST", "/api/v1/team/invites"): check_create_invite,
 }
 
 

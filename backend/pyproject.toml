@@ -64,6 +64,8 @@ forbidden_modules = [
     "app.modules.accounts.models",
     "app.modules.accounts.repository",
     "app.modules.accounts.router",
+    "app.modules.accounts.team",
+    "app.modules.accounts.team_router",
 ]
 # Indirect is fine: business -> accounts.service -> accounts.repository is the front door working.
 allow_indirect_imports = true

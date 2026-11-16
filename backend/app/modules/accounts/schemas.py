@@ -1,5 +1,6 @@
 # DTOs (plain data objects) that the accounts front door returns to other modules (AD-2).
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, field_validator
@@ -86,3 +87,35 @@ class OwnerCreated(BaseModel):
     user_id: uuid.UUID
     membership_id: uuid.UUID
     roles: set[Role]
+
+
+# ---------------------------------------------------------------- team (story 2.5, FR-9)
+
+# The Roles an Owner may give through an invite. The MVP has one Owner per Business.
+TEAM_ROLES: frozenset[Role] = frozenset({Role.STAFF, Role.TECHNICIAN})
+
+
+class InviteRequest(BaseModel):
+    email: str
+    roles: list[Role]
+
+    @field_validator("email")
+    @classmethod
+    def check_email(cls, value: str) -> str:
+        return clean_email(value)
+
+    @field_validator("roles")
+    @classmethod
+    def check_roles(cls, value: list[Role]) -> list[Role]:
+        if not value:
+            raise PydanticCustomError("roles_empty", "Choose at least one Role.")
+        if not set(value) <= TEAM_ROLES:
+            raise PydanticCustomError("roles_not_allowed", "Choose Staff, Technician, or both.")
+        return sorted(set(value))  # no duplicates, one fixed order
+
+
+class InviteCreated(BaseModel):
+    """The raw token, shown ONCE. The database keeps only its hash."""
+
+    token: str
+    expires_at: datetime
