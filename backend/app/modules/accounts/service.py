@@ -25,7 +25,10 @@ from app.modules.accounts.permissions import assigned_bookings_filter as assigne
 from app.modules.accounts.permissions import permissions_for as permissions_for
 from app.modules.accounts.permissions import require_roles as require_roles
 from app.modules.accounts.repository import MembershipRepository, SessionRepository, UserRepository
+
+# The new-password rule, re-exported: business checks sign-up passwords through this front door.
 from app.modules.accounts.schemas import Actor, OwnerCreated, Role
+from app.modules.accounts.schemas import check_new_password as check_new_password
 
 # A session with no request for this long is refused (D1).
 SESSION_IDLE_TIMEOUT = timedelta(days=7)
@@ -105,9 +108,20 @@ def create_owner(session: Session, email: str, password: str) -> OwnerCreated:
 
     The caller sets tenant_scope to the new Business. No commit here (AD-15).
     """
+    roles = {Role.OWNER, Role.TECHNICIAN}
+    membership = _create_user(session, email, password, roles, caller="signup")
+    return OwnerCreated(user_id=membership.user_id, membership_id=membership.id, roles=roles)
+
+
+def _create_user(session: Session, email: str, password: str, roles: set[Role], caller: str) -> Membership:
+    """Make a User and their membership in the current Business. Used by sign-up and invite-accept.
+
+    Runs inside the caller's tenant_scope. `caller` names the audited system_scope for the
+    email check. No commit here (AD-15).
+    """
     users = UserRepository(session)
-    # The only cross-Business lookup in sign-up, so the only part in system scope (AD-3).
-    with system_scope("signup"):
+    # The only cross-Business lookup here, so the only part in system scope (AD-3).
+    with system_scope(caller):
         if users.email_exists(email):
             raise EmailTaken()
 
@@ -121,15 +135,13 @@ def create_owner(session: Session, email: str, password: str) -> OwnerCreated:
             raise EmailTaken() from None
         raise
 
-    roles = {Role.OWNER, Role.TECHNICIAN}
-    membership = MembershipRepository(session).add(Membership(user_id=user.id, roles=sorted(roles)))
-    return OwnerCreated(user_id=user.id, membership_id=membership.id, roles=roles)
+    return MembershipRepository(session).add(Membership(user_id=user.id, roles=sorted(roles)))
 
 
 # ---------------------------------------------------------------- sessions (AD-5)
 
 
-def _hash_token(token: str) -> str:
+def hash_token(token: str) -> str:
     # The DB keeps only this hash. A leaked DB backup then gives no working cookies.
     # SHA-256 is enough here (no Argon2): the token is 32 random bytes, not a guessable password.
     return hashlib.sha256(token.encode()).hexdigest()
@@ -138,7 +150,7 @@ def _hash_token(token: str) -> str:
 def start_session(session: Session, user_id: uuid.UUID) -> str:
     """Create a session row and return the raw token for the cookie. No commit here (AD-15)."""
     token = secrets.token_urlsafe(32)  # 32 random bytes from the OS: impossible to guess
-    SessionRepository(session).add(user_id, _hash_token(token))
+    SessionRepository(session).add(user_id, hash_token(token))
     return token
 
 
@@ -146,7 +158,7 @@ def resolve_session(session: Session, token: str | None) -> Actor:
     """Turn a cookie token into the Actor making the request, or raise NotAuthenticated."""
     if not token:
         raise NotAuthenticated()
-    row = SessionRepository(session).get_by_token_hash(_hash_token(token))
+    row = SessionRepository(session).get_by_token_hash(hash_token(token))
     if row is None:
         raise NotAuthenticated()
 
@@ -180,7 +192,7 @@ def _actor(membership: Membership) -> Actor:
 def end_session(session: Session, token: str | None) -> None:
     """Delete the session at once (log-out). A missing or unknown token is not an error."""
     if token:
-        SessionRepository(session).delete_by_token_hash(_hash_token(token))
+        SessionRepository(session).delete_by_token_hash(hash_token(token))
 
 
 # ---------------------------------------------------------------- log-in (FR-8, NFR-5)

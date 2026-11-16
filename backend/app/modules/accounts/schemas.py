@@ -7,7 +7,20 @@ from pydantic_core import PydanticCustomError
 
 from app.modules.accounts.emails import clean_email
 
+MIN_PASSWORD = 12
 MAX_PASSWORD = 128
+
+
+def check_new_password(value: str) -> str:
+    """The rule for a NEW password (sign-up and invite-accept). Length only, no "must have a digit".
+
+    Not stripped: spaces are part of the password.
+    """
+    if len(value) < MIN_PASSWORD:
+        raise PydanticCustomError("password_short", "Use at least 12 characters.")
+    if len(value) > MAX_PASSWORD:
+        raise PydanticCustomError("password_long", "Use at most 128 characters.")
+    return value
 
 
 class Role(StrEnum):
