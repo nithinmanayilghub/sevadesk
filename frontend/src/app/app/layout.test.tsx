@@ -18,6 +18,7 @@ const OWNER = {
 const TECHNICIAN = { roles: ["technician"], permissions: ["see_own_bookings"], theme: "system" };
 beforeEach(() => {
   location.pathname = "/app";
+  delete document.documentElement.dataset.theme;
   GET.mockReset();
   GET.mockResolvedValue({ data: OWNER } as never);
 });
@@ -74,4 +75,26 @@ test("asks the server again when Back restores the page from the cache", async (
   act(() => restoreFromBackForwardCache());
   // A second /me call: after log-out it returns 401, and the API client goes to /login.
   await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(2));
+});
+
+// Story 2.6: the chosen theme is written on <html> by the /app layout only.
+test("sets data-theme on <html> when the User chose dark", async () => {
+  GET.mockResolvedValue({ data: { ...OWNER, theme: "dark" } } as never);
+  render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  await screen.findByRole("navigation", { name: "Main" });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+});
+
+test("sets no data-theme when the theme is system", async () => {
+  render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  await screen.findByRole("navigation", { name: "Main" });
+  expect(document.documentElement.dataset.theme).toBeUndefined();
+});
+
+test("removes data-theme when the layout unmounts, so public pages follow the device", async () => {
+  GET.mockResolvedValue({ data: { ...OWNER, theme: "dark" } } as never);
+  const { unmount } = render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  await screen.findByRole("navigation", { name: "Main" });
+  unmount();
+  expect(document.documentElement.dataset.theme).toBeUndefined();
 });

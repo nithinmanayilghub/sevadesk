@@ -1,12 +1,18 @@
 /* Global styles: Tailwind, shadcn/ui, and the SevaDesk brand tokens from DESIGN.md.
    Design tokens are named values (colors, radii, sizes). Components use the names, never raw hex.
-   Light values sit in :root; dark values replace them when the device is in dark mode. */
+   Each token is light-dark(light value, dark value). The chosen theme wins (<html data-theme>,
+   set by the /app layout). With no choice, color-scheme follows the device. */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* dark: utilities follow the device setting. Story 2.6 adds a manual switch. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* dark: utilities. Chosen theme wins; with no choice, follow the device. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) { @slot; }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) { @slot; }
+  }
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -53,59 +59,42 @@
 }
 
 :root {
-  --background: #f4f4f5;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
-  --primary: #18181b;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-  --accent: #e4e4e7;
-  --accent-foreground: #18181b;
-  /* status-handoff red: 6.5:1 on white, 5.9:1 on the background (shadcn's red fails 4.5:1). */
-  --destructive: #b91c1c;
-  --border: #e4e4e7;
-  /* Input borders need 3:1 to be seen (WCAG 1.4.11); zinc-500 is 4.8:1 on white. */
-  --input: #71717a;
-  --ring: #18181b;
-  --brand: #047857;
-  --brand-foreground: #ffffff;
-  --brand-soft: #d1fae5;
-  --status-requested: #b45309;
-  --status-handoff: #b91c1c;
+  color-scheme: light dark; /* no choice: the device decides */
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;
-    --foreground: #fafafa;
-    --card: #18181b;
-    --card-foreground: #fafafa;
-    --popover: #18181b;
-    --popover-foreground: #fafafa;
-    --primary: #ffffff;
-    --primary-foreground: #18181b;
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --accent: #27272a;
-    --accent-foreground: #fafafa;
-    --destructive: #f87171;
-    --border: #27272a;
-    --input: #71717a;
-    --ring: #fafafa;
-    --brand: #34d399;
-    --brand-foreground: #022c22;
-    --brand-soft: #064e3b;
-    --status-requested: #fbbf24;
-    --status-handoff: #f87171;
-  }
+:root {
+  --background: light-dark(#f4f4f5, #09090b);
+  --foreground: light-dark(#18181b, #fafafa);
+  --card: light-dark(#ffffff, #18181b);
+  --card-foreground: light-dark(#18181b, #fafafa);
+  --popover: light-dark(#ffffff, #18181b);
+  --popover-foreground: light-dark(#18181b, #fafafa);
+  --primary: light-dark(#18181b, #ffffff);
+  --primary-foreground: light-dark(#ffffff, #18181b);
+  --secondary: light-dark(#f4f4f5, #27272a);
+  --secondary-foreground: light-dark(#18181b, #fafafa);
+  --muted: light-dark(#f4f4f5, #27272a);
+  --muted-foreground: light-dark(#52525b, #a1a1aa);
+  --accent: light-dark(#e4e4e7, #27272a);
+  --accent-foreground: light-dark(#18181b, #fafafa);
+  /* status-handoff red: 6.5:1 on white, 5.9:1 on the background (shadcn's red fails 4.5:1). */
+  --destructive: light-dark(#b91c1c, #f87171);
+  --border: light-dark(#e4e4e7, #27272a);
+  /* Input borders need 3:1 to be seen (WCAG 1.4.11); zinc-500 is 4.8:1 on white. */
+  --input: light-dark(#71717a, #71717a);
+  --ring: light-dark(#18181b, #fafafa);
+  --brand: light-dark(#047857, #34d399);
+  --brand-foreground: light-dark(#ffffff, #022c22);
+  --brand-soft: light-dark(#d1fae5, #064e3b);
+  --status-requested: light-dark(#b45309, #fbbf24);
+  --status-handoff: light-dark(#b91c1c, #f87171);
+  --background-end: light-dark(#f4f4f5, #000000);
 }
 
 @layer base {
@@ -116,12 +105,8 @@
     @apply font-sans;
   }
   body {
-    @apply bg-background text-foreground;
-  }
-  /* DESIGN.md: no flat dark background; a subtle bottom-heavy gradient to black. */
-  @media (prefers-color-scheme: dark) {
-    body {
-      background: linear-gradient(to bottom, #09090b, #000000) fixed;
-    }
+    @apply text-foreground;
+    /* DESIGN.md: dark has no flat background; a bottom-heavy gradient to black. Light stays flat. */
+    background: linear-gradient(to bottom, var(--background), var(--background-end)) fixed;
   }
 }
