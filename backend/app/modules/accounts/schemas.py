@@ -30,6 +30,14 @@ class Role(StrEnum):
     TECHNICIAN = "technician"
 
 
+class Theme(StrEnum):
+    """The look a User picked. "system" follows their device."""
+
+    SYSTEM = "system"
+    LIGHT = "light"
+    DARK = "dark"
+
+
 class Permission(StrEnum):
     """One member per row of the FR-10 table. permissions.py says which Roles may do each.
 

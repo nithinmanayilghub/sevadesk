@@ -13,10 +13,12 @@ from app.core.repository import TenantModel
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("theme IN ('system','light','dark')", name="theme_valid"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
     email: Mapped[str] = mapped_column(unique=True)  # stored lowercased
     password_hash: Mapped[str]  # Argon2id hash only, never the password
+    theme: Mapped[str] = mapped_column(Text, server_default="system")  # system | light | dark
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
