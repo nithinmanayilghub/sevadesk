@@ -95,10 +95,23 @@ test("Technician-only Users land on the Calendar", () => {
 
 // --- the registry itself ---
 
-test("every page.tsx under app/app has a row in PAGES", () => {
-  // Vite lists the files at test time. "../app/app/settings/team/page.tsx" -> "/app/settings/team".
-  const files = Object.keys(import.meta.glob("../app/app/**/page.tsx"));
-  const hrefs = files.map((file) => file.replace("../app", "").replace(/\/page\.tsx$/, ""));
-  expect(hrefs.length).toBeGreaterThan(0);
-  expect(PAGES.map((page) => page.href).sort()).toEqual(hrefs.sort());
+// Vite lists the page files at test time. "../app/app/settings/team/page.tsx" -> "/app/settings/team".
+// Route groups like "(group)" are not part of the URL, so they are removed.
+const pagePaths = Object.keys(import.meta.glob("../app/app/**/page.{tsx,ts,jsx,js}")).map((file) =>
+  file
+    .replace("../app", "")
+    .replace(/\/\([^/]+\)/g, "")
+    .replace(/\/page\.(tsx|ts|jsx|js)$/, ""),
+);
+
+test("every page file under app/app is covered by a row in PAGES", () => {
+  // A sub-page (e.g. a future /app/inbox/[id]) is covered by its parent's row.
+  expect(pagePaths.length).toBeGreaterThan(0);
+  const uncovered = pagePaths.filter((path) => !PAGES.some((page) => isUnder(path, page.href)));
+  expect(uncovered).toEqual([]);
+});
+
+test("every row in PAGES has a page file", () => {
+  const missing = PAGES.filter((page) => !pagePaths.includes(page.href)).map((page) => page.href);
+  expect(missing).toEqual([]);
 });

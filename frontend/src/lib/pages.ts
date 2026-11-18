@@ -41,7 +41,8 @@ export function isUnder(pathname: string, href: string): boolean {
 }
 
 // May this User open this path? A path with no row is blocked (fail closed): a forgotten
-// row shows "No access" instead of an open page.
+// row shows "No access" instead of an open page. Side effect: a mistyped URL such as
+// /app/foo also shows "No access", not the 404 page.
 export function canOpen(pathname: string, permissions: Permission[]): boolean {
   const page = PAGES.find(({ href }) => isUnder(pathname, href));
   if (page === undefined) return false;
