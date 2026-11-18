@@ -1,19 +1,13 @@
 "use client";
 // Links to the settings pages, on the More page. Each one shows only if this User may open it.
-// More settings pages (Services, Working Hours, Chat link) add a row in their story.
-// Appearance has no rule in access.ts, so every Role sees it.
+// The list lives in lib/pages.ts: a new settings page = one row there (place: "settings").
 import Link from "next/link";
-import { canOpen } from "@/lib/access";
+import { settingsLinks } from "@/lib/pages";
 import { usePermissions } from "@/lib/permissions";
-
-const SETTINGS = [
-  { href: "/app/settings/team", label: "Team" },
-  { href: "/app/settings/appearance", label: "Appearance" },
-];
 
 export function SettingsLinks() {
   const permissions = usePermissions();
-  const links = SETTINGS.filter(({ href }) => canOpen(href, permissions));
+  const links = settingsLinks(permissions);
   if (links.length === 0) return null;
   return (
     <nav aria-label="Settings" className="flex w-full max-w-md flex-col gap-1">
