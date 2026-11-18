@@ -55,7 +55,11 @@ def test_accept_makes_a_member_with_the_invited_roles_and_logs_in(sign_up_owner,
     response = accept(client, token)
     assert response.status_code == 200, response.text
     roles = {Role.STAFF, Role.TECHNICIAN}
-    assert response.json() == {"roles": ["staff", "technician"], "permissions": permissions_for(roles)}
+    assert response.json() == {
+        "roles": ["staff", "technician"],
+        "permissions": permissions_for(roles),
+        "theme": "system",
+    }
     assert client.get("/api/v1/me").status_code == 200  # the cookie works at once
     with Session(get_engine()) as session:
         query = select(Membership).join(User, User.id == Membership.user_id).where(User.email == email)

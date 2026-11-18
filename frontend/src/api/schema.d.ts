@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Theme */
+        put: operations["set_theme"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/team/invites": {
         parameters: {
             query?: never;
@@ -314,6 +331,7 @@ export interface components {
             roles: components["schemas"]["Role"][];
             /** Permissions */
             permissions: components["schemas"]["Permission"][];
+            theme: components["schemas"]["Theme"];
         };
         /**
          * MemberUpdate
@@ -379,6 +397,19 @@ export interface components {
             members: components["schemas"]["TeamMember"][];
             /** Just You */
             just_you: boolean;
+        };
+        /**
+         * Theme
+         * @description The look a User picked. "system" follows their device.
+         * @enum {string}
+         */
+        Theme: "system" | "light" | "dark";
+        /**
+         * ThemeUpdate
+         * @description The body of PUT /me/theme: the look the User picked.
+         */
+        ThemeUpdate: {
+            theme: components["schemas"]["Theme"];
         };
         /** ValidationError */
         ValidationError: {
@@ -689,6 +720,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_theme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThemeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

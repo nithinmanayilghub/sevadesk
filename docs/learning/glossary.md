@@ -133,3 +133,10 @@ Plain-word meanings. Newest terms at the bottom.
 - **Span name / span attribute** - A span is one step in a trace. Its name is a short label; its attributes are key-value details, like `url.path`.
 - **Collector processor** - A step inside the OpenTelemetry Collector that changes telemetry before it is sent on, like rewriting a secret in a span.
 - **Placeholder (Caddy)** - Text like `{http.request.uri.path}` that Caddy replaces with a value. An unknown one becomes empty.
+- **data-theme** - A label we put on the `<html>` tag (`data-theme="dark"`). The CSS reads it to pick the colors. No label means "follow the device".
+- **color-scheme** - A CSS property that tells the browser "this page is light" or "dark". It also colors scrollbars and form controls.
+- **light-dark()** - A CSS function that holds two colors, `light-dark(light, dark)`. The browser picks one from `color-scheme`.
+- **Custom variant (Tailwind)** - Our own rule for when a prefix like `dark:` applies. Ours: a chosen theme wins; with no choice, the device decides.
+- **Optimistic update** - Show a change on screen before the server says yes, then undo it if the save fails. It makes the app feel instant.
+- **Effect cleanup** - The function an effect returns. React runs it when the component leaves the screen, or before the effect runs again.
+- **aria-busy** - An attribute that tells screen readers "this part is still working". We set it while a save runs.

@@ -54,6 +54,13 @@ def check_me(owners: TwoOwners) -> None:
     assert owners.b.get("/api/v1/me").json()["roles"] == ["owner"]
 
 
+def check_theme(owners: TwoOwners) -> None:
+    # A saves "dark": A sees it, B stays on "system".
+    assert owners.a.put("/api/v1/me/theme", json={"theme": "dark"}).status_code == 204
+    assert owners.a.get("/api/v1/me").json()["theme"] == "dark"
+    assert owners.b.get("/api/v1/me").json()["theme"] == "system"
+
+
 def check_logout(owners: TwoOwners) -> None:
     # A logs out: only A's session ends. B stays logged in.
     assert owners.a.post("/api/v1/logout").status_code == 204
@@ -109,6 +116,7 @@ NO_TENANT_DATA: dict[tuple[str, str], str] = {
 
 ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/me"): check_me,
+    ("PUT", "/api/v1/me/theme"): check_theme,
     ("POST", "/api/v1/logout"): check_logout,
     ("POST", "/api/v1/team/invites"): check_create_invite,
     ("GET", "/api/v1/team"): check_list_team,

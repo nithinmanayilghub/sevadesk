@@ -10,17 +10,22 @@ import { NoAccess } from "@/components/NoAccess";
 import { Button } from "@/components/ui/button";
 import { canOpen, type Permission } from "@/lib/access";
 import { PermissionsProvider } from "@/lib/permissions";
+import { applyTheme, ThemeProvider, type Theme } from "@/lib/theme";
 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   const pathname = usePathname();
   const [permissions, setPermissions] = useState<Permission[] | null>(null);
+  const [theme, setTheme] = useState<Theme>("system");
   const [failed, setFailed] = useState(false);
 
   const checkSession = useCallback(() => {
     api
       .GET("/api/v1/me")
       .then(({ data, response }) => {
-        if (data) setPermissions(data.permissions);
+        if (data) {
+          setPermissions(data.permissions);
+          setTheme(data.theme);
+        }
         // 401 = not logged in: the API client is already on its way to /login.
         // Anything else (500, 503: e.g. the demo database waking up) gets a message and a retry.
         else if (response.status !== 401) setFailed(true);
@@ -40,6 +45,12 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
   }, [checkSession]);
+
+  // Write the theme on <html>; remove it when /app closes, so public pages follow the device.
+  useEffect(() => {
+    applyTheme(theme);
+    return () => applyTheme(null);
+  }, [theme]);
 
   if (failed) {
     return (
@@ -63,7 +74,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     // The provider shares the permissions with every page, so a page can hide its own buttons.
     <PermissionsProvider permissions={permissions}>
-      <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
+      <ThemeProvider theme={theme} setTheme={setTheme}>
+        <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
+      </ThemeProvider>
     </PermissionsProvider>
   );
 }

@@ -92,7 +92,7 @@ def test_me_lists_only_own_permissions(sign_up_owner):
     set_owner_roles(business_id, ["technician"])
     response = owner.get("/api/v1/me")
     assert response.status_code == 200
-    assert response.json() == {"roles": ["technician"], "permissions": ["see_own_bookings"]}
+    assert response.json() == {"roles": ["technician"], "permissions": ["see_own_bookings"], "theme": "system"}
 
 
 @pytest.mark.isolation

@@ -27,7 +27,7 @@ from app.modules.accounts.permissions import require_roles as require_roles
 from app.modules.accounts.repository import InviteRepository, MembershipRepository, SessionRepository, UserRepository
 
 # The new-password rule, re-exported: business checks sign-up passwords through this front door.
-from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role
+from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role, Theme
 from app.modules.accounts.schemas import check_new_password as check_new_password
 
 # A session with no request for this long is refused (D1).
@@ -288,3 +288,12 @@ def active_technician_ids(session: Session) -> list[uuid.UUID]:
     to assign jobs. Runs inside a tenant_scope.
     """
     return MembershipRepository(session).active_technician_ids()
+
+
+def get_theme(session: Session, user_id: uuid.UUID) -> Theme:
+    return UserRepository(session).get_theme(user_id)
+
+
+def set_theme(session: Session, user_id: uuid.UUID, theme: Theme) -> None:
+    # No commit here: the request commits (AD-15).
+    UserRepository(session).set_theme(user_id, theme)

@@ -364,6 +364,65 @@
         }
       }
     },
+    "/api/v1/me/theme": {
+      "put": {
+        "summary": "Set Theme",
+        "operationId": "set_theme",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThemeUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/team/invites": {
       "post": {
         "summary": "Create Invite",
@@ -913,12 +972,16 @@
             },
             "type": "array",
             "title": "Permissions"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/Theme"
           }
         },
         "type": "object",
         "required": [
           "roles",
-          "permissions"
+          "permissions",
+          "theme"
         ],
         "title": "MeResponse",
         "description": "What the app needs to know about the logged-in User: their Roles, and what they may do.\n\nThe app shows or hides nav items and pages from `permissions` (UX-DR27). It never\nworks the rules out itself: the FR-10 table lives only in the backend (AD-5)."
@@ -1074,6 +1137,29 @@
           "just_you"
         ],
         "title": "TeamResponse"
+      },
+      "Theme": {
+        "type": "string",
+        "enum": [
+          "system",
+          "light",
+          "dark"
+        ],
+        "title": "Theme",
+        "description": "The look a User picked. \"system\" follows their device."
+      },
+      "ThemeUpdate": {
+        "properties": {
+          "theme": {
+            "$ref": "#/components/schemas/Theme"
+          }
+        },
+        "type": "object",
+        "required": [
+          "theme"
+        ],
+        "title": "ThemeUpdate",
+        "description": "The body of PUT /me/theme: the look the User picked."
       },
       "ValidationError": {
         "properties": {

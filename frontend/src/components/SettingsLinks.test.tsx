@@ -22,3 +22,14 @@ test("a Technician-only User sees no Team link", () => {
   renderWith(["see_own_bookings"]);
   expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
 });
+
+test("every User sees Appearance, even with no permissions", () => {
+  renderWith([]);
+  expect(screen.getByRole("link", { name: "Appearance" })).toHaveAttribute("href", "/app/settings/appearance");
+});
+
+test("the Owner sees both Team and Appearance", () => {
+  renderWith(["manage_setup"]);
+  expect(screen.getByRole("link", { name: "Team" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Appearance" })).toBeInTheDocument();
+});
