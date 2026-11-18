@@ -8,7 +8,7 @@ import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { landingPath } from "@/lib/auth";
+import { landingPath } from "@/lib/pages";
 
 const FIELDS = ["email", "password"] as const;
 type Field = (typeof FIELDS)[number];

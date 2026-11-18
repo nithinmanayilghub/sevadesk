@@ -4,7 +4,7 @@
 // so it can hide links and buttons the User may not use (UX-DR27). This only decides what
 // to SHOW: the backend still checks every Role on every request (AD-5).
 import { createContext, useContext, type ReactNode } from "react";
-import type { Permission } from "@/lib/access";
+import type { Permission } from "@/lib/pages";
 
 // The default (no provider) is "may do nothing", so a mistake hides things instead of showing them.
 const PermissionsContext = createContext<Permission[]>([]);

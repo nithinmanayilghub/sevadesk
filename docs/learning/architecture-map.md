@@ -86,7 +86,7 @@ flowchart LR
 | Session cookie (only a hash stored) | `accounts/service.py` `resolve_session` | strangers; a leaked database giving working logins |
 | Tenant scope | `core/tenancy.py`, `core/repository.py` | Owner A reading Business B's data (answers 404) |
 | Roles | `accounts/permissions.py` `require_roles` | a Technician doing an Owner action (403) |
-| Frontend `access.ts` | `frontend/src/lib/access.ts` | showing pages a Role cannot use (display only; the backend still checks) |
+| Frontend route registry | `frontend/src/lib/pages.ts` | which /app pages exist, who may open them, the nav tabs, the settings links and the landing page; a page with no row is blocked (display only; the backend still checks) |
 
 Per-person data (email, password hash, theme) sits on the global `users` table. Business data
 (memberships, invites, and everything later) sits on tenant tables with a `business_id`.

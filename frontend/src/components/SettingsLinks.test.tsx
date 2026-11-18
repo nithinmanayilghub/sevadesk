@@ -1,7 +1,7 @@
 // Tests for SettingsLinks: the settings pages on More, shown only to Users who may open them.
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import type { Permission } from "@/lib/access";
+import type { Permission } from "@/lib/pages";
 import { PermissionsProvider } from "@/lib/permissions";
 import { SettingsLinks } from "./SettingsLinks";
 

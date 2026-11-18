@@ -8,7 +8,7 @@ import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { landingPath } from "@/lib/auth";
+import { landingPath } from "@/lib/pages";
 
 // What the page shows: still checking, a dead link, a failed check, or the join form.
 type State = { kind: "loading" } | { kind: "invalid" } | { kind: "failed" } | { kind: "ready"; email: string };

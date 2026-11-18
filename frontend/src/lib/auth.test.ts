@@ -1,15 +1,7 @@
-// Tests for the log-in helpers: where a User lands (UX-DR18) and when a 401 sends them to /login.
+// Tests for the log-in helper: when a 401 sends the User to /login.
+// (Where a User lands after log-in is tested in lib/pages.test.ts.)
 import { expect, test } from "vitest";
-import { landingPath, shouldRedirectToLogin } from "./auth";
-
-test("Owner and Staff land on the Dashboard", () => {
-  expect(landingPath(["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"])).toBe("/app");
-  expect(landingPath(["use_inbox_and_bookings", "see_own_bookings", "see_dashboard"])).toBe("/app");
-});
-
-test("Technician-only Users land on the Calendar", () => {
-  expect(landingPath(["see_own_bookings"])).toBe("/app/calendar");
-});
+import { shouldRedirectToLogin } from "./auth";
 
 test("a 401 from any other call sends the User to /login", () => {
   expect(shouldRedirectToLogin(401, "/api/v1/me", "/app")).toBe(true);

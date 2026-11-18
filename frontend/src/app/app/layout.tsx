@@ -8,7 +8,7 @@ import { api } from "@/api/client";
 import { AppShell } from "@/components/AppShell";
 import { NoAccess } from "@/components/NoAccess";
 import { Button } from "@/components/ui/button";
-import { canOpen, type Permission } from "@/lib/access";
+import { canOpen, type Permission } from "@/lib/pages";
 import { PermissionsProvider } from "@/lib/permissions";
 import { applyTheme, ThemeProvider, type Theme } from "@/lib/theme";
 

@@ -4,11 +4,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { isUnder, type Permission } from "@/lib/access";
-import { navItems, type NavItem } from "@/lib/nav";
+import { isUnder, tabs, type Permission, type Tab } from "@/lib/pages";
 import { cn } from "@/lib/utils";
 
-function NavLinks({ items, pathname, vertical }: { items: NavItem[]; pathname: string; vertical: boolean }) {
+function NavLinks({ items, pathname, vertical }: { items: Tab[]; pathname: string; vertical: boolean }) {
   return items.map(({ href, label, icon: Icon, alsoActiveUnder = [] }) => {
     const current = [href, ...alsoActiveUnder].some((path) => isUnder(pathname, path));
     return (
@@ -32,7 +31,7 @@ function NavLinks({ items, pathname, vertical }: { items: NavItem[]; pathname: s
 
 export function AppShell({ permissions, children }: { permissions: Permission[]; children: ReactNode }) {
   const pathname = usePathname();
-  const items = navItems(permissions);
+  const items = tabs(permissions);
   return (
     <div className="flex min-h-full flex-1">
       <nav aria-label="Sidebar" className="hidden w-60 shrink-0 flex-col gap-1 border-r bg-card p-4 lg:flex">
