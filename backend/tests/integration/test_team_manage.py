@@ -108,6 +108,18 @@ def test_reactivated_member_can_log_in_again(sign_up_owner, invite_member, make_
     assert log_in(make_client(), member.email).status_code == 200
 
 
+def test_reactivation_does_not_bring_old_sessions_back(sign_up_owner, invite_member):
+    # Behaviour: after reactivation, the old phone's session stays dead (401): delete_for_user ran.
+    owner, _ = sign_up_owner()
+    member = invite_member(owner, ["staff"])
+    assert member.client.get("/api/v1/me").status_code == 200  # logged in before
+
+    assert patch(owner, member.membership_id, {"is_active": False}).status_code == 200
+    assert patch(owner, member.membership_id, {"is_active": True}).status_code == 200
+
+    assert member.client.get("/api/v1/me").status_code == 401  # the old phone
+
+
 @pytest.mark.parametrize(
     ("target", "body", "field", "message"),
     [
