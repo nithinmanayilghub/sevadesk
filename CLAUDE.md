@@ -38,23 +38,12 @@ Spend my learning time in that order. Do not over-explain boilerplate.
 - Before writing each CORE test, tell me in one line what behaviour it checks.
 
 ### 4. Execution mode
-- CORE-heavy stories: use executing-plans with checkpoints, so I can follow along.
-- BOILERPLATE/STANDARD-heavy stories: use subagent-driven-development for speed.
+- Every story: use executing-plans (you build in this session; saves tokens).
+- Stop at a checkpoint after each CORE task, so I can follow along.
+- At the end: one whole-branch review by an Opus subagent.
 
-### 5. After each story: Understanding Gate (max 10 minutes)
-- Ask me 3 short questions: one "why", one "how does data flow", one "what breaks if…".
-- If I answer wrong, explain briefly and ask once more.
-- If still wrong, log it in docs/learning/gaps.md and move on. Do not block shipping.
-- Skip the gate for pure-boilerplate stories.
-
-### 6. Hands-on task
-- Give me one small change (5–15 min) to make myself, by hand. Do not do it for me.
-- Review my change after I finish.
-
-### 7. Learning notes (keep short)
-- Write docs/learning/<story-id>.md: what was built, why, concept learned, key files.
-- Add new terms to docs/learning/glossary.md in plain words.
-- At the end of each epic: update docs/learning/architecture-map.md with a Mermaid diagram, then ask me to explain the system back in 5 sentences.
+### 5–7. After the story
+- Story code done and final review clean: read docs/agents/after-story.md (Understanding Gate, hands-on task, learning notes).
 - At the start of each new epic: quiz me on 2 items from gaps.md.
 
 ### 8. Time budget
