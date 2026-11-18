@@ -68,3 +68,11 @@ def test_unknown_theme_is_422_and_nothing_changes(sign_up_owner):
 def test_set_theme_needs_login(client):
     # Behaviour: saving a theme without being logged in is refused with 401.
     assert client.put("/api/v1/me/theme", json={"theme": "dark"}).status_code == 401
+
+
+def test_light_replaces_dark(sign_up_owner):
+    # Behaviour: a later choice replaces an earlier one; "light" is saved and read back.
+    owner, _ = sign_up_owner()
+    assert owner.put("/api/v1/me/theme", json={"theme": "dark"}).status_code == 204
+    assert owner.put("/api/v1/me/theme", json={"theme": "light"}).status_code == 204
+    assert owner.get("/api/v1/me").json()["theme"] == "light"
