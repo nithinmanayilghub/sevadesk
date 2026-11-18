@@ -8,8 +8,6 @@ from pydantic_core import PydanticCustomError
 from app.modules.accounts import service as accounts_service
 
 MAX_NAME = 100
-MIN_PASSWORD = 12
-MAX_PASSWORD = 128
 
 
 class SignupRequest(BaseModel):
@@ -37,12 +35,8 @@ class SignupRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def check_password(cls, value: str) -> str:
-        # Not stripped: spaces are part of the password. Length only, no "must have a digit".
-        if len(value) < MIN_PASSWORD:
-            raise PydanticCustomError("password_short", "Use at least 12 characters.")
-        if len(value) > MAX_PASSWORD:
-            raise PydanticCustomError("password_long", "Use at most 128 characters.")
-        return value
+        # One rule for sign-up and invite-accept, owned by accounts (story 2.5).
+        return accounts_service.check_new_password(value)
 
 
 class SignupResponse(BaseModel):

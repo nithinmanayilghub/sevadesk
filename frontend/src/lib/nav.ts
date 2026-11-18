@@ -3,13 +3,15 @@
 import { CalendarDays, Ellipsis, Inbox, LayoutDashboard, type LucideIcon } from "lucide-react";
 import { canOpen, type Permission } from "@/lib/access";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon };
+// alsoActiveUnder: other pages where this item counts as the current one (e.g. More on
+// /app/settings/*, because the settings pages are opened from More).
+export type NavItem = { href: string; label: string; icon: LucideIcon; alsoActiveUnder?: string[] };
 
 const ITEMS: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/inbox", label: "Inbox", icon: Inbox },
   { href: "/app/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/app/more", label: "More", icon: Ellipsis },
+  { href: "/app/more", label: "More", icon: Ellipsis, alsoActiveUnder: ["/app/settings"] },
 ];
 
 export function navItems(permissions: Permission[]): NavItem[] {

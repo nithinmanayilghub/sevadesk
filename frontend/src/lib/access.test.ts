@@ -29,3 +29,9 @@ test("/app matches only itself; other links also match their sub-pages", () => {
   expect(isUnder("/app/inbox/1", "/app/inbox")).toBe(true);
   expect(isUnder("/app/inboxes", "/app/inbox")).toBe(false);
 });
+
+test("only the Owner (manage_setup) can open Settings → Team", () => {
+  expect(canOpen("/app/settings/team", STAFF)).toBe(false);
+  expect(canOpen("/app/settings/team", TECHNICIAN)).toBe(false);
+  expect(canOpen("/app/settings/team", ["manage_setup"])).toBe(true);
+});

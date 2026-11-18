@@ -14,18 +14,21 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError, FieldError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
-from app.core.tenancy import session_lookup, system_scope
+from app.core.tenancy import session_lookup, system_scope, tenant_scope
 
 # "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
 from app.modules.accounts.emails import clean_email as clean_email
-from app.modules.accounts.models import Membership
+from app.modules.accounts.models import Invite, Membership
 
 # Role checks (FR-10), re-exported the same way: other modules call accounts_service.require_roles.
 from app.modules.accounts.permissions import assigned_bookings_filter as assigned_bookings_filter
 from app.modules.accounts.permissions import permissions_for as permissions_for
 from app.modules.accounts.permissions import require_roles as require_roles
-from app.modules.accounts.repository import MembershipRepository, SessionRepository, UserRepository
-from app.modules.accounts.schemas import Actor, OwnerCreated, Role
+from app.modules.accounts.repository import InviteRepository, MembershipRepository, SessionRepository, UserRepository
+
+# The new-password rule, re-exported: business checks sign-up passwords through this front door.
+from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role
+from app.modules.accounts.schemas import check_new_password as check_new_password
 
 # A session with no request for this long is refused (D1).
 SESSION_IDLE_TIMEOUT = timedelta(days=7)
@@ -105,9 +108,20 @@ def create_owner(session: Session, email: str, password: str) -> OwnerCreated:
 
     The caller sets tenant_scope to the new Business. No commit here (AD-15).
     """
+    roles = {Role.OWNER, Role.TECHNICIAN}
+    membership = _create_user(session, email, password, roles, caller="signup")
+    return OwnerCreated(user_id=membership.user_id, membership_id=membership.id, roles=roles)
+
+
+def _create_user(session: Session, email: str, password: str, roles: set[Role], caller: str) -> Membership:
+    """Make a User and their membership in the current Business. Used by sign-up and invite-accept.
+
+    Runs inside the caller's tenant_scope. `caller` names the audited system_scope for the
+    email check. No commit here (AD-15).
+    """
     users = UserRepository(session)
-    # The only cross-Business lookup in sign-up, so the only part in system scope (AD-3).
-    with system_scope("signup"):
+    # The only cross-Business lookup here, so the only part in system scope (AD-3).
+    with system_scope(caller):
         if users.email_exists(email):
             raise EmailTaken()
 
@@ -121,15 +135,13 @@ def create_owner(session: Session, email: str, password: str) -> OwnerCreated:
             raise EmailTaken() from None
         raise
 
-    roles = {Role.OWNER, Role.TECHNICIAN}
-    membership = MembershipRepository(session).add(Membership(user_id=user.id, roles=sorted(roles)))
-    return OwnerCreated(user_id=user.id, membership_id=membership.id, roles=roles)
+    return MembershipRepository(session).add(Membership(user_id=user.id, roles=sorted(roles)))
 
 
 # ---------------------------------------------------------------- sessions (AD-5)
 
 
-def _hash_token(token: str) -> str:
+def hash_token(token: str) -> str:
     # The DB keeps only this hash. A leaked DB backup then gives no working cookies.
     # SHA-256 is enough here (no Argon2): the token is 32 random bytes, not a guessable password.
     return hashlib.sha256(token.encode()).hexdigest()
@@ -138,7 +150,7 @@ def _hash_token(token: str) -> str:
 def start_session(session: Session, user_id: uuid.UUID) -> str:
     """Create a session row and return the raw token for the cookie. No commit here (AD-15)."""
     token = secrets.token_urlsafe(32)  # 32 random bytes from the OS: impossible to guess
-    SessionRepository(session).add(user_id, _hash_token(token))
+    SessionRepository(session).add(user_id, hash_token(token))
     return token
 
 
@@ -146,7 +158,7 @@ def resolve_session(session: Session, token: str | None) -> Actor:
     """Turn a cookie token into the Actor making the request, or raise NotAuthenticated."""
     if not token:
         raise NotAuthenticated()
-    row = SessionRepository(session).get_by_token_hash(_hash_token(token))
+    row = SessionRepository(session).get_by_token_hash(hash_token(token))
     if row is None:
         raise NotAuthenticated()
 
@@ -163,7 +175,8 @@ def resolve_session(session: Session, token: str | None) -> Actor:
         raise NotAuthenticated()
 
     if now - row.last_seen_at > SESSION_TOUCH_INTERVAL:
-        row.last_seen_at = now  # saved when the request's transaction commits
+        # A direct UPDATE: if this session was deleted meanwhile, it changes nothing (no 500).
+        SessionRepository(session).touch(row.id, now)
 
     return _actor(membership)
 
@@ -180,7 +193,7 @@ def _actor(membership: Membership) -> Actor:
 def end_session(session: Session, token: str | None) -> None:
     """Delete the session at once (log-out). A missing or unknown token is not an error."""
     if token:
-        SessionRepository(session).delete_by_token_hash(_hash_token(token))
+        SessionRepository(session).delete_by_token_hash(hash_token(token))
 
 
 # ---------------------------------------------------------------- log-in (FR-8, NFR-5)
@@ -223,3 +236,55 @@ def log_in(session: Session, email: str, password: str, ip: str) -> tuple[str, A
     account_limiter.clear(account_key)
     ip_limiter.undo(ip)
     return start_session(session, user.id), _actor(membership)
+
+
+# ---------------------------------------------------------------- invite accept (FR-9, AD-3)
+
+
+class InviteInvalid(AppError):
+    # One answer for unknown, used, and expired: a caller learns nothing about which it was.
+    def __init__(self):
+        super().__init__(code="invite_invalid", message="This invite is no longer valid.", status_code=404)
+
+
+def _valid_invite(session: Session, token: str, *, lock: bool) -> Invite:
+    """The invite for this raw token, or InviteInvalid. lock=True holds the row until commit."""
+    # The invited person has no session: finding the invite searches every Business (AD-3 (d)).
+    with system_scope("invite_accept"):
+        invite = InviteRepository(session).find_by_token_hash(hash_token(token), lock=lock)
+    if invite is None or invite.used_at is not None or datetime.now(UTC) >= invite.expires_at:
+        raise InviteInvalid()
+    return invite
+
+
+def preview_invite(session: Session, token: str) -> InvitePreview:
+    """Who is invited. A read only, so it takes no lock."""
+    return InvitePreview(email=_valid_invite(session, token, lock=False).email)
+
+
+def accept_invite(session: Session, token: str, password: str) -> tuple[str, Actor]:
+    """Make the invited User and membership, mark the invite used, and log in. Returns (token, Actor).
+
+    The row lock makes a second accept of the same invite wait; it then sees used_at and fails.
+    No commit here (AD-15): if any step fails, the whole request rolls back, invite included.
+    """
+    invite = _valid_invite(session, token, lock=True)
+    # The tenant is server-derived: it comes from the invite row the secret token found.
+    with tenant_scope(invite.business_id):
+        roles = {Role(role) for role in invite.roles}
+        membership = _create_user(session, invite.email, password, roles, caller="invite_accept")
+    # Only after the User exists: an EmailTaken above leaves the invite unused.
+    invite.used_at = datetime.now(UTC)
+    return start_session(session, membership.user_id), _actor(membership)
+
+
+# ---------------------------------------------------------------- team (AR-7)
+
+
+def active_technician_ids(session: Session) -> list[uuid.UUID]:
+    """The membership ids of the active Technicians in the current Business, oldest first.
+
+    The ONE place that says who counts as an active Technician (AR-7). Bookings use it later
+    to assign jobs. Runs inside a tenant_scope.
+    """
+    return MembershipRepository(session).active_technician_ids()
