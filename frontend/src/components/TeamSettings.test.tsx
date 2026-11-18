@@ -78,3 +78,32 @@ test("a failed load shows a retry, and Try again asks again", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("Just you for now")).toBeInTheDocument();
 });
+
+test("while a change saves, the controls are off, so a quick second click sends nothing", async () => {
+  // Two quick clicks would both read the old Roles and send a wrong list.
+  GET.mockResolvedValue(team([OWNER, TECH], false));
+  let finish: (value: unknown) => void = () => {};
+  PATCH.mockReturnValue(new Promise((resolve) => (finish = resolve)) as never);
+  render(<TeamSettings />);
+  fireEvent.click(await screen.findByLabelText("Staff for tech@shop.in"));
+  const technician = screen.getByLabelText("Technician for tech@shop.in");
+  expect(technician).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Deactivate tech@shop.in" })).toBeDisabled();
+  fireEvent.click(technician);
+  expect(PATCH).toHaveBeenCalledTimes(1);
+  expect(screen.getByLabelText("Staff for owner@shop.in")).toBeDisabled(); // one change at a time
+
+  finish(team([OWNER, { ...TECH, roles: ["staff", "technician"] }], false));
+  await vi.waitFor(() => expect(screen.getByLabelText("Technician for tech@shop.in")).toBeEnabled());
+});
+
+test("a refused change shows the backend's message", async () => {
+  GET.mockResolvedValue(team([OWNER, TECH], false));
+  PATCH.mockResolvedValue({
+    error: { error: { code: "validation_error", message: "Check the fields.", fields: [{ field: "roles", message: "Choose at least one Role." }] } },
+    response: { status: 422 },
+  } as never);
+  render(<TeamSettings />);
+  fireEvent.click(await screen.findByLabelText("Technician for tech@shop.in"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Choose at least one Role.");
+});

@@ -52,7 +52,8 @@ export function AcceptInviteForm({ token }: { token: string }) {
     try {
       const { data, error } = await api.POST("/api/v1/invites/accept", { body: { token, password } });
       if (data) {
-        // Joined and logged in: go to the right first page for these Roles.
+        // Joined and logged in: go to the right first page for these Roles. "busy" stays on,
+        // so a second tap cannot post the used token again while the page loads.
         router.replace(landingPath(data.permissions));
         return;
       }
@@ -66,9 +67,8 @@ export function AcceptInviteForm({ token }: { token: string }) {
       }
     } catch {
       setGeneralError(GENERAL_ERROR);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   }
 
   if (state.kind === "loading") {

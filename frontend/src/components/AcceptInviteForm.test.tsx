@@ -96,3 +96,13 @@ test("an invite used meanwhile switches to the invalid state", async () => {
   join();
   expect(await screen.findByRole("heading", { name: "This invite is no longer valid." })).toBeInTheDocument();
 });
+
+test("after a successful join the button stays off while the next page loads", async () => {
+  // A second tap would post the used token again and flash "no longer valid" at a new member.
+  answer({ data: { email: "tech@shop.in" } }, { data: { roles: ["technician"], permissions: ["see_own_bookings"] } });
+  render(<AcceptInviteForm token="t1" />);
+  await screen.findByText("You're joining as tech@shop.in.");
+  join();
+  await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+  expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+});
