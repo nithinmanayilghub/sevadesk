@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { api } from "@/api/client";
 import { type Theme, useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
 const CHOICES: { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
@@ -21,6 +22,9 @@ export function AppearanceSettings() {
   const [failed, setFailed] = useState(false);
 
   async function choose(next: Theme) {
+    // One save at a time. We ignore the pick instead of disabling the radios: a disabled
+    // radio loses keyboard focus, and the arrow keys would stop working.
+    if (saving) return;
     const old = theme;
     setFailed(false);
     setTheme(next); // show it now
@@ -38,20 +42,23 @@ export function AppearanceSettings() {
 
   return (
     <div className="flex w-full max-w-md flex-col gap-2">
-      <fieldset className="flex flex-col gap-1">
+      {/* aria-busy tells screen readers a save is running. */}
+      <fieldset aria-busy={saving || undefined} className="flex flex-col gap-1">
         <legend className="mb-2 text-sm font-medium">Theme</legend>
         {CHOICES.map(({ value, label }) => (
           // min-h-11 = 44px: a tap target big enough for a thumb. The whole row is the label.
           <label
             key={value}
-            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border bg-card px-4 text-sm has-disabled:cursor-wait"
+            className={cn(
+              "flex min-h-11 items-center gap-3 rounded-md border bg-card px-4 text-sm",
+              saving ? "cursor-wait" : "cursor-pointer",
+            )}
           >
             <input
               type="radio"
               name="theme"
               value={value}
               checked={theme === value}
-              disabled={saving}
               onChange={() => void choose(value)}
               className="size-4 accent-brand"
             />

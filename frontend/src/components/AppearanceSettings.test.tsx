@@ -67,16 +67,30 @@ test("goes back and says so when the network is down", async () => {
   expect(screen.getByRole("radio", { name: "System" })).toBeChecked();
 });
 
-test("one save at a time: the choices are disabled while saving", async () => {
+test("one save at a time: a second pick while saving is ignored", async () => {
   let finish: (value: never) => void = () => {};
   PUT.mockReturnValue(new Promise((resolve) => (finish = resolve)) as never);
   render(<Harness start="system" />);
 
   fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Light" }));
+
+  expect(PUT).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("radio", { name: "Dark" })).toBeChecked();
+  expect(screen.getByRole("group", { name: "Theme" })).toHaveAttribute("aria-busy", "true");
+  finish(saved);
+  expect(await screen.findByRole("group", { name: "Theme" })).not.toHaveAttribute("aria-busy");
+});
+
+// Regression (final review): disabling the radios while saving dropped keyboard focus to
+// <body>, so arrow keys stopped working after one pick. The radios must stay enabled.
+test("the choices stay enabled while saving, so keyboard focus is kept", () => {
+  PUT.mockReturnValue(new Promise(() => {}) as never);
+  render(<Harness start="system" />);
+
+  fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
 
   for (const name of ["System", "Light", "Dark"]) {
-    expect(screen.getByRole("radio", { name })).toBeDisabled();
+    expect(screen.getByRole("radio", { name })).toBeEnabled();
   }
-  finish(saved);
-  expect(await screen.findByRole("radio", { name: "System" })).toBeEnabled();
 });
