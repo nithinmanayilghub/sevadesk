@@ -53,6 +53,7 @@ def test_login_sets_a_safe_cookie(client):
     assert response.json() == {
         "roles": ["owner", "technician"],
         "permissions": ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"],
+        "theme": "system",
     }
     cookie = response.headers["set-cookie"]
     assert cookie.startswith(f"{SESSION_COOKIE}=")

@@ -13,8 +13,9 @@ const GET = vi.mocked(api.GET);
 const OWNER = {
   roles: ["owner", "technician"],
   permissions: ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"],
+  theme: "system",
 };
-const TECHNICIAN = { roles: ["technician"], permissions: ["see_own_bookings"] };
+const TECHNICIAN = { roles: ["technician"], permissions: ["see_own_bookings"], theme: "system" };
 beforeEach(() => {
   location.pathname = "/app";
   GET.mockReset();

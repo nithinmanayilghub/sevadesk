@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.repository import TenantRepository
 from app.core.tenancy import require_system_scope
 from app.modules.accounts.models import Invite, Membership, User, UserSession
+from app.modules.accounts.schemas import Theme
 
 
 class UserRepository:
@@ -30,6 +31,14 @@ class UserRepository:
         self.session.add(user)
         self.session.flush()  # fills user.id; a duplicate email fails here
         return user
+
+    def get_theme(self, user_id: uuid.UUID) -> Theme:
+        # Reads only the caller's own row, so no system scope is needed.
+        return Theme(self.session.scalars(select(User.theme).where(User.id == user_id)).one())
+
+    def set_theme(self, user_id: uuid.UUID, theme: Theme) -> None:
+        # Writes only the caller's own row.
+        self.session.execute(update(User).where(User.id == user_id).values(theme=theme.value))
 
 
 class SessionRepository:

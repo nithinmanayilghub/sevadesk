@@ -80,6 +80,13 @@ class MeResponse(BaseModel):
 
     roles: list[Role]
     permissions: list[Permission]
+    theme: Theme
+
+
+class ThemeUpdate(BaseModel):
+    """The body of PUT /me/theme: the look the User picked."""
+
+    theme: Theme
 
 
 class Actor(BaseModel):

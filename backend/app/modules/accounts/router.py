@@ -1,6 +1,7 @@
 # HTTP routes for log-in, log-out, "who am I" (story 2.2, FR-8, AD-5), and invite accept
 # (story 2.5, FR-9): accepting an invite also logs the person in.
 from fastapi import APIRouter, Request, Response
+from sqlalchemy.orm import Session
 
 from app.core.client_ip import client_ip
 from app.core.db import SessionDep
@@ -10,11 +11,12 @@ from app.modules.accounts import service
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.accounts.schemas import (
     AcceptInviteRequest,
+    Actor,
     InvitePreview,
     InviteTokenRequest,
     LoginRequest,
     MeResponse,
-    Role,
+    ThemeUpdate,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -35,7 +37,7 @@ def log_in(
     service.end_session(session, old_token)
     token, actor = service.log_in(session, body.email, body.password, client_ip(request))
     set_session_cookie(response, token)
-    return _me(actor.roles)
+    return _me(session, actor)
 
 
 @router.post("/logout", status_code=204, operation_id="log_out")
@@ -63,14 +65,24 @@ def accept_invite(
     service.end_session(session, old_token)
     token, actor = service.accept_invite(session, body.token, body.password)
     set_session_cookie(response, token)
-    return _me(actor.roles)
+    return _me(session, actor)
 
 
 @router.get("/me", operation_id="get_me", responses={401: _ERROR})
-def get_me(actor: ActorDep) -> MeResponse:
-    return _me(actor.roles)
+def get_me(session: SessionDep, actor: ActorDep) -> MeResponse:
+    return _me(session, actor)
 
 
-def _me(roles: set[Role]) -> MeResponse:
+def _me(session: Session, actor: Actor) -> MeResponse:
     # One place builds the "who am I" answer, for both log-in and /me.
-    return MeResponse(roles=sorted(roles), permissions=service.permissions_for(roles))
+    return MeResponse(
+        roles=sorted(actor.roles),
+        permissions=service.permissions_for(actor.roles),
+        theme=service.get_theme(session, actor.user_id),
+    )
+
+
+@router.put("/me/theme", status_code=204, operation_id="set_theme", responses={401: _ERROR, 422: _ERROR})
+def set_theme(body: ThemeUpdate, session: SessionDep, actor: ActorDep) -> None:
+    # Saves the look for this User, so it follows them to every device.
+    service.set_theme(session, actor.user_id, body.theme)
