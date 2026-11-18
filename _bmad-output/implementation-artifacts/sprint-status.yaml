@@ -45,13 +45,13 @@ development_status:
   1-7-one-command-aws-staging-deploy-and-destroy: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  epic-2: done
   2-1-owner-signs-up-and-creates-a-business: done
   2-2-log-in-log-out-and-the-app-shell: done
   2-3-tenant-isolation-is-tested-on-every-pull-request: done
   2-4-role-based-access: done
   2-5-invite-team-members-and-manage-the-team: done
-  2-6-choose-light-or-dark-theme: in-progress
+  2-6-choose-light-or-dark-theme: done
   epic-2-retrospective: optional
 
   epic-3: backlog
