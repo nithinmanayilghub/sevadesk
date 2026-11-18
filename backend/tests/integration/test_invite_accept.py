@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from tests.integration.conftest import GOOD_PASSWORD
 
 from app.core.db import get_engine
+from app.core.session_cookie import SESSION_COOKIE
 from app.modules.accounts.models import Invite, Membership, User
 from app.modules.accounts.schemas import Role
 from app.modules.accounts.service import hash_token, permissions_for
@@ -146,3 +147,21 @@ def test_short_password_is_a_field_error(sign_up_owner, client):
     assert response.status_code == 422
     assert response.json()["error"]["fields"] == [{"field": "password", "message": "Use at least 12 characters."}]
     assert invite_row(token).used_at is None
+
+
+def test_accept_on_a_shared_phone_ends_the_previous_session(sign_up_owner, make_client):
+    # Behaviour: the Owner hands their phone to the new member, who accepts there. The Owner's
+    # old session must stop working, so the next person cannot act as the Owner (D11).
+    owner, _ = sign_up_owner()
+    token, _ = new_invite(owner, ["staff"])
+    owners_token = owner.cookies[SESSION_COOKIE]
+    assert accept(owner, token).status_code == 200  # same browser = same phone
+    old = make_client().get("/api/v1/me", headers={"Cookie": f"{SESSION_COOKIE}={owners_token}"})
+    assert old.status_code == 401
+
+
+def test_failed_accept_keeps_the_current_session(sign_up_owner):
+    # Behaviour: a dead link changes nothing; the rollback also undoes the "end old session" step.
+    owner, _ = sign_up_owner()
+    assert accept(owner, secrets.token_urlsafe(32)).status_code == 404
+    assert owner.get("/api/v1/me").status_code == 200

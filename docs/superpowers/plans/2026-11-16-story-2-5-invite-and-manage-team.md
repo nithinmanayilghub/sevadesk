@@ -33,7 +33,7 @@
 - **Owner Role cannot be given or removed** through invites or the Team page (MVP: one Owner). The DB check on `invites.roles` allows only `staff` / `technician`. The Owner can turn their own Technician Role on and off.
 - **An Owner cannot deactivate themself** (else nobody can manage the Business).
 - **Reactivate is allowed** (`is_active: true`). Reason: one User has one membership for life (unique `user_id`), so a wrong deactivation would lock that email out forever. Same code path, about 2 lines.
-- **Email already has an account** → accept answers 409 `An account with this email already exists.` and the invite stays unused. No check at invite time (that would tell the Owner which emails exist elsewhere).
+- **Email already has an account** → accept answers 409 `An account with this email already exists.` and the invite stays unused. No check at invite time. (Reason corrected after the review: such a check would not hide much, because the Owner can open their own link and see the 409, and sign-up already shows the same thing. The real limit is that nobody verifies an email address yet; that is a later story.)
 - **No rate limit on preview/accept:** the token is 32 random bytes, so guessing is impossible; the length cap stops huge inputs.
 - **No list of pending invites** and no "cancel invite". Not in the story. Note for later.
 

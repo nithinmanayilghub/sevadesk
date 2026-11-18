@@ -9,8 +9,12 @@ from app.modules.accounts.service import check_new_password, hash_password, veri
 
 
 def test_two_unicode_forms_of_one_password_match():
-    stored = hash_password("café is open now")  # é as one character
-    assert verify_password("café is open now", stored) is True  # e + accent
+    # Built with chr() on purpose: plain ASCII text, so no editor can merge the two forms.
+    one_char = "caf" + chr(0x00E9) + " is open now"  # é as one character
+    e_plus_accent = "cafe" + chr(0x0301) + " is open now"  # e + a separate accent mark
+    assert one_char != e_plus_accent  # guard: the two inputs really differ
+    stored = hash_password(one_char)
+    assert verify_password(e_plus_accent, stored) is True
 
 
 def test_wrong_password_does_not_match():
