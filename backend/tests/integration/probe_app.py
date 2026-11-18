@@ -1,6 +1,6 @@
-# A tiny test-only app (story 2.3, D3). No production endpoint reads tenant rows by id yet,
-# so these "probe" routes use the real building blocks (ActorDep, SessionDep, the error
-# handlers) the way future endpoints will. They are never part of the real app.
+# A tiny test-only app (story 2.3, D3), written before any production endpoint read tenant
+# rows by id. These "probe" routes use the real building blocks (ActorDep, SessionDep, the
+# error handlers) in small, fixed ways the tests rely on. They are never part of the real app.
 import uuid
 
 from fastapi import FastAPI

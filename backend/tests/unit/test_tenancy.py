@@ -73,3 +73,9 @@ def test_system_scope_writes_audit_log(caplog):
     with caplog.at_level(logging.INFO, logger="app.core.tenancy"), system_scope("signup"):
         pass
     assert any(getattr(r, "caller", None) == "signup" for r in caplog.records)
+
+
+def test_invite_accept_is_an_allowed_caller():
+    # Behaviour: accepting an invite may find the invite across all Businesses (audited, AD-3).
+    with system_scope("invite_accept"):
+        require_system_scope()

@@ -123,3 +123,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **403 Forbidden** - "We know who you are, but your Role may not do this." Not the same as 401 ("log in first") or 404 ("not found").
 - **Union of Roles** - A User with two Roles may do everything either Role may do.
 - **BOM** - Byte order mark: 3 hidden bytes some Windows tools put at the start of a UTF-8 file. Most code tools do not want them.
+- **Invite token** - A long random string inside an invite link. It works like a one-time password: the database keeps only its hash.
+- **Single-use link** - A link that works once. After use, the server marks it used (`used_at`) and refuses it.
+- **Row lock (`SELECT … FOR UPDATE`)** - A query that locks the rows it reads. Another transaction that wants the same rows waits until the first one commits.
+- **Soft deactivation** - Turning a record off (`is_active = false`) instead of deleting it, so other records that point at it stay valid.
+- **React context** - A way to share one value (like the User's permissions) with every component inside a provider, without passing it through each component.
+- **Clipboard API** - `navigator.clipboard.writeText(text)`: the browser copies text for the User, so they can paste it.
+- **Referer header** - A header the browser sends with the address of the page you came from. `referrer: "no-referrer"` turns it off for a page.
+- **Span name / span attribute** - A span is one step in a trace. Its name is a short label; its attributes are key-value details, like `url.path`.
+- **Collector processor** - A step inside the OpenTelemetry Collector that changes telemetry before it is sent on, like rewriting a secret in a span.
+- **Placeholder (Caddy)** - Text like `{http.request.uri.path}` that Caddy replaces with a value. An unknown one becomes empty.

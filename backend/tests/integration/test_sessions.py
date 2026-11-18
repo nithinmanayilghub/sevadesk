@@ -3,6 +3,7 @@
 # its SHA-256 hash, so a leaked DB backup gives no working cookies.
 import hashlib
 import uuid
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -13,6 +14,7 @@ from app.core.db import get_engine
 from app.core.tenancy import tenant_scope
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.models import Membership, UserSession
+from app.modules.accounts.repository import SessionRepository
 from app.modules.accounts.schemas import Role
 from app.modules.business.repository import BusinessRepository
 
@@ -109,3 +111,27 @@ def test_end_session_deletes_the_row():
         accounts_service.end_session(s, "nope")  # unknown token: no error
     with pytest.raises(accounts_service.NotAuthenticated):
         resolve(token)
+
+
+def test_session_deleted_while_a_request_uses_it_does_not_crash():
+    # Regression (story 2.5): a member's request is running (it touched last_seen_at) when the
+    # Owner deactivates them, which deletes their sessions. The request must end normally, not
+    # with a 500. With the old code (a change on the loaded row, saved at commit) the DELETE
+    # went first, and the request's commit then found 0 rows: StaleDataError.
+    token, user_id, _ = owner_with_session()
+    set_last_seen(token, datetime.now(UTC) - timedelta(minutes=6))  # old enough to be touched
+
+    def owner_deactivates():
+        with Session(get_engine()) as s2, s2.begin():
+            SessionRepository(s2).delete_for_user(user_id)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with Session(get_engine()) as s1, s1.begin():
+            accounts_service.resolve_session(s1, token)  # the member's request: touches the row
+            deactivate = pool.submit(owner_deactivates)
+            # Give the DELETE time to run (old code) or to start waiting for our row lock (new code).
+            wait([deactivate], timeout=1)
+        # Leaving the block above commits the request: no exception allowed.
+        deactivate.result(timeout=10)
+    with pytest.raises(accounts_service.NotAuthenticated):
+        resolve(token)  # and the session is gone

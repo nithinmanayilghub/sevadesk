@@ -50,7 +50,7 @@ development_status:
   2-2-log-in-log-out-and-the-app-shell: done
   2-3-tenant-isolation-is-tested-on-every-pull-request: done
   2-4-role-based-access: done
-  2-5-invite-team-members-and-manage-the-team: backlog
+  2-5-invite-team-members-and-manage-the-team: done
   2-6-choose-light-or-dark-theme: backlog
   epic-2-retrospective: optional
 

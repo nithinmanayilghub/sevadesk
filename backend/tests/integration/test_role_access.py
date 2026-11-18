@@ -1,6 +1,7 @@
 # Integration tests: Role checks over real HTTP (story 2.4, FR-10). A forbidden call gets 403
-# and changes nothing. The routes live in the test-only probe app (probe_app.py), because no
-# real endpoint needs a Role yet. The unit tests (test_permissions.py) cover every FR-10 row;
+# and changes nothing. The routes live in the test-only probe app (probe_app.py), written in
+# story 2.4 before any real endpoint needed a Role (the Team routes, story 2.5, now do: see
+# test_team_manage.py). The unit tests (test_permissions.py) cover every FR-10 row;
 # these prove the same helper works end to end: cookie -> Actor -> require_roles -> 403.
 import uuid
 

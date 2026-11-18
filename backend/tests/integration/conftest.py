@@ -1,5 +1,6 @@
 # Integration test fixtures: a real Postgres in Docker, migrated, plus an API client.
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from app.core.redis_client import get_redis
 from app.core.settings import get_settings
 from app.core.telemetry import add_span_exporter, flush_telemetry
 from app.main import app
-from app.modules.accounts.models import Membership
+from app.modules.accounts.models import Membership, User
 
 # alembic.ini lives in backend/, two folders above this file's folder.
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
@@ -145,3 +146,41 @@ def set_owner_roles(business_id: uuid.UUID, roles: list[str]) -> None:
     """
     with Session(get_engine()) as session, session.begin():
         session.execute(update(Membership).where(Membership.business_id == business_id).values(roles=roles))
+
+
+@dataclass
+class Member:
+    """A team member who joined through an invite (story 2.5)."""
+
+    client: TestClient  # logged in as this member
+    email: str
+    membership_id: uuid.UUID
+
+
+def membership_id_for_email(email: str) -> uuid.UUID:
+    """A direct database read: the membership of the User with this email."""
+    with Session(get_engine()) as session:
+        query = select(Membership.id).join(User, User.id == Membership.user_id).where(User.email == email)
+        return session.scalars(query).one()
+
+
+@pytest.fixture
+def invite_member(make_client):
+    """Invite a new person into the Owner's Business, and accept as them. Returns a Member.
+
+    After this, the Business has 2+ memberships: do NOT use membership_of,
+    membership_is_active or set_owner_roles on it (they assume one membership).
+    """
+
+    def invite(owner: TestClient, roles: list[str]) -> Member:
+        email = f"{uuid.uuid4().hex}@example.com"
+        created = owner.post("/api/v1/team/invites", json={"email": email, "roles": roles})
+        assert created.status_code == 201, created.text
+        member = make_client()
+        accepted = member.post(
+            "/api/v1/invites/accept", json={"token": created.json()["token"], "password": GOOD_PASSWORD}
+        )
+        assert accepted.status_code == 200, accepted.text
+        return Member(client=member, email=email, membership_id=membership_id_for_email(email))
+
+    return invite

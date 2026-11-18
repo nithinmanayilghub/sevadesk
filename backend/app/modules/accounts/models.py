@@ -48,3 +48,26 @@ class Membership(TenantModel):
     roles: Mapped[list[str]] = mapped_column(ARRAY(Text))
     is_active: Mapped[bool] = mapped_column(server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Invite(TenantModel):
+    """A single-use link to join one Business (story 2.5, FR-9). Like sessions, the table
+    keeps only a hash of the token: a leaked backup gives no working invite links."""
+
+    __tablename__ = "invites"
+    __table_args__ = (
+        UniqueConstraint("business_id", "id"),
+        # Only Staff and Technician can be invited: the MVP has one Owner per Business.
+        CheckConstraint(
+            "cardinality(roles) > 0 AND roles <@ ARRAY['staff','technician']::text[]",
+            name="roles_valid",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    email: Mapped[str]  # cleaned (lowercased); becomes the new User's email
+    roles: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set once, on accept
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
