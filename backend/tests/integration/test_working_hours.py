@@ -2,12 +2,20 @@
 # The Owner sets the weekly hours (one range per open day) and closed dates. Every rule
 # answers 422 with the message next to its field (UX-DR33), e.g. "tuesday.end_time".
 # Staff and Technicians get 403 on every route.
+import uuid
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
+
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from tests.integration.conftest import assert_not_found
 
 from app.core.db import get_engine
-from app.modules.business.models import WorkingHours
+from app.core.tenancy import tenant_scope
+from app.modules.business import service as business_service
+from app.modules.business.models import Business, ClosedDay, WorkingHours
+from app.modules.business.schemas import OpenHours
 
 FORBIDDEN_BODY = {"error": {"code": "forbidden", "message": "You don't have access to this."}}
 DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -103,18 +111,135 @@ def test_missing_day_key_refused(sign_up_owner):
     assert "sunday" in field_errors(put_week(owner, body))
 
 
+# ---------------------------------------------------------------- closed days
+
+TODAY = date(2026, 12, 1)  # a Tuesday. Tests fix "today", so none can flip at midnight IST.
+
+
+@pytest.fixture
+def fixed_today(monkeypatch):
+    monkeypatch.setattr(business_service, "_today", lambda business: TODAY)
+
+
+def closed_days(client) -> list[dict]:
+    response = client.get("/api/v1/closed-days")
+    assert response.status_code == 200, response.text
+    return response.json()["closed_days"]
+
+
+def post_day(client, day):
+    return client.post("/api/v1/closed-days", json={"day": day})
+
+
+def close(client, day: str) -> dict:
+    response = post_day(client, day)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_owner_adds_lists_and_removes_closed_day(sign_up_owner, fixed_today):
+    owner, _ = sign_up_owner()
+    created = close(owner, "2026-12-25")
+    assert created["day"] == "2026-12-25"
+    assert closed_days(owner) == [created]
+    response = owner.delete(f"/api/v1/closed-days/{created['closed_day_id']}")
+    assert response.status_code == 204, response.text
+    assert closed_days(owner) == []
+
+
+def test_past_closed_day_refused(sign_up_owner, fixed_today):
+    owner, _ = sign_up_owner()
+    assert field_errors(post_day(owner, "2026-11-30")) == {"day": "Pick today or a later date."}
+    close(owner, "2026-12-01")  # today itself is allowed
+
+
+def test_past_rows_are_not_listed(sign_up_owner, fixed_today):
+    owner, business_id = sign_up_owner()
+    with Session(get_engine()) as session, session.begin():  # past the API, which refuses past dates
+        session.add(ClosedDay(business_id=business_id, day=date(2026, 11, 20)))
+    future = close(owner, "2026-12-25")
+    assert closed_days(owner) == [future]
+
+
+def test_duplicate_closed_day_refused(sign_up_owner, fixed_today):
+    owner, _ = sign_up_owner()
+    close(owner, "2026-12-25")
+    assert field_errors(post_day(owner, "2026-12-25")) == {"day": "This date is already closed."}
+    assert len(closed_days(owner)) == 1
+
+
+@pytest.mark.parametrize(
+    "body", [{}, {"day": None}, {"day": ""}, {"day": "2026-12-25T00:00"}, {"day": "2026-02-30"}, {"day": "25-12-2026"}]
+)
+def test_bad_closed_day_refused(sign_up_owner, fixed_today, body):
+    owner, _ = sign_up_owner()
+    assert field_errors(owner.post("/api/v1/closed-days", json=body)) == {"day": "Pick a date."}
+
+
+def test_closed_days_listed_soonest_first(sign_up_owner, fixed_today):
+    owner, _ = sign_up_owner()
+    for day in ("2026-12-31", "2026-12-02", "2026-12-25"):
+        close(owner, day)
+    assert [row["day"] for row in closed_days(owner)] == ["2026-12-02", "2026-12-25", "2026-12-31"]
+
+
+def test_today_uses_business_timezone():
+    # A unit check of the one "today" helper (no monkeypatch here).
+    business = Business(name="Test Shop", timezone="Asia/Kolkata")
+    assert business_service._today(business) == datetime.now(ZoneInfo("Asia/Kolkata")).date()
+
+
+def test_hours_on_uses_weekly_hours_and_closed_days(sign_up_owner, fixed_today):
+    owner, business_id = sign_up_owner()
+    save_week(owner)  # Mon–Sat 10–6, Sunday closed
+    monday, sunday = date(2026, 12, 7), date(2026, 12, 6)
+
+    def hours_on(day: date) -> OpenHours | None:
+        with Session(get_engine()) as session, tenant_scope(business_id):
+            return business_service.hours_on(session, day)
+
+    assert hours_on(monday) == OpenHours(start_time=time(10), end_time=time(18))
+    assert hours_on(sunday) is None  # a closed weekday
+    close(owner, "2026-12-07")
+    assert hours_on(monday) is None  # a closed date wins over the weekly hours
+
+
+# ---------------------------------------------------------------- roles
+
+
 @pytest.mark.parametrize("roles", [["staff"], ["technician"], ["staff", "technician"]])
-def test_staff_and_technician_get_403_on_hours_routes(sign_up_owner, invite_member, roles):
+def test_staff_and_technician_get_403_on_hours_routes(sign_up_owner, invite_member, roles, fixed_today):
     owner, _ = sign_up_owner()
     save_week(owner)
+    created = close(owner, "2026-12-25")
     member = invite_member(owner, roles).client
 
-    for response in (member.get("/api/v1/working-hours"), put_week(member, {**WEEK, "monday": None})):
+    for response in (
+        member.get("/api/v1/working-hours"),
+        put_week(member, {**WEEK, "monday": None}),
+        member.get("/api/v1/closed-days"),
+        post_day(member, "2026-12-26"),
+        member.delete(f"/api/v1/closed-days/{created['closed_day_id']}"),
+    ):
         assert response.status_code == 403, response.text
         assert response.json() == FORBIDDEN_BODY
     assert get_week(owner)["monday"] == SAVED  # nothing changed
+    assert closed_days(owner) == [created]
+
+
+def test_role_check_runs_before_lookup(sign_up_owner, invite_member):
+    # A missing id still answers 403, so a 403 never tells Staff whether a record exists.
+    owner, _ = sign_up_owner()
+    member = invite_member(owner, ["staff"]).client
+    assert member.delete(f"/api/v1/closed-days/{uuid.uuid4()}").status_code == 403
+
+
+def test_unknown_closed_day_id_is_404(sign_up_owner):
+    owner, _ = sign_up_owner()
+    assert_not_found(owner.delete(f"/api/v1/closed-days/{uuid.uuid4()}"))
 
 
 def test_logged_out_caller_gets_401(make_client):
     stranger = make_client()
     assert stranger.get("/api/v1/working-hours").status_code == 401
+    assert stranger.get("/api/v1/closed-days").status_code == 401

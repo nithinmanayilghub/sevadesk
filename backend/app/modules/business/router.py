@@ -12,6 +12,9 @@ from app.modules.accounts import service as accounts_service
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business import service
 from app.modules.business.schemas import (
+    ClosedDayIn,
+    ClosedDayList,
+    ClosedDayOut,
     ServiceIn,
     ServiceList,
     ServiceOut,
@@ -80,3 +83,28 @@ def get_working_hours(session: SessionDep, actor: ActorDep) -> WorkingHoursOut:
 )
 def replace_working_hours(body: WeekIn, session: SessionDep, actor: ActorDep) -> WorkingHoursOut:
     return service.replace_working_hours(session, actor, body)
+
+
+@router.get("/closed-days", operation_id="list_closed_days", responses={401: _ERROR, 403: _ERROR})
+def list_closed_days(session: SessionDep, actor: ActorDep) -> ClosedDayList:
+    return service.list_closed_days(session, actor)
+
+
+@router.post(
+    "/closed-days",
+    status_code=201,
+    operation_id="add_closed_day",
+    responses={401: _ERROR, 403: _ERROR, 422: _ERROR},
+)
+def add_closed_day(body: ClosedDayIn, session: SessionDep, actor: ActorDep) -> ClosedDayOut:
+    return service.add_closed_day(session, actor, body)
+
+
+@router.delete(
+    "/closed-days/{closed_day_id}",
+    status_code=204,
+    operation_id="remove_closed_day",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR},
+)
+def remove_closed_day(closed_day_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> None:
+    service.remove_closed_day(session, actor, closed_day_id)

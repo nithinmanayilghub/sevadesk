@@ -1,10 +1,12 @@
 # Database access for the business module. Only business's own files use it (AD-2).
+from datetime import date
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.repository import TenantRepository
 from app.core.tenancy import current_business_id
-from app.modules.business.models import Business, Service, WorkingHours
+from app.modules.business.models import Business, ClosedDay, Service, WorkingHours
 
 
 class BusinessRepository:
@@ -69,3 +71,20 @@ class WorkingHoursRepository(TenantRepository[WorkingHours]):
             row.business_id = business_id
         self.session.add_all(rows)
         self.session.flush()  # send the INSERTs now, so a database error shows inside the request
+
+
+class ClosedDayRepository(TenantRepository[ClosedDay]):
+    # One row per closed date (holiday).
+    model = ClosedDay
+
+    def list_from(self, day: date) -> list[ClosedDay]:
+        # From this date on, soonest first: past holidays do not pile up on the page.
+        query = self._select().where(ClosedDay.day >= day).order_by(ClosedDay.day)
+        return list(self.session.scalars(query))
+
+    def exists(self, day: date) -> bool:
+        return self.session.scalars(self._select().where(ClosedDay.day == day)).first() is not None
+
+    def remove(self, row: ClosedDay) -> None:
+        self.session.delete(row)
+        self.session.flush()  # send the DELETE now, inside the request

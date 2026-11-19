@@ -2,7 +2,7 @@
 # rules; each message here is shown next to its field on the form.
 import re
 import uuid
-from datetime import time
+from datetime import date, time
 
 from pydantic import BaseModel, Field, StrictInt, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
@@ -187,3 +187,32 @@ class WorkingHoursOut(BaseModel):
     friday: OpenHours | None
     saturday: OpenHours | None
     sunday: OpenHours | None
+
+
+# ---------------------------------------------------------------- closed days (story 3.2, FR-13)
+
+_DATE_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")  # "2026-12-25" only: no time part
+
+
+class ClosedDayIn(BaseModel):
+    # A string, parsed here, so every bad input gets the same clear message.
+    day: str | None = Field(default=None, validate_default=True)
+
+    @field_validator("day")
+    @classmethod
+    def check_day(cls, value: str | None) -> date:
+        if value is None or not _DATE_TEXT.fullmatch(value):
+            raise PydanticCustomError("day_invalid", "Pick a date.")
+        try:
+            return date.fromisoformat(value)
+        except ValueError:  # the right shape, but no such day, e.g. 2026-02-30
+            raise PydanticCustomError("day_invalid", "Pick a date.") from None
+
+
+class ClosedDayOut(BaseModel):
+    closed_day_id: uuid.UUID
+    day: date
+
+
+class ClosedDayList(BaseModel):
+    closed_days: list[ClosedDayOut]  # today onward, soonest first
