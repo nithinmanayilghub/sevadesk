@@ -18,6 +18,11 @@ test("the Owner sees a Team link", () => {
   expect(screen.getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app/settings/team");
 });
 
+test("the Owner sees a Services link", () => {
+  renderWith(["manage_setup"]);
+  expect(screen.getByRole("link", { name: "Services" })).toHaveAttribute("href", "/app/settings/services");
+});
+
 test("a Technician-only User sees no Team link", () => {
   renderWith(["see_own_bookings"]);
   expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
