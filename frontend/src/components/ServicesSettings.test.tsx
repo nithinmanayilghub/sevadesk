@@ -61,6 +61,42 @@ test("a failed Deactivate shows an alert", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("You don't have access to this.");
 });
 
+test("a second Deactivate click while one is saving is ignored, and focus stays", async () => {
+  GET.mockResolvedValue(list([FAN]));
+  PUT.mockReturnValue(new Promise(() => {}) as never); // never answers
+  render(<ServicesSettings />);
+  const button = await screen.findByRole("button", { name: "Deactivate Fan repair" });
+  button.focus();
+  fireEvent.click(button);
+  fireEvent.click(button);
+  expect(PUT).toHaveBeenCalledTimes(1);
+  expect(button).not.toBeDisabled(); // disabled would drop keyboard focus (story 2.6 bug)
+  expect(button).toHaveFocus();
+});
+
+test("an old row error goes away after the next successful save", async () => {
+  GET.mockResolvedValue(list([FAN]));
+  PUT.mockResolvedValueOnce({ error: { error: { code: "x", message: "Something went wrong. Please try again." } } } as never);
+  PUT.mockResolvedValueOnce({ data: FAN } as never);
+  render(<ServicesSettings />);
+  fireEvent.click(await screen.findByRole("button", { name: "Deactivate Fan repair" }));
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Fan repair" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await vi.waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+});
+
+test("Save closes the edit form, reloads, and puts focus back on Edit", async () => {
+  GET.mockResolvedValue(list([FAN]));
+  PUT.mockResolvedValue({ data: { ...FAN, name: "Fan repair" } } as never);
+  render(<ServicesSettings />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit Fan repair" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole("form", { name: "Edit Fan repair" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit Fan repair" })).toHaveFocus();
+});
+
 test("editing keeps ids unique next to the add form", async () => {
   GET.mockResolvedValue(list([FAN]));
   render(<ServicesSettings />);

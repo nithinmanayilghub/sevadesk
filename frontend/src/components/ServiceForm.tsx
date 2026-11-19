@@ -36,8 +36,10 @@ function textFrom(service?: ServiceOut): Record<Field, string> {
 }
 
 // Digits only. A blank box must be null: Number("") is 0, which would hide the real message.
+// A huge entry that cannot be held exactly is null too (JSON would send it as "1e+21").
 function minutesFrom(text: string): number | null {
-  return /^\d+$/.test(text.trim()) ? Number(text) : null;
+  const minutes = Number(text);
+  return /^\d+$/.test(text.trim()) && Number.isSafeInteger(minutes) ? minutes : null;
 }
 
 type Props = {
@@ -54,6 +56,9 @@ export function ServiceForm({ initial, onSaved, onCancel }: Props) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A ref, not only state: two very quick clicks can both run before React re-renders
+  // with busy = true, but both see the ref change at once.
+  const saving = useRef(false);
   const inputs = useRef<Partial<Record<Field, HTMLInputElement | null>>>({});
   const editing = initial !== undefined;
 
@@ -70,7 +75,8 @@ export function ServiceForm({ initial, onSaved, onCancel }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return; // one save at a time: a double tap must not add the Service twice
+    if (saving.current) return; // one save at a time: a double tap must not add the Service twice
+    saving.current = true;
     setBusy(true);
     setFieldErrors({});
     setGeneralError(null);
@@ -99,6 +105,7 @@ export function ServiceForm({ initial, onSaved, onCancel }: Props) {
     } catch {
       setGeneralError(GENERAL_ERROR);
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
@@ -144,7 +151,9 @@ export function ServiceForm({ initial, onSaved, onCancel }: Props) {
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={busy}>
+        {/* Never `disabled`: that drops keyboard focus to the top of the page (story 2.6 bug).
+            aria-disabled tells screen readers it is busy; handleSubmit ignores the click. */}
+        <Button type="submit" aria-disabled={busy || undefined}>
           {busy ? "Saving…" : editing ? "Save" : "Add Service"}
         </Button>
         {onCancel && (

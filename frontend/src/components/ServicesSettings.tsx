@@ -28,7 +28,11 @@ export function ServicesSettings() {
   const load = useCallback(() => {
     api
       .GET("/api/v1/services")
-      .then(({ data }) => (data ? setServices(data.services) : setFailed(true)))
+      .then(({ data }) => {
+        if (!data) return setFailed(true);
+        setServices(data.services);
+        setError(null); // a fresh list: an old row error no longer applies
+      })
       .catch(() => setFailed(true));
   }, []);
 

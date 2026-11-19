@@ -26,5 +26,7 @@ export function paiseToRupeesText(paise: number): string {
 export function rupeesToPaise(text: string): number | null {
   const clean = text.replace(/[,\s]/g, "").replace(/^₹/, "");
   if (!/^\d+(\.\d{1,2})?$/.test(clean)) return null;
-  return Math.round(Number(clean) * 100); // round: 0.1 * 100 is 10.000000000000002 in floats
+  const paise = Math.round(Number(clean) * 100); // round: 0.1 * 100 is 10.000000000000002 in floats
+  // A huge entry (20+ digits) cannot be held exactly, and JSON would send it as "1e+22".
+  return Number.isSafeInteger(paise) ? paise : null;
 }

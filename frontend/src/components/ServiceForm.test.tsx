@@ -74,6 +74,20 @@ test("add is sent once while saving", async () => {
   expect(POST).toHaveBeenCalledTimes(1);
 });
 
+test("the button is never disabled, so keyboard focus stays on it while saving", async () => {
+  // A disabled button drops focus to <body> in real browsers (the story 2.6 bug).
+  POST.mockReturnValue(new Promise(() => {}) as never);
+  render(<ServiceForm onSaved={vi.fn()} />);
+  fill("Fan repair", "60", "499");
+  const button = screen.getByRole("button", { name: "Add Service" });
+  button.focus();
+  fireEvent.click(button);
+  await screen.findByRole("button", { name: "Saving…" });
+  expect(button).not.toBeDisabled();
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  expect(button).toHaveFocus();
+});
+
 test("edit with no changes sends the same values", async () => {
   const initial = { ...SAVED, price_paise: 49950, is_active: false };
   PUT.mockResolvedValue({ data: initial } as never);
