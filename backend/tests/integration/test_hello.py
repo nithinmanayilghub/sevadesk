@@ -21,6 +21,8 @@ def test_migration_creates_expected_tables(client):
         "memberships",
         "invites",
         "services",
+        "working_hours",
+        "closed_days",
     }
 
 

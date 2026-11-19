@@ -1,8 +1,10 @@
 # Request and response shapes for sign-up and Services. The backend owns all validation
 # rules; each message here is shown next to its field on the form.
+import re
 import uuid
+from datetime import time
 
-from pydantic import BaseModel, Field, StrictInt, field_validator
+from pydantic import BaseModel, Field, StrictInt, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.modules.accounts import service as accounts_service
@@ -107,3 +109,81 @@ class ServiceOut(BaseModel):
 class ServiceList(BaseModel):
     # An object, not a bare list, so fields can be added later without breaking the app.
     services: list[ServiceOut]  # oldest first
+
+
+# ---------------------------------------------------------------- working hours (story 3.2, FR-13)
+
+# Index = the weekday number stored in the database (0 = Monday, Python's date.weekday()).
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+# "10:00" or "10:00:00", 24-hour, whole minutes only. No seconds, no UTC offset: a clock time
+# in the Business timezone. "9:00" and "24:00" do not match.
+_TIME_TEXT = re.compile(r"([01]\d|2[0-3]):[0-5]\d(:00)?")
+
+
+def _parse_time(text: str) -> time:
+    """Text from the form -> a clock time. Anything else -> our own message, not Pydantic's."""
+    if not _TIME_TEXT.fullmatch(text):
+        raise PydanticCustomError("time_invalid", "Use a time like 10:00.")
+    return time.fromisoformat(text)
+
+
+class DayIn(BaseModel):
+    """One OPEN day, as the form sends it. A closed day is sent as null instead.
+
+    The times are strings, parsed by _parse_time, so every bad input gets the same clear
+    message. default=None + validate_default=True: an empty box reaches the validator too.
+    """
+
+    start_time: str | None = Field(default=None, validate_default=True)
+    end_time: str | None = Field(default=None, validate_default=True)
+
+    @field_validator("start_time")
+    @classmethod
+    def check_start(cls, value: str | None) -> time:
+        if value is None:
+            raise PydanticCustomError("start_missing", "Enter a start time.")
+        return _parse_time(value)
+
+    # A field validator (not a model validator), so the error lands on "<day>.end_time".
+    @field_validator("end_time")
+    @classmethod
+    def check_end(cls, value: str | None, info: ValidationInfo) -> time:
+        if value is None:
+            raise PydanticCustomError("end_missing", "Enter an end time.")
+        end = _parse_time(value)
+        # A refused start time is not in info.data, so there is nothing to compare with.
+        start = info.data.get("start_time")
+        if start is not None and end <= start:
+            raise PydanticCustomError("end_not_after_start", "End time must be after the start time.")
+        return end
+
+
+class WeekIn(BaseModel):
+    """The whole week, for a full replace (PUT). Every day must be sent; null = closed."""
+
+    monday: DayIn | None
+    tuesday: DayIn | None
+    wednesday: DayIn | None
+    thursday: DayIn | None
+    friday: DayIn | None
+    saturday: DayIn | None
+    sunday: DayIn | None
+
+
+class OpenHours(BaseModel):
+    """The hours of one open day. Both times are always there."""
+
+    start_time: time
+    end_time: time
+
+
+class WorkingHoursOut(BaseModel):
+    timezone: str  # how to read the times, e.g. "Asia/Kolkata" (AR-5)
+    monday: OpenHours | None  # None = closed
+    tuesday: OpenHours | None
+    wednesday: OpenHours | None
+    thursday: OpenHours | None
+    friday: OpenHours | None
+    saturday: OpenHours | None
+    sunday: OpenHours | None

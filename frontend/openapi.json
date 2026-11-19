@@ -962,6 +962,146 @@
           }
         }
       }
+    },
+    "/api/v1/working-hours": {
+      "get": {
+        "summary": "Get Working Hours",
+        "operationId": "get_working_hours",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace Working Hours",
+        "operationId": "replace_working_hours",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeekIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -984,6 +1124,35 @@
           "password"
         ],
         "title": "AcceptInviteRequest"
+      },
+      "DayIn": {
+        "properties": {
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          }
+        },
+        "type": "object",
+        "title": "DayIn",
+        "description": "One OPEN day, as the form sends it. A closed day is sent as null instead.\n\nThe times are strings, parsed by _parse_time, so every bad input gets the same clear\nmessage. default=None + validate_default=True: an empty box reaches the validator too."
       },
       "ErrorBody": {
         "properties": {
@@ -1253,6 +1422,27 @@
         "type": "object",
         "title": "MemberUpdate",
         "description": "A change to one member. Leave a field out (or null) to keep it as it is."
+      },
+      "OpenHours": {
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "title": "End Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time"
+        ],
+        "title": "OpenHours",
+        "description": "The hours of one open day. Both times are always there."
       },
       "Permission": {
         "type": "string",
@@ -1528,6 +1718,92 @@
         ],
         "title": "ValidationError"
       },
+      "WeekIn": {
+        "properties": {
+          "monday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tuesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wednesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thursday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "friday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saturday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sunday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
+        "title": "WeekIn",
+        "description": "The whole week, for a full replace (PUT). Every day must be sent; null = closed."
+      },
       "WorkerHealthResponse": {
         "properties": {
           "status": {
@@ -1540,6 +1816,96 @@
           "status"
         ],
         "title": "WorkerHealthResponse"
+      },
+      "WorkingHoursOut": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "monday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tuesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wednesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thursday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "friday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saturday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sunday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
+        "title": "WorkingHoursOut"
       }
     }
   }

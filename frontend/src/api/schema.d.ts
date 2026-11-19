@@ -260,6 +260,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/working-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Working Hours */
+        get: operations["get_working_hours"];
+        /** Replace Working Hours */
+        put: operations["replace_working_hours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -270,6 +288,19 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /**
+         * DayIn
+         * @description One OPEN day, as the form sends it. A closed day is sent as null instead.
+         *
+         *     The times are strings, parsed by _parse_time, so every bad input gets the same clear
+         *     message. default=None + validate_default=True: an empty box reaches the validator too.
+         */
+        DayIn: {
+            /** Start Time */
+            start_time?: string | null;
+            /** End Time */
+            end_time?: string | null;
         };
         /** ErrorBody */
         ErrorBody: {
@@ -377,6 +408,22 @@ export interface components {
             roles?: components["schemas"]["Role"][] | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /**
+         * OpenHours
+         * @description The hours of one open day. Both times are always there.
+         */
+        OpenHours: {
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
         };
         /**
          * Permission
@@ -497,10 +544,35 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * WeekIn
+         * @description The whole week, for a full replace (PUT). Every day must be sent; null = closed.
+         */
+        WeekIn: {
+            monday: components["schemas"]["DayIn"] | null;
+            tuesday: components["schemas"]["DayIn"] | null;
+            wednesday: components["schemas"]["DayIn"] | null;
+            thursday: components["schemas"]["DayIn"] | null;
+            friday: components["schemas"]["DayIn"] | null;
+            saturday: components["schemas"]["DayIn"] | null;
+            sunday: components["schemas"]["DayIn"] | null;
+        };
         /** WorkerHealthResponse */
         WorkerHealthResponse: {
             /** Status */
             status: string;
+        };
+        /** WorkingHoursOut */
+        WorkingHoursOut: {
+            /** Timezone */
+            timezone: string;
+            monday: components["schemas"]["OpenHours"] | null;
+            tuesday: components["schemas"]["OpenHours"] | null;
+            wednesday: components["schemas"]["OpenHours"] | null;
+            thursday: components["schemas"]["OpenHours"] | null;
+            friday: components["schemas"]["OpenHours"] | null;
+            saturday: components["schemas"]["OpenHours"] | null;
+            sunday: components["schemas"]["OpenHours"] | null;
         };
     };
     responses: never;
@@ -1197,6 +1269,108 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_working_hours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingHoursOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_working_hours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeekIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingHoursOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

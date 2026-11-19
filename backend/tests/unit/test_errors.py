@@ -25,12 +25,25 @@ class NameBody(BaseModel):
     name: str
 
 
+class Hours(BaseModel):
+    end_time: str
+
+
+class WeekBody(BaseModel):
+    monday: Hours
+    roles: list[int] = []
+
+
 def make_app() -> FastAPI:
     app = FastAPI()
     register_error_handlers(app)
 
     @app.post("/t")
     def take_name(body: NameBody):
+        return {"ok": True}
+
+    @app.post("/nested")
+    def take_week(body: WeekBody):
         return {"ok": True}
 
     @app.get("/fields")
@@ -66,6 +79,18 @@ def test_invalid_json_gives_envelope_without_fields():
     body = response.json()
     assert body["error"]["code"] == "validation_error"
     assert "fields" not in body["error"]
+
+
+def test_nested_body_field_is_named_by_dotted_path():
+    # Behaviour: an error inside a nested field is named "monday.end_time", not dropped.
+    response = TestClient(make_app()).post("/nested", json={"monday": {}})
+    assert response.json()["error"]["fields"] == [{"field": "monday.end_time", "message": "This field is required."}]
+
+
+def test_list_position_in_path_is_kept():
+    # Behaviour: a bad list item is named by its position, e.g. "roles.0".
+    response = TestClient(make_app()).post("/nested", json={"monday": {"end_time": "x"}, "roles": ["a"]})
+    assert [item["field"] for item in response.json()["error"]["fields"]] == ["roles.0"]
 
 
 def test_app_error_with_fields():

@@ -2,6 +2,7 @@
 # - sign_up: the whole sign-up flow (FR-7).
 # - Services (story 3.1, FR-12): the Owner's list / add / replace, and list_active_services
 #   for the Chat Page and the Agent (later stories).
+# - Working Hours (story 3.2, FR-13): the Owner's weekly hours.
 import uuid
 
 from sqlalchemy.orm import Session
@@ -11,9 +12,19 @@ from app.core.tenancy import tenant_scope
 # Import the module, not the function, so every call goes through accounts_service.<name>.
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
-from app.modules.business.models import Service
-from app.modules.business.repository import BusinessRepository, ServiceRepository
-from app.modules.business.schemas import ServiceIn, ServiceList, ServiceOut, SignupRequest, SignupResponse
+from app.modules.business.models import Service, WorkingHours
+from app.modules.business.repository import BusinessRepository, ServiceRepository, WorkingHoursRepository
+from app.modules.business.schemas import (
+    WEEKDAYS,
+    OpenHours,
+    ServiceIn,
+    ServiceList,
+    ServiceOut,
+    SignupRequest,
+    SignupResponse,
+    WeekIn,
+    WorkingHoursOut,
+)
 
 
 def sign_up(session: Session, request: SignupRequest) -> tuple[SignupResponse, str]:
@@ -78,3 +89,34 @@ def list_active_services(session: Session) -> list[ServiceOut]:
     No Role check: Customers see these too. The caller must already be in a tenant scope.
     """
     return [_out(row) for row in ServiceRepository(session).list_active()]
+
+
+# ---------------------------------------------------------------- working hours (story 3.2, FR-13)
+
+
+def _week_out(session: Session) -> WorkingHoursOut:
+    business = BusinessRepository(session).get_current()
+    days: dict[str, OpenHours | None] = dict.fromkeys(WEEKDAYS)  # every day closed ...
+    for row in WorkingHoursRepository(session).list_week():  # ... until a row says it is open
+        days[WEEKDAYS[row.weekday]] = OpenHours(start_time=row.start_time, end_time=row.end_time)
+    return WorkingHoursOut(timezone=business.timezone, **days)
+
+
+def get_working_hours(session: Session, actor: Actor) -> WorkingHoursOut:
+    """The Owner's week: each day's hours, or None when closed, plus the Business timezone."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    return _week_out(session)
+
+
+def replace_working_hours(session: Session, actor: Actor, week: WeekIn) -> WorkingHoursOut:
+    """Replace the whole week. No commit here: the request owns the transaction (AD-15)."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    # Lock the Business row: a second save at the same moment waits for this one to finish.
+    BusinessRepository(session).get_current(for_update=True)
+    rows = [
+        WorkingHours(weekday=weekday, start_time=day.start_time, end_time=day.end_time)
+        for weekday, name in enumerate(WEEKDAYS)
+        if (day := getattr(week, name)) is not None  # a closed day (None) gets no row
+    ]
+    WorkingHoursRepository(session).replace_week(rows)
+    return _week_out(session)

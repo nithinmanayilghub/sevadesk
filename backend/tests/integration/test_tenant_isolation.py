@@ -141,6 +141,35 @@ def check_replace_service(owners: TwoOwners) -> None:
     assert _services(owners.b) == [b_service]
 
 
+HOURS_WEEK = {
+    **{
+        day: {"start_time": "10:00", "end_time": "18:00"}
+        for day in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+    },
+    "sunday": None,
+}
+
+
+def _put_week(client: TestClient, body: dict) -> dict:
+    response = client.put("/api/v1/working-hours", json=body)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def check_get_working_hours(owners: TwoOwners) -> None:
+    # B saves a week first; A's week is still empty (every day closed).
+    _put_week(owners.b, HOURS_WEEK)
+    a_week = owners.a.get("/api/v1/working-hours").json()
+    assert all(a_week[day] is None for day in HOURS_WEEK)
+
+
+def check_replace_working_hours(owners: TwoOwners) -> None:
+    # A replaces A's own week; B's saved week stays the same.
+    b_week = _put_week(owners.b, HOURS_WEEK)
+    _put_week(owners.a, {day: None for day in HOURS_WEEK})
+    assert owners.b.get("/api/v1/working-hours").json() == b_week
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -161,6 +190,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/services"): check_list_services,
     ("POST", "/api/v1/services"): check_create_service,
     ("PUT", "/api/v1/services/{service_id}"): check_replace_service,
+    ("GET", "/api/v1/working-hours"): check_get_working_hours,
+    ("PUT", "/api/v1/working-hours"): check_replace_working_hours,
 }
 
 

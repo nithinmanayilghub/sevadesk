@@ -11,7 +11,15 @@ from app.core.session_cookie import SessionTokenCookie, set_session_cookie
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business import service
-from app.modules.business.schemas import ServiceIn, ServiceList, ServiceOut, SignupRequest, SignupResponse
+from app.modules.business.schemas import (
+    ServiceIn,
+    ServiceList,
+    ServiceOut,
+    SignupRequest,
+    SignupResponse,
+    WeekIn,
+    WorkingHoursOut,
+)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -57,3 +65,18 @@ def create_service(body: ServiceIn, session: SessionDep, actor: ActorDep) -> Ser
 )
 def replace_service(service_id: uuid.UUID, body: ServiceIn, session: SessionDep, actor: ActorDep) -> ServiceOut:
     return service.replace_service(session, actor, service_id, body)
+
+
+# Settings → Working Hours, Owner only (story 3.2). The Role check lives in service.py.
+@router.get("/working-hours", operation_id="get_working_hours", responses={401: _ERROR, 403: _ERROR})
+def get_working_hours(session: SessionDep, actor: ActorDep) -> WorkingHoursOut:
+    return service.get_working_hours(session, actor)
+
+
+@router.put(
+    "/working-hours",
+    operation_id="replace_working_hours",
+    responses={401: _ERROR, 403: _ERROR, 422: _ERROR},
+)
+def replace_working_hours(body: WeekIn, session: SessionDep, actor: ActorDep) -> WorkingHoursOut:
+    return service.replace_working_hours(session, actor, body)

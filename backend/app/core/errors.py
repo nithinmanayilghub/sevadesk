@@ -82,9 +82,11 @@ def _field_errors(exc: RequestValidationError) -> list[FieldError]:
         loc = error.get("loc", ())
         # Only body fields: loc looks like ("body", "email"). Broken JSON gives
         # ("body", <character position>), which is not a field, so it needs a str check.
-        if len(loc) == 2 and loc[0] == "body" and isinstance(loc[1], str):
+        # A nested field is named by its dotted path: ("body", "monday", "end_time") ->
+        # "monday.end_time". List positions stay as numbers: ("body", "roles", 0) -> "roles.0".
+        if len(loc) >= 2 and loc[0] == "body" and isinstance(loc[1], str):
             message = "This field is required." if error["type"] == "missing" else error["msg"]
-            fields.append(FieldError(field=str(loc[1]), message=message))
+            fields.append(FieldError(field=".".join(map(str, loc[1:])), message=message))
     return fields
 
 
