@@ -104,7 +104,8 @@ def add_closed_day(body: ClosedDayIn, session: SessionDep, actor: ActorDep) -> C
     "/closed-days/{closed_day_id}",
     status_code=204,
     operation_id="remove_closed_day",
-    responses={401: _ERROR, 403: _ERROR, 404: _ERROR},
+    # 422: a closed_day_id that is not a UUID. Listed so the frontend types know our error shape.
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
 )
 def remove_closed_day(closed_day_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> None:
     service.remove_closed_day(session, actor, closed_day_id)

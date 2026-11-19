@@ -31,6 +31,7 @@ export const PAGES: readonly Page[] = [
   { href: "/app/calendar", label: "Calendar", place: "tab", icon: CalendarDays },
   { href: "/app/more", label: "More", place: "tab", icon: Ellipsis, alsoActiveUnder: ["/app/settings"] },
   { href: "/app/settings/services", label: "Services", place: "settings", needs: "manage_setup" },
+  { href: "/app/settings/hours", label: "Working Hours", place: "settings", needs: "manage_setup" },
   { href: "/app/settings/team", label: "Team", place: "settings", needs: "manage_setup" },
   { href: "/app/settings/appearance", label: "Appearance", place: "settings" },
 ];
