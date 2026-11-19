@@ -149,3 +149,10 @@ Plain-word meanings. Newest terms at the bottom.
 - **Intl.NumberFormat** - The browser's built-in number formatter. With `en-IN` and `INR`, it writes ₹1,00,000 with Indian grouping (lakh, crore).
 - **useId** - A React hook that gives each component its own unique id, so two forms on one page never share a label id.
 - **aria-disabled** - Tells screen readers "this button does nothing now", but keeps the button focusable. We use it instead of `disabled`, which drops keyboard focus.
+- **Clock time vs moment** - A clock time is "10:00" with no date ("every Monday at 10"). A moment is one exact point in history ("25 Dec 2026, 10:00 in India"). Working Hours are clock times (`time`); bookings will be moments (`timestamptz`).
+- **Timezone (IANA name)** - The clock rules of a place, written like `Asia/Kolkata`. The same moment is a different date and time in different timezones.
+- **Field validator vs model validator** - A field validator checks one field, and its error lands on that field (`tuesday.end_time`). A model validator checks the whole object, and its error lands on the object (`tuesday`).
+- **mode="before"** - A Pydantic validator that sees the raw JSON value before Pydantic's own checks. We use it so every bad input gets our own message and the field ends up the right type.
+- **Row lock (SELECT … FOR UPDATE)** - Reading a row and locking it until the transaction ends. A second request that wants the same lock waits, so two saves run one after the other.
+- **Dotted field path** - The name of a field inside another field, joined with dots: `tuesday.end_time`, or `roles.0` for the first item in a list.
+- **Device toolbar** - Chrome's tool (F12, then Ctrl + Shift + M) that shows a page at a phone's width.

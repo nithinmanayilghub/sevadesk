@@ -189,6 +189,24 @@ def test_today_uses_business_timezone():
     assert business_service._today(business) == datetime.now(ZoneInfo("Asia/Kolkata")).date()
 
 
+def test_removing_a_closed_day_opens_the_date_again(sign_up_owner, fixed_today):
+    owner, business_id = sign_up_owner()
+    save_week(owner)  # Mon–Sat 10–6
+    monday = date(2026, 12, 7)
+
+    def hours_on(day: date) -> OpenHours | None:
+        with Session(get_engine()) as session, tenant_scope(business_id):
+            return business_service.hours_on(session, day)
+
+    created = close(owner, "2026-12-07")
+    assert hours_on(monday) is None
+
+    response = owner.delete(f"/api/v1/closed-days/{created['closed_day_id']}")
+    assert response.status_code == 204
+
+    assert hours_on(monday) == OpenHours(start_time=time(10), end_time=time(18))
+
+
 def test_hours_on_uses_weekly_hours_and_closed_days(sign_up_owner, fixed_today):
     owner, business_id = sign_up_owner()
     save_week(owner)  # Mon–Sat 10–6, Sunday closed
