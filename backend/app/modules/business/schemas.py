@@ -1,8 +1,10 @@
 # Request and response shapes for sign-up and Services. The backend owns all validation
 # rules; each message here is shown next to its field on the form.
+import re
 import uuid
+from datetime import date, time
 
-from pydantic import BaseModel, Field, StrictInt, field_validator
+from pydantic import BaseModel, Field, StrictInt, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.modules.accounts import service as accounts_service
@@ -107,3 +109,112 @@ class ServiceOut(BaseModel):
 class ServiceList(BaseModel):
     # An object, not a bare list, so fields can be added later without breaking the app.
     services: list[ServiceOut]  # oldest first
+
+
+# ---------------------------------------------------------------- working hours (story 3.2, FR-13)
+
+# Index = the weekday number stored in the database (0 = Monday, Python's date.weekday()).
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+# "10:00" or "10:00:00", 24-hour, whole minutes only. No seconds, no UTC offset: a clock time
+# in the Business timezone. "9:00" and "24:00" do not match. [0-9], not \d: \d also matches
+# digits from other scripts (e.g. "1٠:00"), which time.fromisoformat cannot read.
+_TIME_TEXT = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9](:00)?")
+
+
+def _parse_time(value: object) -> time:
+    """What the form sent -> a clock time. Anything else (a number, bad text) -> our own message."""
+    if not isinstance(value, str) or not _TIME_TEXT.fullmatch(value):
+        raise PydanticCustomError("time_invalid", "Use a time like 10:00.")
+    return time.fromisoformat(value)
+
+
+class DayIn(BaseModel):
+    """One OPEN day, as the form sends it. A closed day is sent as null instead.
+
+    mode="before": our validator sees the raw JSON value first, so every bad input (text,
+    a number, null) gets our own message, and the field then really holds a `time`.
+    default=None + validate_default=True: an empty box (or a missing key) reaches it too.
+    """
+
+    start_time: time | None = Field(default=None, validate_default=True)
+    end_time: time | None = Field(default=None, validate_default=True)
+
+    @field_validator("start_time", mode="before")
+    @classmethod
+    def check_start(cls, value: object) -> time:
+        if value is None:
+            raise PydanticCustomError("start_missing", "Enter a start time.")
+        return _parse_time(value)
+
+    # A field validator (not a model validator), so the error lands on "<day>.end_time".
+    @field_validator("end_time", mode="before")
+    @classmethod
+    def check_end(cls, value: object, info: ValidationInfo) -> time:
+        if value is None:
+            raise PydanticCustomError("end_missing", "Enter an end time.")
+        end = _parse_time(value)
+        # A refused start time is not in info.data, so there is nothing to compare with.
+        start = info.data.get("start_time")
+        if start is not None and end <= start:
+            raise PydanticCustomError("end_not_after_start", "End time must be after the start time.")
+        return end
+
+
+class WeekIn(BaseModel):
+    """The whole week, for a full replace (PUT). Every day must be sent; null = closed."""
+
+    monday: DayIn | None
+    tuesday: DayIn | None
+    wednesday: DayIn | None
+    thursday: DayIn | None
+    friday: DayIn | None
+    saturday: DayIn | None
+    sunday: DayIn | None
+
+
+class OpenHours(BaseModel):
+    """The hours of one open day. Both times are always there."""
+
+    start_time: time
+    end_time: time
+
+
+class WorkingHoursOut(BaseModel):
+    timezone: str  # how to read the times, e.g. "Asia/Kolkata" (AR-5)
+    monday: OpenHours | None  # None = closed
+    tuesday: OpenHours | None
+    wednesday: OpenHours | None
+    thursday: OpenHours | None
+    friday: OpenHours | None
+    saturday: OpenHours | None
+    sunday: OpenHours | None
+
+
+# ---------------------------------------------------------------- closed days (story 3.2, FR-13)
+
+_DATE_TEXT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")  # "2026-12-25" only: no time part
+
+
+class ClosedDayIn(BaseModel):
+    # mode="before", as in DayIn: every bad input gets "Pick a date.", and `day` holds a date.
+    day: date | None = Field(default=None, validate_default=True)
+
+    @field_validator("day", mode="before")
+    @classmethod
+    def check_day(cls, value: object) -> date:
+        if not isinstance(value, str) or not _DATE_TEXT.fullmatch(value):
+            raise PydanticCustomError("day_invalid", "Pick a date.")
+        try:
+            return date.fromisoformat(value)
+        except ValueError:  # the right shape, but no such day, e.g. 2026-02-30
+            raise PydanticCustomError("day_invalid", "Pick a date.") from None
+
+
+class ClosedDayOut(BaseModel):
+    closed_day_id: uuid.UUID
+    day: date
+
+
+class ClosedDayList(BaseModel):
+    closed_days: list[ClosedDayOut]  # today onward, soonest first

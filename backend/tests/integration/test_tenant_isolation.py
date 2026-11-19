@@ -22,7 +22,7 @@ from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
 from app.modules.accounts.models import Invite
-from app.modules.business.models import Service
+from app.modules.business.models import ClosedDay, Service
 
 pytestmark = pytest.mark.isolation
 
@@ -141,6 +141,68 @@ def check_replace_service(owners: TwoOwners) -> None:
     assert _services(owners.b) == [b_service]
 
 
+HOURS_WEEK = {
+    **{
+        day: {"start_time": "10:00", "end_time": "18:00"}
+        for day in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+    },
+    "sunday": None,
+}
+
+
+def _put_week(client: TestClient, body: dict) -> dict:
+    response = client.put("/api/v1/working-hours", json=body)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def check_get_working_hours(owners: TwoOwners) -> None:
+    # B saves a week first; A's week is still empty (every day closed).
+    _put_week(owners.b, HOURS_WEEK)
+    a_week = owners.a.get("/api/v1/working-hours").json()
+    assert all(a_week[day] is None for day in HOURS_WEEK)
+
+
+def check_replace_working_hours(owners: TwoOwners) -> None:
+    # A replaces A's own week; B's saved week stays the same.
+    b_week = _put_week(owners.b, HOURS_WEEK)
+    _put_week(owners.a, {day: None for day in HOURS_WEEK})
+    assert owners.b.get("/api/v1/working-hours").json() == b_week
+
+
+def _close_day(client: TestClient, day: str = "2099-12-25") -> dict:
+    # A far-future date, so "today" never matters here.
+    response = client.post("/api/v1/closed-days", json={"day": day})
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def _closed_days(client: TestClient) -> list[dict]:
+    return client.get("/api/v1/closed-days").json()["closed_days"]
+
+
+def check_list_closed_days(owners: TwoOwners) -> None:
+    # B closes a day first; A's list stays empty.
+    _close_day(owners.b)
+    assert _closed_days(owners.a) == []
+
+
+def check_add_closed_day(owners: TwoOwners) -> None:
+    # A's new closed day belongs to A's Business; B gets nothing new.
+    created = _close_day(owners.a)
+    with Session(get_engine()) as session:
+        row = session.get(ClosedDay, uuid.UUID(created["closed_day_id"]))
+        assert row.business_id == owners.a_business_id
+    assert _closed_days(owners.b) == []
+
+
+def check_delete_closed_day(owners: TwoOwners) -> None:
+    # A tries to delete B's closed day: 404, and B's row stays.
+    b_day = _close_day(owners.b)
+    assert_not_found(owners.a.delete(f"/api/v1/closed-days/{b_day['closed_day_id']}"))
+    assert _closed_days(owners.b) == [b_day]
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -161,6 +223,11 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/services"): check_list_services,
     ("POST", "/api/v1/services"): check_create_service,
     ("PUT", "/api/v1/services/{service_id}"): check_replace_service,
+    ("GET", "/api/v1/working-hours"): check_get_working_hours,
+    ("PUT", "/api/v1/working-hours"): check_replace_working_hours,
+    ("GET", "/api/v1/closed-days"): check_list_closed_days,
+    ("POST", "/api/v1/closed-days"): check_add_closed_day,
+    ("DELETE", "/api/v1/closed-days/{closed_day_id}"): check_delete_closed_day,
 }
 
 

@@ -1,10 +1,11 @@
 # Tables owned by the business module (AR-1).
 # - businesses: global (it is the tenant itself).
 # - services: a tenant table; each row belongs to one Business (story 3.1, FR-12).
+# - working_hours, closed_days: tenant tables for the weekly hours and holidays (story 3.2, FR-13).
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
-from sqlalchemy import CheckConstraint, DateTime, Text, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, SmallInteger, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -22,6 +23,10 @@ class Business(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
     name: Mapped[str]
+    # How to read this Business's clock times, e.g. "10:00" in Working Hours (AR-5).
+    # server_default here too, not only in the migration: without it SQLAlchemy would send
+    # an explicit NULL on sign-up, and the NOT NULL rule would refuse the new Business.
+    timezone: Mapped[str] = mapped_column(Text, server_default="Asia/Kolkata")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -48,3 +53,38 @@ class Service(TenantModel):
     price_paise: Mapped[int]
     is_active: Mapped[bool] = mapped_column(server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WorkingHours(TenantModel):
+    """The open hours of one weekday (FR-13). A closed weekday has NO row.
+
+    Times are clock times in the Business timezone ("10:00 every Monday"), not moments,
+    so they are `time`, not `timestamptz` (AR-5). Slot math (Epic 4) turns them into moments.
+    """
+
+    __tablename__ = "working_hours"
+    __table_args__ = (
+        UniqueConstraint("business_id", "id"),  # the tenant-table rule (core/repository.py)
+        UniqueConstraint("business_id", "weekday"),  # one range per day: no split shifts
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="weekday_valid"),
+        # No overnight hours: the day must end after it starts (latest end 23:59).
+        CheckConstraint("end_time > start_time", name="end_after_start"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    weekday: Mapped[int] = mapped_column(SmallInteger)  # 0 = Monday … 6 = Sunday (date.weekday())
+    start_time: Mapped[time]
+    end_time: Mapped[time]
+
+
+class ClosedDay(TenantModel):
+    """One date the Business is closed (a holiday), whatever the weekly hours say (FR-13)."""
+
+    __tablename__ = "closed_days"
+    __table_args__ = (
+        UniqueConstraint("business_id", "id"),
+        UniqueConstraint("business_id", "day"),  # a date is closed once, not twice
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    day: Mapped[date]

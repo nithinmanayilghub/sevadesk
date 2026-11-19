@@ -2,18 +2,42 @@
 # - sign_up: the whole sign-up flow (FR-7).
 # - Services (story 3.1, FR-12): the Owner's list / add / replace, and list_active_services
 #   for the Chat Page and the Agent (later stories).
+# - Working Hours (story 3.2, FR-13): the Owner's weekly hours and closed dates, and
+#   hours_on for slot math (Epic 4) and the Agent.
 import uuid
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError, FieldError
 from app.core.tenancy import tenant_scope
 
 # Import the module, not the function, so every call goes through accounts_service.<name>.
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
-from app.modules.business.models import Service
-from app.modules.business.repository import BusinessRepository, ServiceRepository
-from app.modules.business.schemas import ServiceIn, ServiceList, ServiceOut, SignupRequest, SignupResponse
+from app.modules.business.models import Business, ClosedDay, Service, WorkingHours
+from app.modules.business.repository import (
+    BusinessRepository,
+    ClosedDayRepository,
+    ServiceRepository,
+    WorkingHoursRepository,
+)
+from app.modules.business.schemas import (
+    WEEKDAYS,
+    ClosedDayIn,
+    ClosedDayList,
+    ClosedDayOut,
+    OpenHours,
+    ServiceIn,
+    ServiceList,
+    ServiceOut,
+    SignupRequest,
+    SignupResponse,
+    WeekIn,
+    WorkingHoursOut,
+)
 
 
 def sign_up(session: Session, request: SignupRequest) -> tuple[SignupResponse, str]:
@@ -78,3 +102,108 @@ def list_active_services(session: Session) -> list[ServiceOut]:
     No Role check: Customers see these too. The caller must already be in a tenant scope.
     """
     return [_out(row) for row in ServiceRepository(session).list_active()]
+
+
+# ---------------------------------------------------------------- working hours (story 3.2, FR-13)
+
+
+def _week_out(session: Session) -> WorkingHoursOut:
+    business = BusinessRepository(session).get_current()
+    days: dict[str, OpenHours | None] = dict.fromkeys(WEEKDAYS)  # every day closed ...
+    for row in WorkingHoursRepository(session).list_week():  # ... until a row says it is open
+        days[WEEKDAYS[row.weekday]] = OpenHours(start_time=row.start_time, end_time=row.end_time)
+    return WorkingHoursOut(timezone=business.timezone, **days)
+
+
+def get_working_hours(session: Session, actor: Actor) -> WorkingHoursOut:
+    """The Owner's week: each day's hours, or None when closed, plus the Business timezone."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    return _week_out(session)
+
+
+def replace_working_hours(session: Session, actor: Actor, week: WeekIn) -> WorkingHoursOut:
+    """Replace the whole week. No commit here: the request owns the transaction (AD-15)."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    # Lock the Business row: a second save at the same moment waits for this one to finish.
+    BusinessRepository(session).get_current(for_update=True)
+    rows = [
+        WorkingHours(weekday=weekday, start_time=day.start_time, end_time=day.end_time)
+        for weekday, name in enumerate(WEEKDAYS)
+        if (day := getattr(week, name)) is not None  # a closed day (None) gets no row
+    ]
+    WorkingHoursRepository(session).replace_week(rows)
+    return _week_out(session)
+
+
+# ---------------------------------------------------------------- closed days (story 3.2, FR-13)
+
+DAY_TAKEN = "This date is already closed."
+
+
+def _today(business: Business) -> date:
+    """Today's date on the Business's own clock (AR-5), not the server's (UTC).
+
+    At 1:00 am in India it is still "yesterday" in UTC. The one place "today" is worked out,
+    so tests can replace it with a fixed date.
+    """
+    return datetime.now(ZoneInfo(business.timezone)).date()
+
+
+def _day_error(message: str) -> AppError:
+    return AppError(
+        code="validation_error",
+        message="Some fields need fixing.",
+        status_code=422,
+        fields=[FieldError(field="day", message=message)],
+    )
+
+
+def _closed_out(row: ClosedDay) -> ClosedDayOut:
+    return ClosedDayOut(closed_day_id=row.id, day=row.day)
+
+
+def list_closed_days(session: Session, actor: Actor) -> ClosedDayList:
+    """Closed dates from today on (Business timezone), soonest first."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    today = _today(BusinessRepository(session).get_current())
+    return ClosedDayList(closed_days=[_closed_out(row) for row in ClosedDayRepository(session).list_from(today)])
+
+
+def add_closed_day(session: Session, actor: Actor, data: ClosedDayIn) -> ClosedDayOut:
+    """Close one date, whatever the weekly hours say. Refuses past and already-closed dates."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    # Lock the Business row: two adds of the same date at once run one after the other.
+    business = BusinessRepository(session).get_current(for_update=True)
+    if data.day < _today(business):
+        raise _day_error("Pick today or a later date.")
+    repository = ClosedDayRepository(session)
+    if repository.exists(data.day):
+        raise _day_error(DAY_TAKEN)
+    try:
+        row = repository.add(ClosedDay(day=data.day))
+    except IntegrityError as exc:
+        # The second guard: the UNIQUE rule. Same answer as the check above, never a 500.
+        if "uq_closed_days_business_id_day" in str(exc.orig):
+            raise _day_error(DAY_TAKEN) from exc
+        raise
+    return _closed_out(row)
+
+
+def remove_closed_day(session: Session, actor: Actor, closed_day_id: uuid.UUID) -> None:
+    """Open a closed date again. The weekly hours then apply to it."""
+    # Role check FIRST: a 403 then says nothing about whether this id exists (story 2.4).
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    repository = ClosedDayRepository(session)
+    repository.remove(repository.get_or_raise(closed_day_id))  # another Business's id -> 404
+
+
+def hours_on(session: Session, day: date) -> OpenHours | None:
+    """The open hours on one date, or None when closed. For slot math (Epic 4) and the Agent.
+
+    A closed date wins over the weekly hours, so it is checked first. No Role check:
+    Customers' bookings depend on it too. The caller must already be in a tenant scope.
+    """
+    if ClosedDayRepository(session).exists(day):
+        return None
+    row = WorkingHoursRepository(session).for_weekday(day.weekday())
+    return None if row is None else OpenHours(start_time=row.start_time, end_time=row.end_time)

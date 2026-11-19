@@ -962,6 +962,365 @@
           }
         }
       }
+    },
+    "/api/v1/working-hours": {
+      "get": {
+        "summary": "Get Working Hours",
+        "operationId": "get_working_hours",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace Working Hours",
+        "operationId": "replace_working_hours",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeekIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/closed-days": {
+      "get": {
+        "summary": "List Closed Days",
+        "operationId": "list_closed_days",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosedDayList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add Closed Day",
+        "operationId": "add_closed_day",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosedDayIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosedDayOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/closed-days/{closed_day_id}": {
+      "delete": {
+        "summary": "Remove Closed Day",
+        "operationId": "remove_closed_day",
+        "parameters": [
+          {
+            "name": "closed_day_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Closed Day Id"
+            }
+          },
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -984,6 +1343,91 @@
           "password"
         ],
         "title": "AcceptInviteRequest"
+      },
+      "ClosedDayIn": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "title": "ClosedDayIn"
+      },
+      "ClosedDayList": {
+        "properties": {
+          "closed_days": {
+            "items": {
+              "$ref": "#/components/schemas/ClosedDayOut"
+            },
+            "type": "array",
+            "title": "Closed Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "closed_days"
+        ],
+        "title": "ClosedDayList"
+      },
+      "ClosedDayOut": {
+        "properties": {
+          "closed_day_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Closed Day Id"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "closed_day_id",
+          "day"
+        ],
+        "title": "ClosedDayOut"
+      },
+      "DayIn": {
+        "properties": {
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          }
+        },
+        "type": "object",
+        "title": "DayIn",
+        "description": "One OPEN day, as the form sends it. A closed day is sent as null instead.\n\nmode=\"before\": our validator sees the raw JSON value first, so every bad input (text,\na number, null) gets our own message, and the field then really holds a `time`.\ndefault=None + validate_default=True: an empty box (or a missing key) reaches it too."
       },
       "ErrorBody": {
         "properties": {
@@ -1253,6 +1697,27 @@
         "type": "object",
         "title": "MemberUpdate",
         "description": "A change to one member. Leave a field out (or null) to keep it as it is."
+      },
+      "OpenHours": {
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "title": "End Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time"
+        ],
+        "title": "OpenHours",
+        "description": "The hours of one open day. Both times are always there."
       },
       "Permission": {
         "type": "string",
@@ -1528,6 +1993,92 @@
         ],
         "title": "ValidationError"
       },
+      "WeekIn": {
+        "properties": {
+          "monday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tuesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wednesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thursday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "friday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saturday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sunday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
+        "title": "WeekIn",
+        "description": "The whole week, for a full replace (PUT). Every day must be sent; null = closed."
+      },
       "WorkerHealthResponse": {
         "properties": {
           "status": {
@@ -1540,6 +2091,96 @@
           "status"
         ],
         "title": "WorkerHealthResponse"
+      },
+      "WorkingHoursOut": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "monday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tuesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wednesday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thursday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "friday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saturday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sunday": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ],
+        "title": "WorkingHoursOut"
       }
     }
   }
