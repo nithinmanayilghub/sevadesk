@@ -77,7 +77,9 @@ export function ClosedDaysSettings() {
       const { error, response } = await api.DELETE("/api/v1/closed-days/{closed_day_id}", {
         params: { path: { closed_day_id: row.closed_day_id } },
       });
-      if (response.ok) {
+      // 404: already removed (e.g. in another tab). Either way the day is open now, so
+      // reload: the list then matches the backend, with no dead row left on screen.
+      if (response.ok || response.status === 404) {
         load();
         dateInput.current?.focus(); // the row and its button are gone: focus a stable place
       } else setGeneralError(error?.error.message ?? GENERAL_ERROR);

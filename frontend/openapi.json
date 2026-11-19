@@ -1349,7 +1349,8 @@
           "day": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "format": "date"
               },
               {
                 "type": "null"
@@ -1402,7 +1403,8 @@
           "start_time": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "format": "time"
               },
               {
                 "type": "null"
@@ -1413,7 +1415,8 @@
           "end_time": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "format": "time"
               },
               {
                 "type": "null"
@@ -1424,7 +1427,7 @@
         },
         "type": "object",
         "title": "DayIn",
-        "description": "One OPEN day, as the form sends it. A closed day is sent as null instead.\n\nThe times are strings, parsed by _parse_time, so every bad input gets the same clear\nmessage. default=None + validate_default=True: an empty box reaches the validator too."
+        "description": "One OPEN day, as the form sends it. A closed day is sent as null instead.\n\nmode=\"before\": our validator sees the raw JSON value first, so every bad input (text,\na number, null) gets our own message, and the field then really holds a `time`.\ndefault=None + validate_default=True: an empty box (or a missing key) reaches it too."
       },
       "ErrorBody": {
         "properties": {

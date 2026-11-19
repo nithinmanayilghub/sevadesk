@@ -351,8 +351,9 @@ export interface components {
          * DayIn
          * @description One OPEN day, as the form sends it. A closed day is sent as null instead.
          *
-         *     The times are strings, parsed by _parse_time, so every bad input gets the same clear
-         *     message. default=None + validate_default=True: an empty box reaches the validator too.
+         *     mode="before": our validator sees the raw JSON value first, so every bad input (text,
+         *     a number, null) gets our own message, and the field then really holds a `time`.
+         *     default=None + validate_default=True: an empty box (or a missing key) reaches it too.
          */
         DayIn: {
             /** Start Time */

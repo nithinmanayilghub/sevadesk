@@ -117,38 +117,40 @@ class ServiceList(BaseModel):
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 # "10:00" or "10:00:00", 24-hour, whole minutes only. No seconds, no UTC offset: a clock time
-# in the Business timezone. "9:00" and "24:00" do not match.
-_TIME_TEXT = re.compile(r"([01]\d|2[0-3]):[0-5]\d(:00)?")
+# in the Business timezone. "9:00" and "24:00" do not match. [0-9], not \d: \d also matches
+# digits from other scripts (e.g. "1٠:00"), which time.fromisoformat cannot read.
+_TIME_TEXT = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9](:00)?")
 
 
-def _parse_time(text: str) -> time:
-    """Text from the form -> a clock time. Anything else -> our own message, not Pydantic's."""
-    if not _TIME_TEXT.fullmatch(text):
+def _parse_time(value: object) -> time:
+    """What the form sent -> a clock time. Anything else (a number, bad text) -> our own message."""
+    if not isinstance(value, str) or not _TIME_TEXT.fullmatch(value):
         raise PydanticCustomError("time_invalid", "Use a time like 10:00.")
-    return time.fromisoformat(text)
+    return time.fromisoformat(value)
 
 
 class DayIn(BaseModel):
     """One OPEN day, as the form sends it. A closed day is sent as null instead.
 
-    The times are strings, parsed by _parse_time, so every bad input gets the same clear
-    message. default=None + validate_default=True: an empty box reaches the validator too.
+    mode="before": our validator sees the raw JSON value first, so every bad input (text,
+    a number, null) gets our own message, and the field then really holds a `time`.
+    default=None + validate_default=True: an empty box (or a missing key) reaches it too.
     """
 
-    start_time: str | None = Field(default=None, validate_default=True)
-    end_time: str | None = Field(default=None, validate_default=True)
+    start_time: time | None = Field(default=None, validate_default=True)
+    end_time: time | None = Field(default=None, validate_default=True)
 
-    @field_validator("start_time")
+    @field_validator("start_time", mode="before")
     @classmethod
-    def check_start(cls, value: str | None) -> time:
+    def check_start(cls, value: object) -> time:
         if value is None:
             raise PydanticCustomError("start_missing", "Enter a start time.")
         return _parse_time(value)
 
     # A field validator (not a model validator), so the error lands on "<day>.end_time".
-    @field_validator("end_time")
+    @field_validator("end_time", mode="before")
     @classmethod
-    def check_end(cls, value: str | None, info: ValidationInfo) -> time:
+    def check_end(cls, value: object, info: ValidationInfo) -> time:
         if value is None:
             raise PydanticCustomError("end_missing", "Enter an end time.")
         end = _parse_time(value)
@@ -191,17 +193,17 @@ class WorkingHoursOut(BaseModel):
 
 # ---------------------------------------------------------------- closed days (story 3.2, FR-13)
 
-_DATE_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")  # "2026-12-25" only: no time part
+_DATE_TEXT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")  # "2026-12-25" only: no time part
 
 
 class ClosedDayIn(BaseModel):
-    # A string, parsed here, so every bad input gets the same clear message.
-    day: str | None = Field(default=None, validate_default=True)
+    # mode="before", as in DayIn: every bad input gets "Pick a date.", and `day` holds a date.
+    day: date | None = Field(default=None, validate_default=True)
 
-    @field_validator("day")
+    @field_validator("day", mode="before")
     @classmethod
-    def check_day(cls, value: str | None) -> date:
-        if value is None or not _DATE_TEXT.fullmatch(value):
+    def check_day(cls, value: object) -> date:
+        if not isinstance(value, str) or not _DATE_TEXT.fullmatch(value):
             raise PydanticCustomError("day_invalid", "Pick a date.")
         try:
             return date.fromisoformat(value)

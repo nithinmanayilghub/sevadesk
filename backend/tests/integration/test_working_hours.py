@@ -243,3 +243,33 @@ def test_logged_out_caller_gets_401(make_client):
     stranger = make_client()
     assert stranger.get("/api/v1/working-hours").status_code == 401
     assert stranger.get("/api/v1/closed-days").status_code == 401
+
+
+# ---------------------------------------------------------------- review fixes (regression tests)
+
+
+@pytest.mark.parametrize("value", [10, 10.5, True, ["10:00"], "1\u0660:00"])
+def test_non_text_or_non_ascii_time_gets_our_message(sign_up_owner, value):
+    # A JSON number, or digits from another script ("1٠:00"), must not leak Pydantic's text.
+    owner, _ = sign_up_owner()
+    response = put_week(owner, {**WEEK, "monday": {"start_time": value, "end_time": "18:00"}})
+    assert field_errors(response) == {"monday.start_time": BAD_TIME}
+
+
+@pytest.mark.parametrize("value", [20261225, True, "2026-1\u0662-25"])
+def test_non_text_or_non_ascii_date_gets_our_message(sign_up_owner, fixed_today, value):
+    owner, _ = sign_up_owner()
+    assert field_errors(post_day(owner, value)) == {"day": "Pick a date."}
+
+
+def test_input_schemas_hold_real_times_and_dates():
+    # The declared types match the values: no serializer warnings, no strings in disguise.
+    import warnings
+
+    from app.modules.business.schemas import ClosedDayIn, DayIn
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        day = DayIn(start_time="10:00", end_time="18:00")
+        assert day.model_dump() == {"start_time": time(10), "end_time": time(18)}
+        assert ClosedDayIn(day="2026-12-25").model_dump() == {"day": date(2026, 12, 25)}

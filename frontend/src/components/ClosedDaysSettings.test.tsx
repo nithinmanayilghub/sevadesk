@@ -83,3 +83,17 @@ test("Remove sends DELETE, reloads, and moves focus to the date box", async () =
   });
   expect(screen.getByLabelText("Date")).toHaveFocus();
 });
+
+test("a Remove that finds the day already gone reloads the list", async () => {
+  // Review fix: another tab removed it first. The 404 must not leave a dead row on screen.
+  GET.mockResolvedValueOnce(list([XMAS]));
+  GET.mockResolvedValueOnce(list([]));
+  DELETE.mockResolvedValue({
+    response: { ok: false, status: 404 },
+    error: { error: { code: "not_found", message: "We could not find that." } },
+  } as never);
+  render(<ClosedDaysSettings />);
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Fri, 25 Dec" }));
+  expect(await screen.findByText("No closed days.")).toBeInTheDocument();
+  expect(GET).toHaveBeenCalledTimes(2);
+});
