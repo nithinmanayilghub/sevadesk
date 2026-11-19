@@ -35,3 +35,9 @@ test("rupeesToPaise gives null for anything that is not a Price", () => {
 test("an edit form round trip keeps the same paise", () => {
   for (const paise of [149900, 49950]) expect(rupeesToPaise(paiseToRupeesText(paise))).toBe(paise);
 });
+
+
+test("the top Price matches the backend cap (MAX_PRICE_PAISE)", () => {
+  expect(rupeesToPaise("1000000")).toBe(100000000);
+  expect(formatRupees(100000000)).toBe("₹10,00,000");
+});

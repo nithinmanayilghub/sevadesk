@@ -140,3 +140,12 @@ Plain-word meanings. Newest terms at the bottom.
 - **Optimistic update** - Show a change on screen before the server says yes, then undo it if the save fails. It makes the app feel instant.
 - **Effect cleanup** - The function an effect returns. React runs it when the component leaves the screen, or before the effect runs again.
 - **aria-busy** - An attribute that tells screen readers "this part is still working". We set it while a save runs.
+- **Paise** - The smallest unit of Indian money: ₹1 = 100 paise. We store every Price as a whole number of paise, so there are no float rounding errors.
+- **CHECK constraint** - A rule inside the database table, like `price_paise > 0`. The database refuses any row that breaks it, even if the app has a bug.
+- **Defence in depth** - Checking the same rule in more than one layer (form, API, database), so one missed check does not let bad data in.
+- **Role check before lookup** - Check "is this person allowed?" before "does this record exist?". Then everyone without access gets the same 403, and learns nothing about which ids exist.
+- **Full replace (PUT)** - A PUT sends every field of a record, and the server replaces them all. A missing field is an error, not "keep the old value".
+- **StrictInt** - A Pydantic type that accepts only a real JSON whole number. Without it, `true`, `"499"` or `499.0` would quietly become numbers.
+- **Intl.NumberFormat** - The browser's built-in number formatter. With `en-IN` and `INR`, it writes ₹1,00,000 with Indian grouping (lakh, crore).
+- **useId** - A React hook that gives each component its own unique id, so two forms on one page never share a label id.
+- **aria-disabled** - Tells screen readers "this button does nothing now", but keeps the button focusable. We use it instead of `disabled`, which drops keyboard focus.
