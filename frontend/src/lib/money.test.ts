@@ -26,16 +26,17 @@ test("rupeesToPaise reads what an Owner types", () => {
 });
 
 test("rupeesToPaise gives null for anything that is not a Price", () => {
-  for (const text of ["", "abc", "4.999", "-5"]) expect(rupeesToPaise(text)).toBeNull();
+  for (const text of ["", "abc", "4.999", "-5"])
+    expect(rupeesToPaise(text)).toBeNull();
   // 20+ digits cannot be held exactly; JSON would send "1e+22", a float the API refuses
   // with a confusing message. null gets the clear "Enter a Price" message instead.
   expect(rupeesToPaise("100000000000000000000")).toBeNull();
 });
 
 test("an edit form round trip keeps the same paise", () => {
-  for (const paise of [149900, 49950]) expect(rupeesToPaise(paiseToRupeesText(paise))).toBe(paise);
+  for (const paise of [149900, 49950])
+    expect(rupeesToPaise(paiseToRupeesText(paise))).toBe(paise);
 });
-
 
 test("the top Price matches the backend cap (MAX_PRICE_PAISE)", () => {
   expect(rupeesToPaise("1000000")).toBe(100000000);
