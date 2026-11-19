@@ -24,7 +24,16 @@ def test_migrations_downgrade_to_base_and_back(client):
 
     command.upgrade(config, "head")
     tables = set(inspect(get_engine()).get_table_names())
-    assert tables == {"alembic_version", "app_meta", "businesses", "users", "sessions", "memberships", "invites"}
+    assert tables == {
+        "alembic_version",
+        "app_meta",
+        "businesses",
+        "users",
+        "sessions",
+        "memberships",
+        "invites",
+        "services",
+    }
 
     response = client.get("/api/v1/hello")
     assert response.status_code == 200

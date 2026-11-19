@@ -12,7 +12,16 @@ def test_hello_reads_value_from_database(client):
 
 def test_migration_creates_expected_tables(client):
     tables = set(inspect(get_engine()).get_table_names())
-    assert tables == {"alembic_version", "app_meta", "businesses", "users", "sessions", "memberships", "invites"}
+    assert tables == {
+        "alembic_version",
+        "app_meta",
+        "businesses",
+        "users",
+        "sessions",
+        "memberships",
+        "invites",
+        "services",
+    }
 
 
 def test_openapi_schema_lists_hello(client):

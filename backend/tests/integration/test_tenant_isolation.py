@@ -22,6 +22,7 @@ from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
 from app.modules.accounts.models import Invite
+from app.modules.business.models import Service
 
 pytestmark = pytest.mark.isolation
 
@@ -104,6 +105,42 @@ def check_update_member(owners: TwoOwners) -> None:
     assert owners.b.get("/api/v1/me").json()["roles"] == ["owner", "technician"]
 
 
+SERVICE = {"name": "Fan repair", "duration_minutes": 60, "price_paise": 49900, "is_active": True}
+
+
+def _add_service(client: TestClient) -> dict:
+    response = client.post("/api/v1/services", json=SERVICE)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def _services(client: TestClient) -> list[dict]:
+    return client.get("/api/v1/services").json()["services"]
+
+
+def check_list_services(owners: TwoOwners) -> None:
+    # A's list holds only A's own Service: none of B's.
+    a_service, _ = _add_service(owners.a), _add_service(owners.b)
+    assert [s["service_id"] for s in _services(owners.a)] == [a_service["service_id"]]
+
+
+def check_create_service(owners: TwoOwners) -> None:
+    # A's new Service belongs to A's Business; B gets nothing new.
+    created = _add_service(owners.a)
+    with Session(get_engine()) as session:
+        row = session.get(Service, uuid.UUID(created["service_id"]))
+        assert row.business_id == owners.a_business_id
+    assert _services(owners.b) == []
+
+
+def check_replace_service(owners: TwoOwners) -> None:
+    # A tries to change B's Service (a valid body): 404, and B's Service stays the same.
+    b_service = _add_service(owners.b)
+    change = {**SERVICE, "price_paise": 1, "is_active": False}
+    assert_not_found(owners.a.put(f"/api/v1/services/{b_service['service_id']}", json=change))
+    assert _services(owners.b) == [b_service]
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -121,6 +158,9 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("POST", "/api/v1/team/invites"): check_create_invite,
     ("GET", "/api/v1/team"): check_list_team,
     ("PATCH", "/api/v1/team/members/{membership_id}"): check_update_member,
+    ("GET", "/api/v1/services"): check_list_services,
+    ("POST", "/api/v1/services"): check_create_service,
+    ("PUT", "/api/v1/services/{service_id}"): check_replace_service,
 }
 
 

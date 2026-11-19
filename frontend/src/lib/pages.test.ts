@@ -77,9 +77,15 @@ test("each tab links to its page", () => {
 
 // --- settingsLinks ---
 
-test("settings links: Owner sees Team then Appearance; Technician sees Appearance only", () => {
-  expect(settingsLinks(OWNER).map((link) => link.label)).toEqual(["Team", "Appearance"]);
+test("settings links: Owner sees Services, Team, Appearance; Technician sees Appearance only", () => {
+  expect(settingsLinks(OWNER).map((link) => link.label)).toEqual(["Services", "Team", "Appearance"]);
   expect(settingsLinks(TECHNICIAN).map((link) => link.label)).toEqual(["Appearance"]);
+});
+
+test("the Services link needs manage_setup", () => {
+  const hrefs = (permissions: Permission[]) => settingsLinks(permissions).map((link) => link.href);
+  expect(hrefs(["manage_setup"])).toContain("/app/settings/services");
+  expect(hrefs([])).not.toContain("/app/settings/services");
 });
 
 // --- landingPath ---
