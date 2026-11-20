@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { InviteForm } from "@/components/InviteForm";
+import { LoadFailed } from "@/components/LoadFailed";
 import { Button } from "@/components/ui/button";
 
 type Team = components["schemas"]["TeamResponse"];
@@ -68,17 +69,12 @@ export function TeamSettings() {
 
   if (failed) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert">Could not load. Please try again.</p>
-        <Button
-          onClick={() => {
-            setFailed(false);
-            load();
-          }}
-        >
-          Try again
-        </Button>
-      </div>
+      <LoadFailed
+        onRetry={() => {
+          setFailed(false);
+          load();
+        }}
+      />
     );
   }
 

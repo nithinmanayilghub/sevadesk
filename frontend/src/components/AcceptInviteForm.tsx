@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { LoadFailed } from "@/components/LoadFailed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,17 +85,12 @@ export function AcceptInviteForm({ token }: { token: string }) {
   }
   if (state.kind === "failed") {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert">Could not load. Please try again.</p>
-        <Button
-          onClick={() => {
-            setState({ kind: "loading" });
-            check();
-          }}
-        >
-          Try again
-        </Button>
-      </div>
+      <LoadFailed
+        onRetry={() => {
+          setState({ kind: "loading" });
+          check();
+        }}
+      />
     );
   }
 

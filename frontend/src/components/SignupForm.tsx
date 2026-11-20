@@ -4,6 +4,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { errorsForFields } from "@/lib/errorsForFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,10 +43,7 @@ export function SignupForm() {
         return;
       }
       // Keep only errors for fields this form shows; anything else becomes a general error.
-      const errors: FieldErrors = {};
-      for (const item of error?.error.fields ?? []) {
-        if ((FIELDS as readonly string[]).includes(item.field)) errors[item.field as Field] = item.message;
-      }
+      const errors = errorsForFields(error, FIELDS);
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
       } else {

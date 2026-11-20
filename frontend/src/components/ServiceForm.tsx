@@ -4,6 +4,7 @@
 // their fields and moves focus to the first one (UX-DR33).
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { errorsForFields } from "@/lib/errorsForFields";
 import type { components } from "@/api/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,10 +97,7 @@ export function ServiceForm({ initial, onSaved, onCancel }: Props) {
         onSaved();
         return;
       }
-      const found: FieldErrors = {};
-      for (const item of error?.error.fields ?? []) {
-        if ((FIELDS as readonly string[]).includes(item.field)) found[item.field as Field] = item.message;
-      }
+      const found = errorsForFields(error, FIELDS);
       if (Object.keys(found).length > 0) setFieldErrors(found);
       else setGeneralError(error?.error.message ?? GENERAL_ERROR);
     } catch {
