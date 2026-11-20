@@ -94,3 +94,16 @@ def test_ci_runs_the_isolation_suite():
     assert "Tenant isolation suite (FR-11)" in test
     assert "uv run pytest -m isolation" in test
     assert test.index("Tenant isolation suite (FR-11)") < test.index("Backend tests (coverage gate)")
+
+
+# Behaviour: CI builds the frontend, then fails if the Chat Page first load is over 200 KB (NFR-6).
+def test_ci_runs_the_chat_page_size_check():
+    test = _job_block("test")
+    build = re.search(r"- name: Build frontend\n\s+working-directory: frontend\n\s+run: npm run build\n", test)
+    size = re.search(
+        r"- name: Chat Page size check \(NFR-6, ≤ 200 KB\)\n\s+working-directory: frontend\n"
+        r"\s+run: npm run check:chat-size\n",
+        test,
+    )
+    assert build and size
+    assert build.start() < size.start()

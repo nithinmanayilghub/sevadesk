@@ -54,10 +54,10 @@ development_status:
   2-6-choose-light-or-dark-theme: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
+  epic-3: done
   3-1-manage-services-with-prices: done
   3-2-set-working-hours-and-closed-days: done
-  3-3-share-the-chat-page-link: backlog
+  3-3-share-the-chat-page-link: done
   epic-3-retrospective: optional
 
   epic-4: backlog

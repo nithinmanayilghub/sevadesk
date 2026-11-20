@@ -4,6 +4,8 @@
 #   for the Chat Page and the Agent (later stories).
 # - Working Hours (story 3.2, FR-13): the Owner's weekly hours and closed dates, and
 #   hours_on for slot math (Epic 4) and the Agent.
+# - Chat Page (story 3.3, FR-14): the Owner's setup status, and the public Chat Page.
+import re
 import uuid
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -11,7 +13,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError, FieldError
+from app.core.errors import AppError, FieldError, NotFound
 from app.core.tenancy import tenant_scope
 
 # Import the module, not the function, so every call goes through accounts_service.<name>.
@@ -26,6 +28,8 @@ from app.modules.business.repository import (
 )
 from app.modules.business.schemas import (
     WEEKDAYS,
+    ChatPageOut,
+    ChatServiceOut,
     ClosedDayIn,
     ClosedDayList,
     ClosedDayOut,
@@ -33,6 +37,7 @@ from app.modules.business.schemas import (
     ServiceIn,
     ServiceList,
     ServiceOut,
+    SetupOut,
     SignupRequest,
     SignupResponse,
     WeekIn,
@@ -207,3 +212,51 @@ def hours_on(session: Session, day: date) -> OpenHours | None:
         return None
     row = WorkingHoursRepository(session).for_weekday(day.weekday())
     return None if row is None else OpenHours(start_time=row.start_time, end_time=row.end_time)
+
+
+# ---------------------------------------------------------------- chat page (story 3.3, FR-14)
+
+# The only shape a slug can have. Checked BEFORE any database query, so odd input
+# (a NUL character, 500 letters) is a plain 404, never a database error (500).
+_SLUG_SHAPE = re.compile(r"[a-z0-9-]{1,40}")
+
+
+def _is_set_up(session: Session) -> tuple[bool, bool]:
+    """(has an active Service, has Working Hours). The caller must be in a tenant scope."""
+    return bool(ServiceRepository(session).list_active()), WorkingHoursRepository(session).has_any()
+
+
+def get_setup(session: Session, actor: Actor) -> SetupOut:
+    """The Owner's chat slug, and which setup steps are done (the Dashboard checklist)."""
+    accounts_service.require_roles(actor, Permission.MANAGE_SETUP)
+    has_services, has_working_hours = _is_set_up(session)
+    return SetupOut(
+        chat_slug=BusinessRepository(session).get_current().chat_slug,
+        has_services=has_services,
+        has_working_hours=has_working_hours,
+    )
+
+
+def get_chat_page(session: Session, chat_slug: str) -> ChatPageOut:
+    """The public Chat Page: the Business name and its active Services. No login.
+
+    The tenant comes from the slug ONLY (AD-3 b): even a logged-in Owner of another
+    Business sees the Business this slug names.
+    """
+    chat_slug = chat_slug.lower()  # a link typed in upper case still works
+    if not _SLUG_SHAPE.fullmatch(chat_slug):
+        raise NotFound()
+    business = BusinessRepository(session).find_by_chat_slug(chat_slug)
+    if business is None:
+        raise NotFound()  # same answer as a bad shape: says nothing about which slugs exist
+    with tenant_scope(business.id):
+        services = [
+            ChatServiceOut(name=row.name, duration_minutes=row.duration_minutes, price_paise=row.price_paise)
+            for row in ServiceRepository(session).list_active()
+        ]
+        has_services, has_working_hours = _is_set_up(session)
+    return ChatPageOut(
+        business_name=business.name,
+        taking_requests=has_services and has_working_hours,
+        services=services,
+    )

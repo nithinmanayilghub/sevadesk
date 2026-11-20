@@ -313,6 +313,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Setup */
+        get: operations["get_setup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/{chat_slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Chat Page */
+        get: operations["get_chat_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -323,6 +357,24 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /** ChatPageOut */
+        ChatPageOut: {
+            /** Business Name */
+            business_name: string;
+            /** Taking Requests */
+            taking_requests: boolean;
+            /** Services */
+            services: components["schemas"]["ChatServiceOut"][];
+        };
+        /** ChatServiceOut */
+        ChatServiceOut: {
+            /** Name */
+            name: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Price Paise */
+            price_paise: number;
         };
         /** ClosedDayIn */
         ClosedDayIn: {
@@ -534,6 +586,18 @@ export interface components {
             price_paise: number;
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * SetupOut
+         * @description What the Owner's Dashboard checklist needs: the chat link and what is still missing.
+         */
+        SetupOut: {
+            /** Chat Slug */
+            chat_slug: string;
+            /** Has Services */
+            has_services: boolean;
+            /** Has Working Hours */
+            has_working_hours: boolean;
         };
         /** SignupRequest */
         SignupRequest: {
@@ -1604,6 +1668,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_chat_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatPageOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

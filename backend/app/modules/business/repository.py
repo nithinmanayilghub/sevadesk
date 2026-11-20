@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.repository import TenantRepository
 from app.core.tenancy import current_business_id
+from app.modules.business.chat_slug import make_chat_slug
 from app.modules.business.models import Business, ClosedDay, Service, WorkingHours
 
 
@@ -15,10 +16,15 @@ class BusinessRepository:
         self.session = session
 
     def add(self, name: str) -> Business:
-        business = Business(name=name)
+        # Every new Business gets its chat slug here, so no caller can forget it.
+        business = Business(name=name, chat_slug=make_chat_slug(name))
         self.session.add(business)
         self.session.flush()  # fills business.id now
         return business
+
+    def find_by_chat_slug(self, chat_slug: str) -> Business | None:
+        # The public Chat Page starts here: the slug, not a session, names the Business (AD-3 b).
+        return self.session.scalars(select(Business).where(Business.chat_slug == chat_slug)).one_or_none()
 
     def get_current(self, for_update: bool = False) -> Business:
         """The Business of the current tenant scope.
@@ -53,6 +59,10 @@ class WorkingHoursRepository(TenantRepository[WorkingHours]):
 
     def list_week(self) -> list[WorkingHours]:
         return list(self.session.scalars(self._select().order_by(WorkingHours.weekday)))
+
+    def has_any(self) -> bool:
+        # At least one open weekday (a closed weekday has no row).
+        return self.session.scalars(self._select().limit(1)).first() is not None
 
     def for_weekday(self, weekday: int) -> WorkingHours | None:
         return self.session.scalars(self._select().where(WorkingHours.weekday == weekday)).one_or_none()

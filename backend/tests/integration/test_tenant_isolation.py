@@ -203,6 +203,38 @@ def check_delete_closed_day(owners: TwoOwners) -> None:
     assert _closed_days(owners.b) == [b_day]
 
 
+def _setup(client: TestClient) -> dict:
+    response = client.get("/api/v1/setup")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def check_get_setup(owners: TwoOwners) -> None:
+    # B finishes setup; A's setup is still not done, and A gets A's own slug.
+    _add_service(owners.b)
+    _put_week(owners.b, HOURS_WEEK)
+    a_setup, b_setup = _setup(owners.a), _setup(owners.b)
+    assert (a_setup["has_services"], a_setup["has_working_hours"]) == (False, False)
+    assert a_setup["chat_slug"] != b_setup["chat_slug"]
+
+
+def _chat_service_names(client: TestClient, slug: str) -> list[str]:
+    response = client.get(f"/api/v1/chat/{slug}")
+    assert response.status_code == 200, response.text
+    return [s["name"] for s in response.json()["services"]]
+
+
+def check_get_chat_page(owners: TwoOwners) -> None:
+    # This check expects 200 on purpose, not assert_not_found: the Chat Page is public.
+    # The proof is that the SLUG, not the session cookie, picks the Business (AD-3 b).
+    owners.a.post("/api/v1/services", json={**SERVICE, "name": "A only"})
+    owners.b.post("/api/v1/services", json={**SERVICE, "name": "B only"})
+    a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
+    # Owner A is logged in, and opens B's link: only B's Services.
+    assert _chat_service_names(owners.a, b_slug) == ["B only"]
+    assert _chat_service_names(owners.a, a_slug) == ["A only"]
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -228,6 +260,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/closed-days"): check_list_closed_days,
     ("POST", "/api/v1/closed-days"): check_add_closed_day,
     ("DELETE", "/api/v1/closed-days/{closed_day_id}"): check_delete_closed_day,
+    ("GET", "/api/v1/setup"): check_get_setup,
+    ("GET", "/api/v1/chat/{chat_slug}"): check_get_chat_page,
 }
 
 

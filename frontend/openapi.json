@@ -1321,6 +1321,121 @@
           }
         }
       }
+    },
+    "/api/v1/setup": {
+      "get": {
+        "summary": "Get Setup",
+        "operationId": "get_setup",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/{chat_slug}": {
+      "get": {
+        "summary": "Get Chat Page",
+        "operationId": "get_chat_page",
+        "parameters": [
+          {
+            "name": "chat_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chat Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatPageOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1343,6 +1458,55 @@
           "password"
         ],
         "title": "AcceptInviteRequest"
+      },
+      "ChatPageOut": {
+        "properties": {
+          "business_name": {
+            "type": "string",
+            "title": "Business Name"
+          },
+          "taking_requests": {
+            "type": "boolean",
+            "title": "Taking Requests"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ChatServiceOut"
+            },
+            "type": "array",
+            "title": "Services"
+          }
+        },
+        "type": "object",
+        "required": [
+          "business_name",
+          "taking_requests",
+          "services"
+        ],
+        "title": "ChatPageOut"
+      },
+      "ChatServiceOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "price_paise": {
+            "type": "integer",
+            "title": "Price Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "duration_minutes",
+          "price_paise"
+        ],
+        "title": "ChatServiceOut"
       },
       "ClosedDayIn": {
         "properties": {
@@ -1829,6 +1993,30 @@
           "is_active"
         ],
         "title": "ServiceOut"
+      },
+      "SetupOut": {
+        "properties": {
+          "chat_slug": {
+            "type": "string",
+            "title": "Chat Slug"
+          },
+          "has_services": {
+            "type": "boolean",
+            "title": "Has Services"
+          },
+          "has_working_hours": {
+            "type": "boolean",
+            "title": "Has Working Hours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chat_slug",
+          "has_services",
+          "has_working_hours"
+        ],
+        "title": "SetupOut",
+        "description": "What the Owner's Dashboard checklist needs: the chat link and what is still missing."
       },
       "SignupRequest": {
         "properties": {

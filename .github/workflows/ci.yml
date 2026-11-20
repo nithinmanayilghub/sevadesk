@@ -115,6 +115,14 @@ jobs:
       - name: Frontend tests
         working-directory: frontend
         run: npm test
+      # The Chat Page must stay light for cheap phones on slow data (NFR-6).
+      # The size check measures the real production build, so build it first.
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Chat Page size check (NFR-6, ≤ 200 KB)
+        working-directory: frontend
+        run: npm run check:chat-size
       # Regenerate the API description and the TypeScript types.
       # If the committed files differ, someone forgot to regenerate them.
       - name: OpenAPI drift check

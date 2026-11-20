@@ -32,3 +32,11 @@ export function formatDate(isoDate: string): string {
 export function toTimeInput(value: string | null): string {
   return value === null ? "" : value.slice(0, 5);
 }
+
+// A Service duration in minutes -> "30 min", "1 h", "1 h 30 min". A zero part is left out.
+export function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const parts = [hours > 0 ? `${hours} h` : "", rest > 0 ? `${rest} min` : ""];
+  return parts.filter(Boolean).join(" ");
+}

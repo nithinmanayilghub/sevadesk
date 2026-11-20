@@ -27,6 +27,10 @@ class Business(Base):
     # server_default here too, not only in the migration: without it SQLAlchemy would send
     # an explicit NULL on sign-up, and the NOT NULL rule would refuse the new Business.
     timezone: Mapped[str] = mapped_column(Text, server_default="Asia/Kolkata")
+    # The public Chat Page link is /c/{chat_slug} (story 3.3, FR-14). Made once by
+    # make_chat_slug at sign-up and never changed, so a shared link keeps working.
+    # unique=True: the naming rule (core/db.py) names it uq_businesses_chat_slug.
+    chat_slug: Mapped[str] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
