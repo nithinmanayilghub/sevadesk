@@ -1,6 +1,6 @@
 // Tests for the time and date helpers (UX-DR4): "10:00 am – 6:00 pm" and "Fri, 25 Dec".
 import { expect, test } from "vitest";
-import { formatDate, formatTime, formatTimeRange, toTimeInput } from "./time";
+import { formatDate, formatDuration, formatTime, formatTimeRange, toTimeInput } from "./time";
 
 test("formatTime shows a 12-hour clock with lowercase am/pm", () => {
   expect(formatTime("00:00")).toBe("12:00 am");
@@ -22,4 +22,11 @@ test("formatDate shows short weekday, day and month", () => {
 test("toTimeInput gives the HH:MM a time box takes", () => {
   expect(toTimeInput("10:00:00")).toBe("10:00");
   expect(toTimeInput(null)).toBe("");
+});
+
+test("formatDuration shows hours and minutes, and leaves out a zero part", () => {
+  expect(formatDuration(30)).toBe("30 min");
+  expect(formatDuration(60)).toBe("1 h");
+  expect(formatDuration(90)).toBe("1 h 30 min");
+  expect(formatDuration(480)).toBe("8 h");
 });
