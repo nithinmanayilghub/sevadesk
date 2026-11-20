@@ -166,3 +166,7 @@ Plain-word meanings. Newest terms at the bottom.
 - **gzip** - A way to squeeze files before they travel over the network. We count gzip bytes because that is about what a phone downloads.
 - **Link header** - An HTTP response header that tells the browser to fetch a file early, such as a font. Next.js sends font preloads this way.
 - **aria-live region** - A part of the page that a screen reader reads out when its text changes, such as "Link copied".
+- **Request lifecycle** - The states one load goes through: loading, then ready, failed, or not found. `useLoad` (frontend/src/lib/useLoad.ts) owns it for every screen, so each screen only says what to fetch and how to show each state.
+- **Hook** - A React function whose name starts with `use`. A component calls it to get state and actions, such as `useLoad`. Hooks must be called on every render, in the same order, so one cannot be skipped with an `if`.
+- **Race condition (latest wins)** - Two requests run at once and answer in the wrong order, so an old answer overwrites a new one. `useLoad` numbers each request and drops every answer except the newest.
+- **Deep module** - A module with a small interface and a lot of behaviour behind it. Callers learn little and get a lot. `useLoad` is one: 2 inputs, and it hides the states, retry, the 401 rule and the race fix.

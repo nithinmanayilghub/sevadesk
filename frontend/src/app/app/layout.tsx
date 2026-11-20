@@ -3,48 +3,34 @@
 // No session? GET /api/v1/me returns 401, and the API client sends the User to /login.
 // A page the User's Role may not open shows "You don't have access to this page." (UX-DR27).
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { api } from "@/api/client";
 import { AppShell } from "@/components/AppShell";
 import { NoAccess } from "@/components/NoAccess";
-import { Button } from "@/components/ui/button";
-import { canOpen, type Permission } from "@/lib/pages";
+import { LoadFailed } from "@/components/LoadFailed";
+import { canOpen } from "@/lib/pages";
 import { PermissionsProvider } from "@/lib/permissions";
 import { applyTheme, ThemeProvider, type Theme } from "@/lib/theme";
+import { useLoad } from "@/lib/useLoad";
 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   const pathname = usePathname();
-  const [permissions, setPermissions] = useState<Permission[] | null>(null);
-  const [theme, setTheme] = useState<Theme>("system");
-  const [failed, setFailed] = useState(false);
-
-  const checkSession = useCallback(() => {
-    api
-      .GET("/api/v1/me")
-      .then(({ data, response }) => {
-        if (data) {
-          setPermissions(data.permissions);
-          setTheme(data.theme);
-        }
-        // 401 = not logged in: the API client is already on its way to /login.
-        // Anything else (500, 503: e.g. the demo database waking up) gets a message and a retry.
-        else if (response.status !== 401) setFailed(true);
-      })
-      .catch(() => setFailed(true)); // network down
-  }, []);
+  // 401 = not logged in: useLoad stays "loading" while the API client goes to /login.
+  // Anything else (500, 503: e.g. the demo database waking up) gets a message and a retry.
+  const me = useLoad(() => api.GET("/api/v1/me"), []);
+  const { reload } = me;
+  const theme: Theme = me.status === "ready" ? me.data.theme : "system";
 
   useEffect(() => {
-    checkSession();
-
     // Back after log-out: Chrome may show a frozen copy of this page from its back-forward
     // cache, without loading it again. "persisted" says so. Ask the server again: a 401
     // then sends the browser to /login, so nobody sees the old session's screen.
     function onPageShow(event: PageTransitionEvent) {
-      if (event.persisted) checkSession();
+      if (event.persisted) reload();
     }
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
-  }, [checkSession]);
+  }, [reload]);
 
   // Write the theme on <html>; remove it when /app closes, so public pages follow the device.
   useEffect(() => {
@@ -52,25 +38,21 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
     return () => applyTheme(null);
   }, [theme]);
 
-  if (failed) {
+  if (me.status === "failed" || me.status === "not_found") {
     return (
-      <div className="flex flex-col items-start gap-3 px-page-x py-6">
-        <p role="alert">Could not load. Please try again.</p>
-        <Button
-          onClick={() => {
-            setFailed(false); // back to the loading block while we ask again
-            checkSession();
-          }}
-        >
-          Try again
-        </Button>
+      <div className="px-page-x py-6">
+        <LoadFailed onRetry={reload} />
       </div>
     );
   }
-  if (!permissions) {
+  if (me.status === "loading") {
     // A plain placeholder block while we wait (UX-DR25 skeleton style).
     return <div aria-busy="true" aria-label="Loading" className="m-6 h-24 animate-pulse rounded-lg bg-muted" />;
   }
+  const { permissions } = me.data;
+  // A theme change replaces the loaded data: Appearance settings show it at once (and put the
+  // old one back if the save fails), and a later reload brings the saved theme.
+  const setTheme = (next: Theme) => me.replace({ ...me.data, theme: next });
   return (
     // The provider shares the permissions with every page, so a page can hide its own buttons.
     <PermissionsProvider permissions={permissions}>

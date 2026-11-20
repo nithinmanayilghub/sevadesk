@@ -5,13 +5,10 @@
 // until the Dashboard story builds the rest.
 import { Check, Circle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { api } from "@/api/client";
-import type { components } from "@/api/schema";
 import { CopyChatLinkButton } from "@/components/CopyChatLinkButton";
 import { usePermissions } from "@/lib/permissions";
-
-type SetupOut = components["schemas"]["SetupOut"];
+import { useLoad } from "@/lib/useLoad";
 
 function StepIcon({ done }: { done: boolean }) {
   return done ? (
@@ -39,26 +36,23 @@ function LinkStep({ href, label, done }: { href: string; label: string; done: bo
 
 export function SetupChecklist() {
   const isOwner = usePermissions().includes("manage_setup");
-  const [setup, setSetup] = useState<SetupOut | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    if (!isOwner) return;
-    api
-      .GET("/api/v1/setup")
-      .then(({ data }) => (data ? setSetup(data) : setFailed(true)))
-      .catch(() => setFailed(true));
-  }, [isOwner]);
-
   if (!isOwner) return <p className="text-muted-foreground">Coming soon.</p>;
+  return <OwnerChecklist />;
+}
+
+// A separate component, so only an Owner sends the request: a hook cannot be skipped.
+function OwnerChecklist() {
+  const loaded = useLoad(() => api.GET("/api/v1/setup"), []);
+
   // A load error hides the checklist without a message: the Dashboard is still useful without it.
-  if (failed) return null;
-  if (setup === null) {
+  if (loaded.status === "failed" || loaded.status === "not_found") return null;
+  if (loaded.status === "loading") {
     return (
       <div aria-busy="true" aria-label="Loading" className="h-40 w-full max-w-md animate-pulse rounded-lg bg-muted" />
     );
   }
 
+  const setup = loaded.data;
   const ready = setup.has_services && setup.has_working_hours;
   return (
     <section

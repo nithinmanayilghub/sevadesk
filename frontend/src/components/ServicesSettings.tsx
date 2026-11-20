@@ -2,20 +2,20 @@
 // Settings → Services (story 3.1, FR-12): list, add, edit, deactivate and reactivate Services.
 // Only the Owner reaches this page (lib/pages.ts), and the backend checks the Role again on
 // every call (AD-5). After any save, the page loads the list again from the backend.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { ServiceForm } from "@/components/ServiceForm";
 import { LoadFailed } from "@/components/LoadFailed";
 import { Button } from "@/components/ui/button";
 import { formatRupees } from "@/lib/money";
+import { useLoad } from "@/lib/useLoad";
 
 type ServiceOut = components["schemas"]["ServiceOut"];
 const GENERAL_ERROR = "Something went wrong. Please try again.";
 
 export function ServicesSettings() {
-  const [services, setServices] = useState<ServiceOut[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const loaded = useLoad(() => api.GET("/api/v1/services"), []);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   // The row whose Deactivate / Activate is saving now. Clicks are ignored meanwhile, but the
@@ -26,18 +26,11 @@ export function ServicesSettings() {
   const editButtons = useRef<Record<string, HTMLButtonElement | null>>({});
   const returnFocusTo = useRef<string | null>(null);
 
-  const load = useCallback(() => {
-    api
-      .GET("/api/v1/services")
-      .then(({ data }) => {
-        if (!data) return setFailed(true);
-        setServices(data.services);
-        setError(null); // a fresh list: an old row error no longer applies
-      })
-      .catch(() => setFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
+  // Load the list again after a save. A fresh list is coming: an old row error no longer applies.
+  function load() {
+    setError(null);
+    loaded.reload();
+  }
 
   // Runs after the edit form is gone and the row (with its Edit button) is back on screen.
   useEffect(() => {
@@ -71,16 +64,8 @@ export function ServicesSettings() {
     }
   }
 
-  if (failed) {
-    return (
-      <LoadFailed
-        onRetry={() => {
-          setFailed(false);
-          load();
-        }}
-      />
-    );
-  }
+  if (loaded.status === "failed" || loaded.status === "not_found") return <LoadFailed onRetry={loaded.reload} />;
+  const services: ServiceOut[] | null = loaded.status === "ready" ? loaded.data.services : null;
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-6">
