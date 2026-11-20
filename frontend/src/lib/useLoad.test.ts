@@ -113,3 +113,27 @@ test("replace shows new data at once, and an older load cannot overwrite it", as
   await act(async () => answers[1].resolve(ok("stale")));
   expect(result.current).toMatchObject({ status: "ready", data: "saved" });
 });
+
+test("a reload that fails after ready shows failed", async () => {
+  const answers = [deferred(), deferred()];
+  let call = 0;
+  const { result } = renderHook(() => useLoad(() => answers[call++].promise, []));
+  await act(async () => answers[0].resolve(ok("old")));
+
+  act(() => result.current.reload());
+  await act(async () => answers[1].resolve(status(500)));
+  expect(result.current.status).toBe("failed");
+});
+
+test("reload after not_found shows loading, then the data", async () => {
+  const answers = [deferred(), deferred()];
+  let call = 0;
+  const { result } = renderHook(() => useLoad(() => answers[call++].promise, []));
+  await act(async () => answers[0].resolve(status(404)));
+  expect(result.current.status).toBe("not_found");
+
+  act(() => result.current.reload());
+  expect(result.current.status).toBe("loading");
+  await act(async () => answers[1].resolve(ok("found")));
+  expect(result.current).toMatchObject({ status: "ready", data: "found" });
+});
