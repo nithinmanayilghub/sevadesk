@@ -137,3 +137,16 @@ test("reload after not_found shows loading, then the data", async () => {
   await act(async () => answers[1].resolve(ok("found")));
   expect(result.current).toMatchObject({ status: "ready", data: "found" });
 });
+
+test("replace with an updater works on the newest data, even from an old render", async () => {
+  const answers = [deferred(), deferred()];
+  let call = 0;
+  const { result } = renderHook(() => useLoad(() => answers[call++].promise, []));
+  await act(async () => answers[0].resolve(ok("old")));
+  const replaceFromOldRender = result.current.replace;
+
+  act(() => result.current.reload());
+  await act(async () => answers[1].resolve(ok("new")));
+  act(() => replaceFromOldRender((current) => `${current}!`));
+  expect(result.current).toMatchObject({ status: "ready", data: "new!" });
+});

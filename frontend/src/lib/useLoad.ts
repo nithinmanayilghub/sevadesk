@@ -4,7 +4,11 @@
 // - a 401 stays "loading": the API client (api/client.ts) is already going to /login
 // - reload(): from failed/not_found it shows loading again; from ready the old data stays
 //   on screen until the new data arrives (no skeleton flash after a save)
-// - replace(data): show data a save already answered with, so no extra request is needed
+// - replace(data): show data a save already answered with, so no extra request is needed.
+//   Pass an updater, replace((current) => ...), to change the newest data, not a copy from
+//   an older render.
+// - reload and replace are for event handlers (clicks, saves, pageshow), not for a child's
+//   effect: the newest fetch function is stored in an effect, after children's effects run.
 // - the latest request wins: an older answer, or one that arrives after the screen
 //   closed, is ignored, so a slow old list can never overwrite a newer one
 // - when an input changes (e.g. the Chat Page slug), it loads again and shows loading
@@ -13,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type State<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "failed" } | { status: "not_found" };
-export type Loaded<T> = State<T> & { reload: () => void; replace: (data: T) => void };
+export type Loaded<T> = State<T> & { reload: () => void; replace: (next: T | ((current: T) => T)) => void };
 
 // The shape openapi-fetch returns: data on success, and always the raw response.
 type Answer<T> = { data?: T; response: Response };
@@ -39,6 +43,7 @@ export function useLoad<T>(fetch: () => Promise<Answer<T>>, inputs: readonly unk
     fetchRef
       .current()
       .then(({ data, response }) => {
+        // Every GET here answers with a JSON body. A reply with no body (e.g. 204) would count as failed.
         if (data !== undefined) settle({ status: "ready", data });
         else if (response.status === 404) settle({ status: "not_found" });
         // 401: keep what is on screen; the browser is on its way to /login.
@@ -63,9 +68,14 @@ export function useLoad<T>(fetch: () => Promise<Answer<T>>, inputs: readonly unk
   }, [start, key]);
 
   const replace = useCallback(
-    (data: T) => {
+    (next: T | ((current: T) => T)) => {
       latest.current += 1; // a load still running must not overwrite this newer data
-      setStored({ key, state: { status: "ready", data } });
+      setStored((current) => {
+        if (typeof next !== "function") return { key, state: { status: "ready", data: next } };
+        // An updater needs data to update: with nothing loaded, keep the state as it is.
+        if (current.key !== key || current.state.status !== "ready") return current;
+        return { key, state: { status: "ready", data: (next as (current: T) => T)(current.state.data) } };
+      });
     },
     [key],
   );

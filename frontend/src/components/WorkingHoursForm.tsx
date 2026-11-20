@@ -74,6 +74,8 @@ export function WorkingHoursForm() {
     );
   }
   // The editor gets the loaded week once, as its starting value. From then on it owns the form.
+  // (Only Try again reloads, and that path removes the editor first. A future reload from
+  // "ready" would need key={...} here, or the editor would keep the old week.)
   return <WeekEditor initial={loaded.data} />;
 }
 

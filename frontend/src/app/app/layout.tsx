@@ -19,7 +19,8 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   // Anything else (500, 503: e.g. the demo database waking up) gets a message and a retry.
   const me = useLoad(() => api.GET("/api/v1/me"), []);
   const { reload } = me;
-  const theme: Theme = me.status === "ready" ? me.data.theme : "system";
+  // null while there is no data: loading, or a failed reload.
+  const theme: Theme | null = me.status === "ready" ? me.data.theme : null;
 
   useEffect(() => {
     // Back after log-out: Chrome may show a frozen copy of this page from its back-forward
@@ -32,11 +33,13 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, [reload]);
 
-  // Write the theme on <html>; remove it when /app closes, so public pages follow the device.
+  // Write the theme on <html> once we know it. With no data, keep what is there: the error
+  // screen after a failed reload keeps the User's theme.
   useEffect(() => {
-    applyTheme(theme);
-    return () => applyTheme(null);
+    if (theme !== null) applyTheme(theme);
   }, [theme]);
+  // Remove it when /app closes, so public pages follow the device.
+  useEffect(() => () => applyTheme(null), []);
 
   if (me.status === "failed" || me.status === "not_found") {
     return (
@@ -51,12 +54,13 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   }
   const { permissions } = me.data;
   // A theme change replaces the loaded data: Appearance settings show it at once (and put the
-  // old one back if the save fails), and a later reload brings the saved theme.
-  const setTheme = (next: Theme) => me.replace({ ...me.data, theme: next });
+  // old one back if the save fails), and a later reload brings the saved theme. The updater
+  // changes only the theme of the newest data, so it never brings back old permissions.
+  const setTheme = (next: Theme) => me.replace((current) => ({ ...current, theme: next }));
   return (
     // The provider shares the permissions with every page, so a page can hide its own buttons.
     <PermissionsProvider permissions={permissions}>
-      <ThemeProvider theme={theme} setTheme={setTheme}>
+      <ThemeProvider theme={me.data.theme} setTheme={setTheme}>
         <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
       </ThemeProvider>
     </PermissionsProvider>
