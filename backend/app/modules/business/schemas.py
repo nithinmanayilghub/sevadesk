@@ -218,3 +218,28 @@ class ClosedDayOut(BaseModel):
 
 class ClosedDayList(BaseModel):
     closed_days: list[ClosedDayOut]  # today onward, soonest first
+
+
+# ---------------------------------------------------------------- chat page (story 3.3, FR-14)
+
+
+class SetupOut(BaseModel):
+    """What the Owner's Dashboard checklist needs: the chat link and what is still missing."""
+
+    chat_slug: str  # the link is /c/{chat_slug}
+    has_services: bool  # at least one ACTIVE Service
+    has_working_hours: bool  # at least one open weekday
+
+
+class ChatServiceOut(BaseModel):
+    # What a Customer may see. No id and no is_active: the public page needs neither.
+    name: str
+    duration_minutes: int
+    price_paise: int
+
+
+class ChatPageOut(BaseModel):
+    business_name: str
+    # False until the Business has an active Service AND Working Hours.
+    taking_requests: bool
+    services: list[ChatServiceOut]  # active only, oldest first

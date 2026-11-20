@@ -1,6 +1,7 @@
 # HTTP routes of the business module.
 # - POST /api/v1/signup: sign-up also logs the new Owner in.
 # - /api/v1/services: Settings → Services, Owner only (story 3.1). The Role check lives in service.py.
+# - /api/v1/setup and /api/v1/chat/{chat_slug}: the chat link and the public Chat Page (story 3.3).
 import uuid
 
 from fastapi import APIRouter, Response
@@ -12,12 +13,14 @@ from app.modules.accounts import service as accounts_service
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business import service
 from app.modules.business.schemas import (
+    ChatPageOut,
     ClosedDayIn,
     ClosedDayList,
     ClosedDayOut,
     ServiceIn,
     ServiceList,
     ServiceOut,
+    SetupOut,
     SignupRequest,
     SignupResponse,
     WeekIn,
@@ -109,3 +112,16 @@ def add_closed_day(body: ClosedDayIn, session: SessionDep, actor: ActorDep) -> C
 )
 def remove_closed_day(closed_day_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> None:
     service.remove_closed_day(session, actor, closed_day_id)
+
+
+# The Owner's chat link and setup status, for Settings and the Dashboard checklist (story 3.3).
+@router.get("/setup", operation_id="get_setup", responses={401: _ERROR, 403: _ERROR})
+def get_setup(session: SessionDep, actor: ActorDep) -> SetupOut:
+    return service.get_setup(session, actor)
+
+
+# The public Chat Page. No ActorDep on purpose: Customers have no login, and the tenant
+# comes from the slug only (AD-3 b), never from a session cookie.
+@router.get("/chat/{chat_slug}", operation_id="get_chat_page", responses={404: _ERROR})
+def get_chat_page(chat_slug: str, session: SessionDep) -> ChatPageOut:
+    return service.get_chat_page(session, chat_slug)
