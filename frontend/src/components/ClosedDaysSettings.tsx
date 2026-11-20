@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
+import { LoadFailed } from "@/components/LoadFailed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,17 +89,12 @@ export function ClosedDaysSettings() {
 
   if (failed) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert">Could not load. Please try again.</p>
-        <Button
-          onClick={() => {
-            setFailed(false);
-            load();
-          }}
-        >
-          Try again
-        </Button>
-      </div>
+      <LoadFailed
+        onRetry={() => {
+          setFailed(false);
+          load();
+        }}
+      />
     );
   }
 

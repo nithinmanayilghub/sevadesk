@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { errorsForFields } from "@/lib/errorsForFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,10 +43,7 @@ export function LoginForm() {
         router.replace(landingPath(data.permissions));
         return;
       }
-      const errors: FieldErrors = {};
-      for (const item of error?.error.fields ?? []) {
-        if ((FIELDS as readonly string[]).includes(item.field)) errors[item.field as Field] = item.message;
-      }
+      const errors = errorsForFields(error, FIELDS);
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
       } else {

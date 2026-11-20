@@ -4,13 +4,15 @@
 // this form shows the backend's messages under their fields (UX-DR33).
 import { useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { errorsForFields } from "@/lib/errorsForFields";
 import type { components } from "@/api/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Role = components["schemas"]["Role"];
-type Field = "email" | "roles";
+const FIELDS = ["email", "roles"] as const;
+type Field = (typeof FIELDS)[number];
 
 // The Roles an Owner may give (the backend refuses Owner).
 const ROLE_CHOICES: { role: Role; label: string }[] = [
@@ -46,10 +48,7 @@ export function InviteForm() {
         setLink(`${window.location.origin}/invite/${data.token}`);
         return;
       }
-      const found: Partial<Record<Field, string>> = {};
-      for (const item of error?.error.fields ?? []) {
-        if (item.field === "email" || item.field === "roles") found[item.field] = item.message;
-      }
+      const found = errorsForFields(error, FIELDS);
       if (Object.keys(found).length > 0) setErrors(found);
       else setGeneralError(error?.error.message ?? GENERAL_ERROR);
     } catch {

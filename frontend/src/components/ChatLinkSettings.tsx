@@ -2,7 +2,7 @@
 // Settings → Chat link (story 3.3, FR-14): the Owner's public chat link, to copy and share.
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
-import { Button } from "@/components/ui/button";
+import { LoadFailed } from "@/components/LoadFailed";
 import { chatPageUrl, CopyChatLinkButton } from "@/components/CopyChatLinkButton";
 
 export function ChatLinkSettings() {
@@ -23,17 +23,12 @@ export function ChatLinkSettings() {
 
   if (failed) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p role="alert">Could not load. Please try again.</p>
-        <Button
-          onClick={() => {
-            setFailed(false);
-            load();
-          }}
-        >
-          Try again
-        </Button>
-      </div>
+      <LoadFailed
+        onRetry={() => {
+          setFailed(false);
+          load();
+        }}
+      />
     );
   }
 
