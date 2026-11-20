@@ -101,3 +101,16 @@ def test_slug_is_case_insensitive(sign_up_owner, client):
     owner, _ = sign_up_owner()
     page = _chat_page(client, _setup(owner)["chat_slug"].upper())
     assert page["business_name"] == "Test Shop"
+
+
+def test_deactivating_the_only_service_stops_requests(sign_up_owner, client):
+    owner, _ = sign_up_owner()
+    service = _add_service(owner)
+    _put_week(owner, HOURS_WEEK)
+    slug = _setup(owner)["chat_slug"]
+    assert _chat_page(client, slug)["taking_requests"] is True  # before: both facts true
+
+    _set_active(owner, service, is_active=False)
+    page = _chat_page(client, slug)
+    assert page["taking_requests"] is False
+    assert page["services"] == []

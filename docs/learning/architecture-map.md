@@ -1,4 +1,4 @@
-# SevaDesk architecture map (end of Epic 2)
+# SevaDesk architecture map (end of Epic 3)
 
 Epic 1 built the **skeleton**: every part exists and talks to the others, but the app only says
 "Namaste". Epics 2+ put real features into this skeleton.
@@ -90,3 +90,39 @@ flowchart LR
 
 Per-person data (email, password hash, theme) sits on the global `users` table. Business data
 (memberships, invites, and everything later) sits on tenant tables with a `business_id`.
+
+## 6. Epic 3: the Owner sets up, the Customer gets a link
+
+Epic 3 gave each Business something to sell, and a public door for Customers. The Owner adds
+**Services** (with Prices) and **Working Hours** (plus closed days). When both exist, the Business
+is "taking requests", and the Owner shares the **chat link** `/c/{chat_slug}`.
+
+```mermaid
+flowchart LR
+    subgraph Owner["Owner (logged in, ActorDep)"]
+        S[Settings → Services<br/>/api/v1/services] --> DB
+        H[Settings → Working Hours<br/>/api/v1/working-hours, closed-days] --> DB
+        K[Dashboard checklist<br/>GET /api/v1/setup] -->|"Copy chat link"| L(["/c/cafe-ravi-94j2w5"])
+    end
+    L -->|"shared on WhatsApp"| CU([Customer's phone<br/>no login])
+    CU --> CP[Chat Page<br/>GET /api/v1/chat/slug]
+    CP --> SH{slug shape OK?}
+    SH -->|no| N404[404 Chat page not found]
+    SH -->|yes| FB[find_by_chat_slug]
+    FB -->|none| N404
+    FB -->|Business| TS[tenant_scope from the SLUG<br/>not from a cookie]
+    TS --> DB[(Postgres<br/>businesses, services,<br/>working_hours, closed_days)]
+    DB --> OUT["name, taking_requests,<br/>active Services (no ids)"]
+```
+
+| Part | Lives in | What it guarantees |
+|---|---|---|
+| `businesses.chat_slug` (UNIQUE, never changes) | `business/models.py`, migration 0008 | a shared link keeps working and names one Business |
+| Tenant from the slug (AD-3 b) | `business/service.py` `get_chat_page` | the public page shows only the Business the link names, whoever is logged in |
+| Slug shape check before the database | `_SLUG_SHAPE` | odd links give 404, never 500 |
+| Active Services only, no ids | `list_active()`, `ChatServiceOut` | Customers see only what is really for sale, and no internal ids |
+| `hours_on(session, day)` | `business/service.py` | the front door Epic 4 uses for booking slots |
+| Chat Page size budget (≤ 200 KB gzip) | `frontend/scripts/chat-page-size.mjs`, CI | the page stays fast on cheap phones (now 197 KB: little room left) |
+
+Two ways a tenant is chosen now: a **session cookie** (Owner and team, section 5) or a **chat slug**
+(Customers, this section). Epic 4 adds the third: a **job payload** for the worker.

@@ -156,3 +156,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **Row lock (SELECT … FOR UPDATE)** - Reading a row and locking it until the transaction ends. A second request that wants the same lock waits, so two saves run one after the other.
 - **Dotted field path** - The name of a field inside another field, joined with dots: `tuesday.end_time`, or `roles.0` for the first item in a list.
 - **Device toolbar** - Chrome's tool (F12, then Ctrl + Shift + M) that shows a page at a phone's width.
+- **Slug** - A short, URL-safe name for a thing, such as `cafe-ravi-94j2w5`. Only lowercase letters, digits and `-`. Ours never changes, so a shared link keeps working.
+- **Public endpoint** - An API route that needs no login. Anyone can call it, so it must send only what a stranger may see.
+- **NUL character** - The character with code 0 (`%00` in a URL, `\x00` in Python). Postgres cannot store it in text and raises an error.
+- **Return None vs raise** - Returning `None` is an answer, and the next line runs. Raising an error stops the function; the error goes up until something catches it.
+- **Fail closed** - When something needed is missing, the code stops instead of opening up. A forgotten tenant scope crashes; it never shows every Business's data.
+- **Backfill** - Filling a new column for the rows that already exist, inside the migration.
+- **Performance budget** - A hard limit, such as "first load ≤ 200 KB gzip", that CI checks on every PR.
+- **gzip** - A way to squeeze files before they travel over the network. We count gzip bytes because that is about what a phone downloads.
+- **Link header** - An HTTP response header that tells the browser to fetch a file early, such as a font. Next.js sends font preloads this way.
+- **aria-live region** - A part of the page that a screen reader reads out when its text changes, such as "Link copied".
