@@ -63,6 +63,14 @@ test("hides Not taking requests yet when the Business is taking requests", async
   expect(screen.queryByText("Not taking requests yet")).not.toBeInTheDocument();
 });
 
+test("hides the Services box when there are no Services, but keeps the notice", async () => {
+  page(false, []);
+  expect(await screen.findByText("Not taking requests yet")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Services & prices" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Final price after inspection. Parts extra.")).not.toBeInTheDocument();
+  expect(screen.getByText(NOTICE)).toBeInTheDocument();
+});
+
 test("two Services with the same name both show", async () => {
   page(true, [FAN, { ...FAN, price_paise: 59900 }]);
   expect(await screen.findAllByText("Fan repair")).toHaveLength(2);

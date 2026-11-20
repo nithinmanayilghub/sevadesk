@@ -31,8 +31,10 @@ export function CopyChatLinkButton({ slug, label }: { slug: string; label: strin
       <Button type="button" onClick={copy}>
         {state === "copied" ? "Copied" : label}
       </Button>
-      {/* aria-live: a screen reader reads the fallback out when it appears. */}
+      {/* aria-live: a screen reader reads out "Link copied" or the fallback when it appears.
+          The new button text alone is usually not read out. */}
       <div aria-live="polite" className="w-full">
+        {state === "copied" && <span className="sr-only">Link copied</span>}
         {state === "failed" && (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">Could not copy. Select the link and copy it.</p>

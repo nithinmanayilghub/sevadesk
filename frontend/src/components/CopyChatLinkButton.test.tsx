@@ -19,6 +19,14 @@ test("copies the full chat URL", async () => {
   expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/c/${SLUG}`);
 });
 
+test("a screen reader hears that the link was copied", async () => {
+  Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+  render(<CopyChatLinkButton slug={SLUG} label="Copy link" />);
+  fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+  const message = await screen.findByText("Link copied");
+  expect(message.closest("[aria-live]")).not.toBeNull();
+});
+
 test("shows a fallback when copy fails", async () => {
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
   render(<CopyChatLinkButton slug={SLUG} label="Copy link" />);

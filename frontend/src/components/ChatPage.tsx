@@ -78,22 +78,25 @@ function Ready({ page }: { page: ChatPageOut }) {
         {!page.taking_requests && <p className="text-muted-foreground">Not taking requests yet</p>}
       </div>
 
-      <section aria-label="Services & prices" className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-        <h2 className="text-lg font-semibold">Services & prices</h2>
-        <ul className="flex flex-col divide-y">
-          {/* Keyed by position: two Services may share a name, and the page gets no ids. */}
-          {page.services.map((service, index) => (
-            <li key={index} className="flex min-h-11 items-center justify-between gap-3 py-2">
-              <span className="flex flex-col">
-                <span className="font-medium">{service.name}</span>
-                <span className="text-sm text-muted-foreground">{formatDuration(service.duration_minutes)}</span>
-              </span>
-              <span className="font-medium whitespace-nowrap">from {formatRupees(service.price_paise)}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="text-sm text-muted-foreground">Final price after inspection. Parts extra.</p>
-      </section>
+      {/* No Services yet: no empty box. "Not taking requests yet" above already says why. */}
+      {page.services.length > 0 && (
+        <section aria-label="Services & prices" className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+          <h2 className="text-lg font-semibold">Services & prices</h2>
+          <ul className="flex flex-col divide-y">
+            {/* Keyed by position: two Services may share a name, and the page gets no ids. */}
+            {page.services.map((service, index) => (
+              <li key={index} className="flex min-h-11 items-center justify-between gap-3 py-2">
+                <span className="flex flex-col">
+                  <span className="font-medium">{service.name}</span>
+                  <span className="text-sm text-muted-foreground">{formatDuration(service.duration_minutes)}</span>
+                </span>
+                <span className="font-medium whitespace-nowrap">from {formatRupees(service.price_paise)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-muted-foreground">Final price after inspection. Parts extra.</p>
+        </section>
+      )}
 
       {/* The DPDP notice (India's data protection law): always shown, before any chat. */}
       <p className="text-sm text-muted-foreground">
