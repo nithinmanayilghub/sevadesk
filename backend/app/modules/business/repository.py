@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.repository import TenantRepository
 from app.core.tenancy import current_business_id
+from app.modules.business.chat_slug import make_chat_slug
 from app.modules.business.models import Business, ClosedDay, Service, WorkingHours
 
 
@@ -15,7 +16,8 @@ class BusinessRepository:
         self.session = session
 
     def add(self, name: str) -> Business:
-        business = Business(name=name)
+        # Every new Business gets its chat slug here, so no caller can forget it.
+        business = Business(name=name, chat_slug=make_chat_slug(name))
         self.session.add(business)
         self.session.flush()  # fills business.id now
         return business
