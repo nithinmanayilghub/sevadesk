@@ -2,7 +2,8 @@
 // Customers open this page on cheap phones and slow mobile data, so every KB counts.
 //
 // How: start the production build (`next start`), fetch one Chat Page, find every file the
-// browser must download for it (scripts, stylesheets, preloaded fonts), gzip each one, and
+// browser must download for it (scripts, stylesheets, preloads in the HTML or in the Link
+// header, e.g. the font), gzip each one, and
 // add them up. Exit 1 if the total is over the limit, so CI fails.
 //
 // Run: npm run build && npm run check:chat-size
@@ -43,6 +44,16 @@ export function assetPaths(html) {
   return [...paths];
 }
 
+/** Preloads from the HTTP Link header, e.g. `</font.woff2>; rel=preload; as="font"`.
+ * Next.js sends the font preload there, not as a <link> tag in the HTML. */
+export function linkHeaderPaths(header) {
+  const paths = [];
+  for (const [, path, params] of (header ?? "").matchAll(/<([^>]*)>([^,]*)/g)) {
+    if (/;\s*rel="?preload"?/i.test(params) && isOwnPath(path)) paths.push(path);
+  }
+  return paths;
+}
+
 /** The size in bytes after gzip: about what travels over the network. */
 export function gzipBytes(data) {
   return gzipSync(data).length;
@@ -53,15 +64,16 @@ async function fetchBytes(url, fetchFn) {
   if (response.status !== 200) {
     throw new Error(`${new URL(url).pathname} answered ${response.status}, not 200`);
   }
-  return new Uint8Array(await response.arrayBuffer());
+  return { bytes: new Uint8Array(await response.arrayBuffer()), link: response.headers.get("Link") };
 }
 
 /** Fetch the page and every file it loads. Returns the total and one row per file. */
 export async function measure(baseUrl, fetchFn) {
   const page = await fetchBytes(`${baseUrl}${PAGE_PATH}`, fetchFn);
-  const rows = [[PAGE_PATH, gzipBytes(page)]];
-  for (const path of assetPaths(new TextDecoder().decode(page))) {
-    rows.push([path, gzipBytes(await fetchBytes(`${baseUrl}${path}`, fetchFn))]);
+  const rows = [[PAGE_PATH, gzipBytes(page.bytes)]];
+  const paths = new Set([...assetPaths(new TextDecoder().decode(page.bytes)), ...linkHeaderPaths(page.link)]);
+  for (const path of paths) {
+    rows.push([path, gzipBytes((await fetchBytes(`${baseUrl}${path}`, fetchFn)).bytes)]);
   }
   const total = rows.reduce((sum, [, bytes]) => sum + bytes, 0);
   return { total, rows };

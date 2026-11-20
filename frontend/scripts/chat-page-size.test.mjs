@@ -47,6 +47,19 @@ test("measure sums the page and its assets", async () => {
   expect(total).toBe(gzipBytes(PAGE) + gzipBytes("console.log(1)") + gzipBytes("body{}"));
 });
 
+test("measure counts preloads from the Link header too", async () => {
+  // Next.js sends the font preload as an HTTP header, not as a <link> tag in the HTML.
+  const font = "</_next/static/media/inter.woff2>; rel=preload; as=\"font\"; crossorigin=\"\"";
+  const files = { "/c/size-check": "<p>hi</p>", "/_next/static/media/inter.woff2": "font bytes" };
+  const fetchFn = async (url) => {
+    const response = await fakeFetch(files)(url);
+    if (new URL(url).pathname === "/c/size-check") response.headers.set("Link", font);
+    return response;
+  };
+  const { rows } = await measure("http://localhost:3999", fetchFn);
+  expect(rows.map(([path]) => path)).toEqual(["/c/size-check", "/_next/static/media/inter.woff2"]);
+});
+
 test("fails when an asset is missing", async () => {
   const files = { "/c/size-check": PAGE, "/a.js": "console.log(1)" };
   await expect(measure("http://localhost:3999", fakeFetch(files))).rejects.toThrow("/b.css");
