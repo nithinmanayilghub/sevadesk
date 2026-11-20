@@ -77,8 +77,14 @@ test("each tab links to its page", () => {
 
 // --- settingsLinks ---
 
-test("settings links: Owner sees Services, Working Hours, Team, Appearance; Technician sees Appearance only", () => {
-  expect(settingsLinks(OWNER).map((link) => link.label)).toEqual(["Services", "Working Hours", "Team", "Appearance"]);
+test("settings links: Owner sees Services, Working Hours, Chat link, Team, Appearance; Technician sees Appearance only", () => {
+  expect(settingsLinks(OWNER).map((link) => link.label)).toEqual([
+    "Services",
+    "Working Hours",
+    "Chat link",
+    "Team",
+    "Appearance",
+  ]);
   expect(settingsLinks(TECHNICIAN).map((link) => link.label)).toEqual(["Appearance"]);
 });
 
@@ -92,6 +98,12 @@ test("the Working Hours link needs manage_setup, so Staff cannot open it", () =>
   const hrefs = (permissions: Permission[]) => settingsLinks(permissions).map((link) => link.href);
   expect(hrefs(["manage_setup"])).toContain("/app/settings/hours");
   expect(canOpen("/app/settings/hours", STAFF)).toBe(false);
+});
+
+test("the Chat link page needs manage_setup, so Staff cannot open it", () => {
+  const hrefs = (permissions: Permission[]) => settingsLinks(permissions).map((link) => link.href);
+  expect(hrefs(["manage_setup"])).toContain("/app/settings/chat-link");
+  expect(canOpen("/app/settings/chat-link", STAFF)).toBe(false);
 });
 
 // --- landingPath ---
