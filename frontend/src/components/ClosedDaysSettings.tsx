@@ -2,7 +2,7 @@
 // Closed days (story 3.2, FR-13): single dates the Business is closed, whatever the weekly
 // hours say (holidays). Add one, or Remove one to open that date again. The backend decides
 // what "today" is, in the Business timezone, so the date box has no `min` of its own.
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -10,14 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/time";
+import { useLoad } from "@/lib/useLoad";
 
 type ClosedDayOut = components["schemas"]["ClosedDayOut"];
 const GENERAL_ERROR = "Something went wrong. Please try again.";
 
 export function ClosedDaysSettings() {
   const id = useId();
-  const [days, setDays] = useState<ClosedDayOut[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const loaded = useLoad(() => api.GET("/api/v1/closed-days"), []);
   const [value, setValue] = useState("");
   const [dayError, setDayError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -25,18 +25,6 @@ export function ClosedDaysSettings() {
   // A ref, not only state: two very quick clicks can both run before React re-renders.
   const working = useRef(false);
   const dateInput = useRef<HTMLInputElement | null>(null);
-
-  const load = useCallback(() => {
-    api
-      .GET("/api/v1/closed-days")
-      .then(({ data }) => {
-        if (!data) return setFailed(true);
-        setDays(data.closed_days);
-      })
-      .catch(() => setFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
 
   // Runs one change at a time, and turns a thrown error into the general message.
   async function once(action: () => Promise<void>) {
@@ -62,7 +50,7 @@ export function ClosedDaysSettings() {
       const { data, error } = await api.POST("/api/v1/closed-days", { body: { day: value || null } });
       if (data) {
         setValue("");
-        load();
+        loaded.reload();
         return;
       }
       const message = error?.error.fields?.find((item) => item.field === "day")?.message;
@@ -81,22 +69,14 @@ export function ClosedDaysSettings() {
       // 404: already removed (e.g. in another tab). Either way the day is open now, so
       // reload: the list then matches the backend, with no dead row left on screen.
       if (response.ok || response.status === 404) {
-        load();
+        loaded.reload();
         dateInput.current?.focus(); // the row and its button are gone: focus a stable place
       } else setGeneralError(error?.error.message ?? GENERAL_ERROR);
     });
   }
 
-  if (failed) {
-    return (
-      <LoadFailed
-        onRetry={() => {
-          setFailed(false);
-          load();
-        }}
-      />
-    );
-  }
+  if (loaded.status === "failed" || loaded.status === "not_found") return <LoadFailed onRetry={loaded.reload} />;
+  const days: ClosedDayOut[] | null = loaded.status === "ready" ? loaded.data.closed_days : null;
 
   const inputId = `${id}-day`;
   const errorId = `${inputId}-error`;

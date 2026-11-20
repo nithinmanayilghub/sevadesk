@@ -3,7 +3,7 @@
 // start and one end time. Save replaces the whole week (PUT). The backend owns every rule:
 // this form shows its messages under the right day (e.g. "tuesday.end_time") and moves
 // focus to the first one (UX-DR33).
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatTimeRange, toTimeInput } from "@/lib/time";
+import { useLoad } from "@/lib/useLoad";
 
 type WorkingHoursOut = components["schemas"]["WorkingHoursOut"];
 type WeekIn = components["schemas"]["WeekIn"];
@@ -60,10 +61,28 @@ function bodyFrom(form: WeekForm): WeekIn {
 }
 
 export function WorkingHoursForm() {
+  const loaded = useLoad(() => api.GET("/api/v1/working-hours"), []);
+
+  if (loaded.status === "failed" || loaded.status === "not_found") return <LoadFailed onRetry={loaded.reload} />;
+  if (loaded.status === "loading") {
+    // Skeleton rows while we wait (UX-DR25).
+    return (
+      <div aria-busy="true" aria-label="Loading" className="flex w-full max-w-2xl flex-col gap-2">
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
+  }
+  // The editor gets the loaded week once, as its starting value. From then on it owns the form.
+  // (Only Try again reloads, and that path removes the editor first. A future reload from
+  // "ready" would need key={...} here, or the editor would keep the old week.)
+  return <WeekEditor initial={loaded.data} />;
+}
+
+function WeekEditor({ initial }: { initial: WorkingHoursOut }) {
   const id = useId();
-  const [form, setForm] = useState<WeekForm | null>(null);
-  const [timezone, setTimezone] = useState("");
-  const [failed, setFailed] = useState(false);
+  const [form, setForm] = useState<WeekForm>(() => formFrom(initial));
+  const timezone = initial.timezone;
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -71,19 +90,6 @@ export function WorkingHoursForm() {
   // A ref, not only state: two very quick clicks can both run before React re-renders.
   const saving = useRef(false);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const load = useCallback(() => {
-    api
-      .GET("/api/v1/working-hours")
-      .then(({ data }) => {
-        if (!data) return setFailed(true);
-        setForm(formFrom(data));
-        setTimezone(data.timezone);
-      })
-      .catch(() => setFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
 
   // After new field errors appear on screen, move focus to the first field that has one.
   useEffect(() => {
@@ -93,12 +99,12 @@ export function WorkingHoursForm() {
 
   function change(day: Day, patch: Partial<DayForm>) {
     setSaved(false);
-    setForm((current) => (current ? { ...current, [day]: { ...current[day], ...patch } } : current));
+    setForm((current) => ({ ...current, [day]: { ...current[day], ...patch } }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form || saving.current) return; // one save at a time
+    if (saving.current) return; // one save at a time
     saving.current = true;
     setBusy(true);
     setFieldErrors({});
@@ -127,27 +133,6 @@ export function WorkingHoursForm() {
       saving.current = false;
       setBusy(false);
     }
-  }
-
-  if (failed) {
-    return (
-      <LoadFailed
-        onRetry={() => {
-          setFailed(false);
-          load();
-        }}
-      />
-    );
-  }
-
-  if (form === null) {
-    // Skeleton rows while we wait (UX-DR25).
-    return (
-      <div aria-busy="true" aria-label="Loading" className="flex w-full max-w-2xl flex-col gap-2">
-        <div className="h-16 animate-pulse rounded-lg bg-muted" />
-        <div className="h-16 animate-pulse rounded-lg bg-muted" />
-      </div>
-    );
   }
 
   return (

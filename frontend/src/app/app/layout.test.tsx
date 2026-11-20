@@ -81,8 +81,8 @@ test("asks the server again when Back restores the page from the cache", async (
 test("sets data-theme on <html> when the User chose dark", async () => {
   GET.mockResolvedValue({ data: { ...OWNER, theme: "dark" } } as never);
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
-  await screen.findByRole("navigation", { name: "Main" });
-  expect(document.documentElement.dataset.theme).toBe("dark");
+  // waitFor: the theme effect can run just after the navigation appears (flaky under load).
+  await vi.waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
 });
 
 test("sets no data-theme when the theme is system", async () => {
@@ -97,4 +97,14 @@ test("removes data-theme when the layout unmounts, so public pages follow the de
   await screen.findByRole("navigation", { name: "Main" });
   unmount();
   expect(document.documentElement.dataset.theme).toBeUndefined();
+});
+
+test("keeps the User's theme on the error screen when a reload fails", async () => {
+  GET.mockResolvedValueOnce({ data: { ...OWNER, theme: "dark" } } as never);
+  GET.mockResolvedValueOnce({ data: undefined, response: { status: 500 } } as never);
+  render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  await screen.findByRole("navigation", { name: "Main" });
+  act(() => restoreFromBackForwardCache());
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not load. Please try again.");
+  expect(document.documentElement.dataset.theme).toBe("dark");
 });

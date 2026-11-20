@@ -2,12 +2,13 @@
 // Settings → Team (story 2.5, FR-9, FR-10): invite people, change Roles, deactivate members.
 // Only the Owner reaches this page (access.ts), and the backend checks the Role again on
 // every call (AD-5). Every change sends the new state, and the answer is the new team list.
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { InviteForm } from "@/components/InviteForm";
 import { LoadFailed } from "@/components/LoadFailed";
 import { Button } from "@/components/ui/button";
+import { useLoad } from "@/lib/useLoad";
 
 type Team = components["schemas"]["TeamResponse"];
 type TeamMember = components["schemas"]["TeamMember"];
@@ -22,21 +23,11 @@ const SWITCHABLE: { role: Role; label: string }[] = [
 const GENERAL_ERROR = "Something went wrong. Please try again.";
 
 export function TeamSettings() {
-  const [team, setTeam] = useState<Team | null>(null);
-  const [failed, setFailed] = useState(false);
+  const loaded = useLoad<Team>(() => api.GET("/api/v1/team"), []);
   const [error, setError] = useState<string | null>(null);
   // The member whose change is saving now. All controls are off until the answer comes,
   // so a quick second click cannot send a list built from the old Roles.
   const [pendingId, setPendingId] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    api
-      .GET("/api/v1/team")
-      .then(({ data }) => (data ? setTeam(data) : setFailed(true)))
-      .catch(() => setFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
 
   async function change(member: TeamMember, body: Change) {
     if (pendingId !== null) return; // one change at a time (the controls are disabled too)
@@ -47,7 +38,7 @@ export function TeamSettings() {
         params: { path: { membership_id: member.membership_id } },
         body,
       });
-      if (data) setTeam(data);
+      if (data) loaded.replace(data); // the answer is the new team list: no reload needed
       else setError(reply?.error.fields?.[0]?.message ?? reply?.error.message ?? GENERAL_ERROR);
     } catch {
       setError(GENERAL_ERROR);
@@ -67,16 +58,8 @@ export function TeamSettings() {
     }
   }
 
-  if (failed) {
-    return (
-      <LoadFailed
-        onRetry={() => {
-          setFailed(false);
-          load();
-        }}
-      />
-    );
-  }
+  if (loaded.status === "failed" || loaded.status === "not_found") return <LoadFailed onRetry={loaded.reload} />;
+  const team = loaded.status === "ready" ? loaded.data : null;
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-6">
