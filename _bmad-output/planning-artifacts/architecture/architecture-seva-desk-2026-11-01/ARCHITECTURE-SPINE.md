@@ -320,7 +320,7 @@ erDiagram
   businesses ||--o{ services : offers
   businesses ||--o{ working_hours : sets
   businesses ||--o{ customers : serves
-  customers ||--o{ visitor_tokens : "returns with"
+  visitor_tokens ||--o{ conversations : "returns to"
   customers ||--o{ conversations : starts
   conversations ||--o{ messages : contains
   services ||--o{ price_quotes : "quoted as"

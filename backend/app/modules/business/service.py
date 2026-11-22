@@ -3,8 +3,9 @@
 # - Services (story 3.1, FR-12): the Owner's list / add / replace, and list_active_services
 #   for the Chat Page and the Agent (later stories).
 # - Working Hours (story 3.2, FR-13): the Owner's weekly hours and closed dates, and
-#   hours_on for slot math (Epic 4) and the Agent.
+#   hours_on for slot math (Epic 5) and the Agent.
 # - Chat Page (story 3.3, FR-14): the Owner's setup status, and the public Chat Page.
+#   find_chat_business turns a slug into a Business for every public chat route (story 4.1).
 import re
 import uuid
 from datetime import date, datetime

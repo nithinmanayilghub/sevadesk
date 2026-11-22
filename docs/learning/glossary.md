@@ -170,3 +170,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **Hook** - A React function whose name starts with `use`. A component calls it to get state and actions, such as `useLoad`. Hooks must be called on every render, in the same order, so one cannot be skipped with an `if`.
 - **Race condition (latest wins)** - Two requests run at once and answer in the wrong order, so an old answer overwrites a new one. `useLoad` numbers each request and drops every answer except the newest.
 - **Deep module** - A module with a small interface and a lot of behaviour behind it. Callers learn little and get a lot. `useLoad` is one: 2 inputs, and it hides the states, retry, the 401 rule and the race fix.
+- **Visitor token** - A random secret the server puts in a Chat Page browser's cookie. It is how a Customer with no account "comes back to the same chat". The database keeps only its hash.
+- **Channel port** - A fixed shape (`inbox/channel.py`) that every chat channel plugs into: "find this sender's Conversation" and "open it, locked". The save logic talks only to the port.
+- **Adapter** - The code that makes one real channel fit the port. `WebchatChannel` turns a cookie into a Conversation; a WhatsApp adapter would turn a phone number into one.
+- **seq** - The number of a Message inside its Conversation: 1, 2, 3, … It gives one fixed order, and later lets the poll ask "anything after 7?".
+- **Idempotent** - Doing it twice has the same effect as doing it once. A send with the same `client_message_id` saves one Message, so a retry after a lost answer is safe.
+- **client_message_id** - A random id the browser makes for each new Message and sends again on a retry. The database refuses a second row with the same id in one Conversation.
+- **Row lock (SELECT … FOR UPDATE)** - "Wait your turn" on one row. Other transactions that want the same lock wait until ours commits or rolls back.
+- **Lock order** - Always take the locks in the same order (visitor row, then Conversation). Two requests that take them in opposite orders can wait for each other forever (a deadlock).
+- **Identity map** - SQLAlchemy's in-memory copy of each row it already read in a session. A second read normally hands back that old copy; `populate_existing` makes a locked read refresh it.
+- **CGNAT** - Carrier-grade NAT: a mobile carrier puts many phones behind one public IP address. So a per-IP limit must be generous, or many real Customers share one limit.

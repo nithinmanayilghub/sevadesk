@@ -1,4 +1,4 @@
-# SevaDesk architecture map (end of Epic 3)
+# SevaDesk architecture map (Epic 4, after Story 4.1)
 
 Epic 1 built the **skeleton**: every part exists and talks to the others, but the app only says
 "Namaste". Epics 2+ put real features into this skeleton.
@@ -121,8 +121,41 @@ flowchart LR
 | Tenant from the slug (AD-3 b) | `business/service.py` `get_chat_page` | the public page shows only the Business the link names, whoever is logged in |
 | Slug shape check before the database | `_SLUG_SHAPE` | odd links give 404, never 500 |
 | Active Services only, no ids | `list_active()`, `ChatServiceOut` | Customers see only what is really for sale, and no internal ids |
-| `hours_on(session, day)` | `business/service.py` | the front door Epic 4 uses for booking slots |
-| Chat Page size budget (≤ 200 KB gzip) | `frontend/scripts/chat-page-size.mjs`, CI | the page stays fast on cheap phones (now 197 KB: little room left) |
+| `hours_on(session, day)` | `business/service.py` | the front door Epic 5 uses for booking slots |
+| Chat Page size budget (≤ 200 KB gzip) | `frontend/scripts/chat-page-size.mjs`, CI | the page stays fast on cheap phones (198.7 KB after Story 4.1: little room left) |
 
 Two ways a tenant is chosen now: a **session cookie** (Owner and team, section 5) or a **chat slug**
 (Customers, this section). Epic 4 adds the third: a **job payload** for the worker.
+
+## 7. Epic 4: the Customer writes (Story 4.1)
+
+A new module, **inbox**, owns 4 tenant tables: `customers`, `visitor_tokens`, `conversations`,
+`messages`. A Customer has no login. Their browser gets a random **visitor cookie**; inbox stores
+only a hash of it (mixed with the Business id, so one browser cannot be linked across Businesses).
+
+```mermaid
+flowchart LR
+    CU([Customer's browser<br/>visitor cookie]) -->|"POST /api/v1/chat/slug/messages<br/>body + client_message_id"| R[inbox router]
+    R --> D[ChatBusinessDep<br/>slug → Business → tenant_scope]
+    D --> IP{IP limit<br/>per Business}
+    IP -->|over| E429[429]
+    IP --> W[WebchatChannel<br/>cookie → hash → visitor row LOCK<br/>→ Conversation LOCK]
+    W --> S[inbox.service.receive_message]
+    S --> DUP{same client_message_id<br/>already saved?}
+    DUP -->|yes| SAME[return it, no copy]
+    DUP -->|no| CL{Conversation limit}
+    CL -->|over| E429
+    CL --> SEQ[seq = last_seq + 1<br/>save Message]
+    SEQ --> DB[(Postgres)]
+```
+
+| Part | Lives in | What it guarantees |
+|---|---|---|
+| `ChatBusinessDep` | `business/dependencies.py` | every public chat route runs inside the slug's Business; none can forget the scope |
+| Channel port + webchat adapter | `inbox/channel.py`, `inbox/webchat.py` | the save logic never sees a cookie; WhatsApp later = a new adapter |
+| Two locks, fixed order (visitor row, then Conversation) | `inbox/webchat.py`, `inbox/repository.py` | a double tap makes one chat; two writers never get the same `seq`; no deadlock |
+| `client_message_id` (UNIQUE per Conversation) | `inbox/service.py`, `messages` table | a retry never saves a copy |
+| GET writes nothing | `inbox/router.py` | the cookie is set on the first visit; the database row comes with the first send (AD-5) |
+| No `conversation_id` in public routes | `inbox/schemas.py`, test | a visitor cannot ask for someone else's chat |
+
+Tenant sources now: **session cookie** (team), **chat slug** (Customers). Epic 6 adds the **job payload**.
