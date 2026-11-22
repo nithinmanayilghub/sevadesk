@@ -231,6 +231,13 @@ class SetupOut(BaseModel):
     has_working_hours: bool  # at least one open weekday
 
 
+class ChatBusiness(BaseModel):
+    """The Business a public chat route works for, found from the slug (AD-3 b). Server-side only."""
+
+    business_id: uuid.UUID
+    name: str
+
+
 class ChatServiceOut(BaseModel):
     # What a Customer may see. No id and no is_active: the public page needs neither.
     name: str

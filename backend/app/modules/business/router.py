@@ -12,6 +12,7 @@ from app.core.session_cookie import SessionTokenCookie, set_session_cookie
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business import service
+from app.modules.business.dependencies import ChatBusinessDep
 from app.modules.business.schemas import (
     ChatPageOut,
     ClosedDayIn,
@@ -121,7 +122,8 @@ def get_setup(session: SessionDep, actor: ActorDep) -> SetupOut:
 
 
 # The public Chat Page. No ActorDep on purpose: Customers have no login, and the tenant
-# comes from the slug only (AD-3 b), never from a session cookie.
+# comes from the slug only (AD-3 b), never from a session cookie. ChatBusinessDep reads
+# {chat_slug} from the path, so the path parameter stays in the API schema.
 @router.get("/chat/{chat_slug}", operation_id="get_chat_page", responses={404: _ERROR})
-def get_chat_page(chat_slug: str, session: SessionDep) -> ChatPageOut:
-    return service.get_chat_page(session, chat_slug)
+def get_chat_page(session: SessionDep, business: ChatBusinessDep) -> ChatPageOut:
+    return service.get_chat_page(session, business)

@@ -28,6 +28,7 @@ from app.modules.business.repository import (
 )
 from app.modules.business.schemas import (
     WEEKDAYS,
+    ChatBusiness,
     ChatPageOut,
     ChatServiceOut,
     ClosedDayIn,
@@ -237,11 +238,11 @@ def get_setup(session: Session, actor: Actor) -> SetupOut:
     )
 
 
-def get_chat_page(session: Session, chat_slug: str) -> ChatPageOut:
-    """The public Chat Page: the Business name and its active Services. No login.
+def find_chat_business(session: Session, chat_slug: str) -> ChatBusiness:
+    """The Business a public chat link names, or NotFound. Every public chat route starts here.
 
     The tenant comes from the slug ONLY (AD-3 b): even a logged-in Owner of another
-    Business sees the Business this slug names.
+    Business gets the Business this slug names. business/dependencies.py calls this.
     """
     chat_slug = chat_slug.lower()  # a link typed in upper case still works
     if not _SLUG_SHAPE.fullmatch(chat_slug):
@@ -249,12 +250,19 @@ def get_chat_page(session: Session, chat_slug: str) -> ChatPageOut:
     business = BusinessRepository(session).find_by_chat_slug(chat_slug)
     if business is None:
         raise NotFound()  # same answer as a bad shape: says nothing about which slugs exist
-    with tenant_scope(business.id):
-        services = [
-            ChatServiceOut(name=row.name, duration_minutes=row.duration_minutes, price_paise=row.price_paise)
-            for row in ServiceRepository(session).list_active()
-        ]
-        has_services, has_working_hours = _is_set_up(session)
+    return ChatBusiness(business_id=business.id, name=business.name)
+
+
+def get_chat_page(session: Session, business: ChatBusiness) -> ChatPageOut:
+    """The public Chat Page: the Business name and its active Services. No login.
+
+    The caller (ChatBusinessDep) already entered this Business's tenant scope.
+    """
+    services = [
+        ChatServiceOut(name=row.name, duration_minutes=row.duration_minutes, price_paise=row.price_paise)
+        for row in ServiceRepository(session).list_active()
+    ]
+    has_services, has_working_hours = _is_set_up(session)
     return ChatPageOut(
         business_name=business.name,
         taking_requests=has_services and has_working_hours,
