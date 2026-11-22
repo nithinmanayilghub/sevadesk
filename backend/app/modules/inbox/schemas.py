@@ -13,8 +13,11 @@ from pydantic_core import PydanticCustomError
 
 MAX_BODY = 2000  # characters
 
-# Line breaks and tabs are normal in a chat. Every other control character is refused.
+# Line breaks and tabs are normal in a chat. Every other control character (Cc) is refused.
+# So is a lone surrogate (Cs): half of an emoji's code with no other half. JSON allows it,
+# but it is not real text, and Postgres cannot store it (a 500 without this check).
 _ALLOWED_CONTROL = {"\n", "\r", "\t"}
+_REFUSED_CATEGORIES = {"Cc", "Cs"}
 
 
 def detect_lang(body: str) -> Literal["en", "hi"]:
@@ -38,7 +41,7 @@ class SendMessageIn(BaseModel):
     def clean_body(cls, value: str) -> str:
         # Checked BEFORE strip: a hidden character at the end must not slip through.
         # Postgres cannot store NUL (\x00): without this check it would be a 500, not a 422.
-        if any(unicodedata.category(char) == "Cc" and char not in _ALLOWED_CONTROL for char in value):
+        if any(unicodedata.category(char) in _REFUSED_CATEGORIES and char not in _ALLOWED_CONTROL for char in value):
             raise PydanticCustomError("message_bad_characters", "This message has characters we cannot save.")
         value = value.strip()
         if not value:

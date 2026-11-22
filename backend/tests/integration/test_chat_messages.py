@@ -152,3 +152,16 @@ def test_public_routes_take_no_conversation_id():
             assert "conversation_id" not in {p["name"] for p in operation.get("parameters", [])}, path
     for name in ("SendMessageIn", "MessageOut", "ChatMessagesOut"):
         assert "conversation_id" not in schema["components"]["schemas"][name]["properties"], name
+
+
+def test_lone_surrogate_in_body_is_422(client, slug, shop):
+    # Review finding: "\ud800" is valid JSON but not valid text. Postgres cannot store it,
+    # so without the check it was a 500. Sent as raw JSON: httpx's json= cannot encode it.
+    response = client.post(
+        messages_url(slug),
+        content=b'{"body": "hi \ud800", "client_message_id": "' + str(uuid.uuid4()).encode() + b'"}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"][0]["field"] == "body"
+    assert count(Message, shop.business_id) == 0

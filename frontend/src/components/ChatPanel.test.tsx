@@ -242,3 +242,51 @@ test("without matchMedia, Enter does not send", async () => {
   fireEvent.keyDown(box, { key: "Enter" });
   expect(POST).not.toHaveBeenCalled();
 });
+
+function failsWith(status: number, error: { code: string; message: string; fields?: { field: string; message: string }[] }) {
+  POST.mockResolvedValue({ data: undefined, error: { error }, response: new Response(null, { status }) } as never);
+}
+
+async function sendOne() {
+  await screen.findByRole("textbox", { name: "Message" });
+  type("Fan not working");
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+}
+
+test("a send the server refuses shows its reason, and no Retry", async () => {
+  // Review finding: a 422 can never pass on retry, so "Retry" forever helped no one.
+  loads([]);
+  failsWith(422, {
+    code: "validation_error",
+    message: "Some fields need fixing.",
+    fields: [{ field: "body", message: "This message has characters we cannot save." }],
+  });
+  panel();
+  await sendOne();
+  expect(await screen.findByText("This message has characters we cannot save.")).toBeInTheDocument();
+  expect(screen.getByText("Not sent")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+});
+
+test("too fast shows the reason, and Retry stays", async () => {
+  loads([]);
+  failsWith(429, { code: "too_many_messages", message: "You are sending messages too fast. Please wait a few minutes." });
+  panel();
+  await sendOne();
+  expect(await screen.findByText("You are sending messages too fast. Please wait a few minutes.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+});
+
+test("the box takes at most 2000 characters, the server's limit", async () => {
+  loads([]);
+  panel();
+  expect(await screen.findByRole("textbox", { name: "Message" })).toHaveAttribute("maxLength", "2000");
+});
+
+test("Retry is at least 44 px wide and tall, for a finger", async () => {
+  loads([]);
+  fails();
+  panel();
+  await sendOne();
+  expect(await screen.findByRole("button", { name: "Retry" })).toHaveClass("min-h-11", "min-w-11");
+});

@@ -18,8 +18,34 @@ import { PILL_BUTTON } from "./pillButton";
 
 type MessageOut = components["schemas"]["MessageOut"];
 
+type ErrorBody = components["schemas"]["ErrorBody"];
+
 // One Message this page sent. "sent" holds the Message the server saved.
-type Sent = { clientMessageId: string; body: string; status: "sending" | "sent" | "failed"; message?: MessageOut };
+// "failed" holds the server's reason (if it gave one), and whether a retry can work.
+type Sent = {
+  clientMessageId: string;
+  body: string;
+  status: "sending" | "sent" | "failed";
+  message?: MessageOut;
+  reason?: string;
+  canRetry?: boolean;
+};
+
+// Same as the server's MAX_BODY (inbox/schemas.py): the box stops at the limit.
+const MAX_BODY = 2000;
+
+// A 4xx (except 429 "too fast") fails the same way every time: Retry would not help.
+// 429, 5xx, and a lost network can work on a later try.
+function retryable(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+// The most useful words in an error answer: a field's message ("A message can be at most
+// 2000 characters.") before the general one ("Some fields need fixing.").
+function reasonOf(error: unknown): string | undefined {
+  const body = (error as { error?: ErrorBody } | undefined)?.error;
+  return body?.fields?.[0]?.message ?? body?.message;
+}
 
 // Enter sends only with a mouse or trackpad. On a phone, Enter in the keyboard is a new line
 // and the Send button sends (UX-DR13). Old browsers and tests may have no matchMedia.
@@ -61,13 +87,18 @@ export function ChatPanel({
   async function deliver(clientMessageId: string, body: string) {
     update(clientMessageId, { status: "sending" });
     try {
-      const { data } = await api.POST("/api/v1/chat/{chat_slug}/messages", {
+      const { data, error, response } = await api.POST("/api/v1/chat/{chat_slug}/messages", {
         params: { path: { chat_slug: slug } },
         body: { body, client_message_id: clientMessageId },
       });
-      update(clientMessageId, data ? { status: "sent", message: data } : { status: "failed" });
+      update(
+        clientMessageId,
+        data
+          ? { status: "sent", message: data }
+          : { status: "failed", reason: reasonOf(error), canRetry: retryable(response.status) },
+      );
     } catch {
-      update(clientMessageId, { status: "failed" }); // network down
+      update(clientMessageId, { status: "failed", reason: undefined, canRetry: true }); // network down
     }
   }
 
@@ -100,16 +131,24 @@ export function ChatPanel({
             sending={item.status === "sending"}
           >
             {item.status === "failed" && (
-              <span className="flex items-center justify-end gap-1 text-sm text-muted-foreground">
-                <span>Not sent</span>
-                <span aria-hidden="true">·</span>
-                <button
-                  type="button"
-                  className="min-h-11 px-1 font-medium text-foreground underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  onClick={() => void deliver(item.clientMessageId, item.body)}
-                >
-                  Retry
-                </button>
+              <span className="flex flex-col items-end text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span>Not sent</span>
+                  {item.canRetry && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      {/* min-h-11 min-w-11: a 44 × 44 px target for a finger (UX-DR31). */}
+                      <button
+                        type="button"
+                        className="min-h-11 min-w-11 px-1 font-medium text-foreground underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        onClick={() => void deliver(item.clientMessageId, item.body)}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  )}
+                </span>
+                {item.reason && <span>{item.reason}</span>}
               </span>
             )}
           </Bubble>
@@ -154,6 +193,7 @@ export function ChatPanel({
               id="chat-message"
               ref={box}
               rows={2}
+              maxLength={MAX_BODY}
               value={text}
               placeholder="Type a message…"
               className="min-h-11 flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-base focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
