@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 import app.core.app_meta  # noqa: F401  (importing registers the AppMeta model)
 import app.modules.accounts.models  # noqa: F401  (users, sessions, memberships)
 import app.modules.business.models  # noqa: F401  (businesses)
+import app.modules.inbox.models  # noqa: F401  (customers, visitor tokens, conversations, messages)
 from app.core.db import Base
 from app.core.settings import get_settings
 
