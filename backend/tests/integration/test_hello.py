@@ -23,6 +23,10 @@ def test_migration_creates_expected_tables(client):
         "services",
         "working_hours",
         "closed_days",
+        "customers",
+        "visitor_tokens",
+        "conversations",
+        "messages",
     }
 
 

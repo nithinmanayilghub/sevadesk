@@ -14,15 +14,16 @@ from dataclasses import dataclass
 import pytest
 from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from tests.integration.conftest import assert_not_found, set_owner_roles
+from tests.integration.conftest import _make_client, assert_not_found, set_owner_roles
 
 from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
 from app.modules.accounts.models import Invite
 from app.modules.business.models import ClosedDay, Service
+from app.modules.inbox.models import Conversation
 
 pytestmark = pytest.mark.isolation
 
@@ -235,6 +236,40 @@ def check_get_chat_page(owners: TwoOwners) -> None:
     assert _chat_service_names(owners.a, a_slug) == ["A only"]
 
 
+def _visitor_send(visitor: TestClient, slug: str, body: str) -> None:
+    payload = {"body": body, "client_message_id": str(uuid.uuid4())}
+    response = visitor.post(f"/api/v1/chat/{slug}/messages", json=payload)
+    assert response.status_code == 201, response.text
+
+
+def _conversations_in(business_id: uuid.UUID) -> int:
+    # A direct database read: how many Conversations this Business has.
+    with Session(get_engine()) as session:
+        return session.scalar(
+            select(func.count()).select_from(Conversation).where(Conversation.business_id == business_id)
+        )
+
+
+def check_list_chat_messages(owners: TwoOwners) -> None:
+    # Public too: the slug picks the Business, the cookie picks the chat. ONE browser (one
+    # cookie for every slug) writes to B, then opens A's Chat Page: none of B's Messages.
+    visitor = _make_client()
+    a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
+    _visitor_send(visitor, b_slug, "for B only")
+    assert visitor.get(f"/api/v1/chat/{a_slug}/messages").json() == {"messages": []}
+    assert [m["body"] for m in visitor.get(f"/api/v1/chat/{b_slug}/messages").json()["messages"]] == ["for B only"]
+
+
+def check_send_chat_message(owners: TwoOwners) -> None:
+    # The same browser writes to both: each Business gets its own Conversation, nothing mixes.
+    visitor = _make_client()
+    a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
+    _visitor_send(visitor, b_slug, "to B")
+    _visitor_send(visitor, a_slug, "to A")
+    assert (_conversations_in(owners.a_business_id), _conversations_in(owners.b_business_id)) == (1, 1)
+    assert [m["seq"] for m in visitor.get(f"/api/v1/chat/{a_slug}/messages").json()["messages"]] == [1]
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -262,6 +297,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("DELETE", "/api/v1/closed-days/{closed_day_id}"): check_delete_closed_day,
     ("GET", "/api/v1/setup"): check_get_setup,
     ("GET", "/api/v1/chat/{chat_slug}"): check_get_chat_page,
+    ("GET", "/api/v1/chat/{chat_slug}/messages"): check_list_chat_messages,
+    ("POST", "/api/v1/chat/{chat_slug}/messages"): check_send_chat_message,
 }
 
 
