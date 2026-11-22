@@ -1,7 +1,6 @@
 # The accounts front door (AD-2): other modules call only these functions.
 # accounts owns users, sessions, and memberships, so all password logic lives here.
 import hashlib
-import secrets
 import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -15,6 +14,10 @@ from app.core.errors import AppError, FieldError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import session_lookup, system_scope, tenant_scope
+
+# "as hash_token" marks a re-export: team.py and tests reach it as accounts service.hash_token.
+from app.core.tokens import hash_token as hash_token
+from app.core.tokens import new_token
 
 # "as clean_email" marks a re-export: other modules clean emails through this front door (D8).
 from app.modules.accounts.emails import clean_email as clean_email
@@ -141,15 +144,9 @@ def _create_user(session: Session, email: str, password: str, roles: set[Role], 
 # ---------------------------------------------------------------- sessions (AD-5)
 
 
-def hash_token(token: str) -> str:
-    # The DB keeps only this hash. A leaked DB backup then gives no working cookies.
-    # SHA-256 is enough here (no Argon2): the token is 32 random bytes, not a guessable password.
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
 def start_session(session: Session, user_id: uuid.UUID) -> str:
     """Create a session row and return the raw token for the cookie. No commit here (AD-15)."""
-    token = secrets.token_urlsafe(32)  # 32 random bytes from the OS: impossible to guess
+    token = new_token()  # the DB keeps only hash_token(token)
     SessionRepository(session).add(user_id, hash_token(token))
     return token
 
