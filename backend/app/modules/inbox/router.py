@@ -61,4 +61,7 @@ def send_chat_message(
     if wait is not None:
         raise service.TooManyMessages(retry_after=wait)
     token = _visitor_token(cookie, response)
+    # Set the cookie again on each send, so a regular Customer's 365 days start again.
+    # Only a send does this: a GET still changes nothing it does not have to.
+    set_visitor_cookie(response, token)
     return service.receive_message(session, WebchatChannel(token), body)

@@ -165,3 +165,13 @@ def test_lone_surrogate_in_body_is_422(client, slug, shop):
     assert response.status_code == 422
     assert response.json()["error"]["fields"][0]["field"] == "body"
     assert count(Message, shop.business_id) == 0
+
+
+def test_send_refreshes_the_cookie(client, slug):
+    # A regular Customer: each send starts the 365 days again.
+    client.get(messages_url(slug))  # first visit: the cookie is made
+    token = client.cookies[VISITOR_COOKIE]
+    response = post(client, slug)
+    assert response.status_code == 201, response.text
+    cookie = response.headers["set-cookie"]
+    assert cookie.startswith(f"{VISITOR_COOKIE}={token}")  # the same token, not a new one
