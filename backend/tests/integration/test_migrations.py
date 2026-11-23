@@ -37,6 +37,10 @@ def test_migrations_downgrade_to_base_and_back(client):
         "services",
         "working_hours",
         "closed_days",
+        "customers",
+        "visitor_tokens",
+        "conversations",
+        "messages",
     }
 
     response = client.get("/api/v1/hello")

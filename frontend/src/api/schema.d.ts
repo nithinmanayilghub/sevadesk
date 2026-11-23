@@ -347,6 +347,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/{chat_slug}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chat Messages */
+        get: operations["list_chat_messages"];
+        put?: never;
+        /** Send Chat Message */
+        post: operations["send_chat_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -357,6 +375,11 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /** ChatMessagesOut */
+        ChatMessagesOut: {
+            /** Messages */
+            messages: components["schemas"]["MessageOut"][];
         };
         /** ChatPageOut */
         ChatPageOut: {
@@ -521,6 +544,31 @@ export interface components {
             is_active?: boolean | null;
         };
         /**
+         * MessageOut
+         * @description One Message as the Chat Page sees it. No ids except the browser's own client_message_id.
+         */
+        MessageOut: {
+            /** Seq */
+            seq: number;
+            /** Author Type */
+            author_type: string;
+            /** Body */
+            body: string;
+            /** Lang */
+            lang: string;
+            /** Client Message Id */
+            client_message_id: string | null;
+            /** Actions */
+            actions: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
          * OpenHours
          * @description The hours of one open day. Both times are always there.
          */
@@ -549,6 +597,16 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "staff" | "technician";
+        /** SendMessageIn */
+        SendMessageIn: {
+            /** Body */
+            body: string;
+            /**
+             * Client Message Id
+             * Format: uuid
+             */
+            client_message_id: string;
+        };
         /**
          * ServiceIn
          * @description A whole Service, for add (POST) and replace (PUT). Every field must be sent.
@@ -1757,6 +1815,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chat_messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_slug: string;
+            };
+            cookie?: {
+                "__Host-sevadesk_visitor"?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessagesOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_chat_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_slug: string;
+            };
+            cookie?: {
+                "__Host-sevadesk_visitor"?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

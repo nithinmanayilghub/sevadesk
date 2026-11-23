@@ -1436,6 +1436,164 @@
           }
         }
       }
+    },
+    "/api/v1/chat/{chat_slug}/messages": {
+      "get": {
+        "summary": "List Chat Messages",
+        "operationId": "list_chat_messages",
+        "parameters": [
+          {
+            "name": "chat_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chat Slug"
+            }
+          },
+          {
+            "name": "__Host-sevadesk_visitor",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Visitor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessagesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Send Chat Message",
+        "operationId": "send_chat_message",
+        "parameters": [
+          {
+            "name": "chat_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chat Slug"
+            }
+          },
+          {
+            "name": "__Host-sevadesk_visitor",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Visitor"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1458,6 +1616,22 @@
           "password"
         ],
         "title": "AcceptInviteRequest"
+      },
+      "ChatMessagesOut": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "ChatMessagesOut"
       },
       "ChatPageOut": {
         "properties": {
@@ -1862,6 +2036,63 @@
         "title": "MemberUpdate",
         "description": "A change to one member. Leave a field out (or null) to keep it as it is."
       },
+      "MessageOut": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "author_type": {
+            "type": "string",
+            "title": "Author Type"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "lang": {
+            "type": "string",
+            "title": "Lang"
+          },
+          "client_message_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Message Id"
+          },
+          "actions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "author_type",
+          "body",
+          "lang",
+          "client_message_id",
+          "actions",
+          "created_at"
+        ],
+        "title": "MessageOut",
+        "description": "One Message as the Chat Page sees it. No ids except the browser's own client_message_id."
+      },
       "OpenHours": {
         "properties": {
           "start_time": {
@@ -1902,6 +2133,25 @@
           "technician"
         ],
         "title": "Role"
+      },
+      "SendMessageIn": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "client_message_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Message Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body",
+          "client_message_id"
+        ],
+        "title": "SendMessageIn"
       },
       "ServiceIn": {
         "properties": {

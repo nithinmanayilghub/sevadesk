@@ -2,13 +2,13 @@
 # Every function checks the Role FIRST, before it reads or changes anything (story 2.4).
 # Only accounts' own team_router calls this file. service.py must never import it
 # (this file imports service.py, so the other way round would be an import cycle).
-import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, FieldError
+from app.core.tokens import new_token
 from app.modules.accounts import service
 from app.modules.accounts.models import Invite
 from app.modules.accounts.repository import InviteRepository, MembershipRepository, SessionRepository
@@ -30,7 +30,7 @@ INVITE_LIFETIME = timedelta(days=7)
 def create_invite(session: Session, actor: Actor, request: InviteRequest) -> InviteCreated:
     """Make a single-use invite link. Returns the raw token once. No commit here (AD-15)."""
     service.require_roles(actor, Permission.MANAGE_SETUP)
-    token = secrets.token_urlsafe(32)  # 32 random bytes from the OS, like a session token
+    token = new_token()  # the same kind of token as a session cookie
     expires_at = datetime.now(UTC) + INVITE_LIFETIME
     InviteRepository(session).add(
         Invite(

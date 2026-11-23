@@ -1,8 +1,12 @@
 # The setup status (Owner only) and the public Chat Page API (story 3.3, FR-14).
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from tests.integration.conftest import assert_not_found, set_owner_roles
 from tests.integration.test_tenant_isolation import HOURS_WEEK, SERVICE, _add_service, _put_week, _setup
+
+from app.core.tenancy import current_business_id
+from app.modules.business.dependencies import ChatBusinessDep
 
 
 def _set_active(owner: TestClient, service: dict, is_active: bool) -> None:
@@ -101,6 +105,20 @@ def test_slug_is_case_insensitive(sign_up_owner, client):
     owner, _ = sign_up_owner()
     page = _chat_page(client, _setup(owner)["chat_slug"].upper())
     assert page["business_name"] == "Test Shop"
+
+
+def test_route_runs_inside_the_slug_business(sign_up_owner):
+    # The shared public-chat step (business/dependencies.py, story 4.1): any route that uses
+    # ChatBusinessDep runs inside the slug's Business, so tenant repositories just work.
+    probe = FastAPI()
+
+    @probe.get("/probe/{chat_slug}")
+    def where_am_i(business: ChatBusinessDep) -> dict:
+        return {"current": str(current_business_id()), "business_id": str(business.business_id)}
+
+    owner, business_id = sign_up_owner()
+    answer = TestClient(probe).get(f"/probe/{_setup(owner)['chat_slug']}").json()
+    assert answer == {"current": str(business_id), "business_id": str(business_id)}
 
 
 def test_deactivating_the_only_service_stops_requests(sign_up_owner, client):
