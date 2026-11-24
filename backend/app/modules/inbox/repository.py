@@ -66,8 +66,13 @@ class ConversationRepository(TenantRepository[Conversation]):
 class MessageRepository(TenantRepository[Message]):
     model = Message
 
-    def list_for(self, conversation_id: uuid.UUID) -> list[Message]:
-        query = self._select().where(Message.conversation_id == conversation_id).order_by(Message.seq)
+    def list_after(self, conversation_id: uuid.UUID, after_seq: int) -> list[Message]:
+        """The Messages with seq > after_seq, oldest first (after_seq=0: all of them)."""
+        query = (
+            self._select()
+            .where(Message.conversation_id == conversation_id, Message.seq > after_seq)
+            .order_by(Message.seq)
+        )
         return list(self.session.scalars(query))
 
     def find_by_client_id(self, conversation_id: uuid.UUID, client_message_id: uuid.UUID) -> Message | None:

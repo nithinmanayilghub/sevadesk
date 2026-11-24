@@ -1452,6 +1452,23 @@
             }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
             "name": "__Host-sevadesk_visitor",
             "in": "cookie",
             "required": false,
@@ -1474,7 +1491,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatMessagesOut"
+                  "$ref": "#/components/schemas/ChatPollOut"
                 }
               }
             }
@@ -1488,6 +1505,16 @@
               }
             },
             "description": "Not Found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           },
           "422": {
             "description": "Validation Error",
@@ -1617,22 +1644,6 @@
         ],
         "title": "AcceptInviteRequest"
       },
-      "ChatMessagesOut": {
-        "properties": {
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/MessageOut"
-            },
-            "type": "array",
-            "title": "Messages"
-          }
-        },
-        "type": "object",
-        "required": [
-          "messages"
-        ],
-        "title": "ChatMessagesOut"
-      },
       "ChatPageOut": {
         "properties": {
           "business_name": {
@@ -1659,6 +1670,51 @@
         ],
         "title": "ChatPageOut"
       },
+      "ChatPollOut": {
+        "properties": {
+          "changed": {
+            "type": "boolean",
+            "title": "Changed"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changed",
+          "messages",
+          "snapshot",
+          "cursor"
+        ],
+        "title": "ChatPollOut",
+        "description": "One poll answer (story 4.2). The same shape for the first load and every later poll."
+      },
       "ChatServiceOut": {
         "properties": {
           "name": {
@@ -1681,6 +1737,20 @@
           "price_paise"
         ],
         "title": "ChatServiceOut"
+      },
+      "ChatSnapshot": {
+        "properties": {
+          "conversation_state": {
+            "type": "string",
+            "title": "Conversation State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_state"
+        ],
+        "title": "ChatSnapshot",
+        "description": "The Conversation's state now. Epic 5/6 add reply_pending and the Booking status (AD-7)."
       },
       "ClosedDayIn": {
         "properties": {

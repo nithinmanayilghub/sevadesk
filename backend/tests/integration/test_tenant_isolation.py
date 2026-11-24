@@ -256,7 +256,12 @@ def check_list_chat_messages(owners: TwoOwners) -> None:
     visitor = _make_client()
     a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
     _visitor_send(visitor, b_slug, "for B only")
-    assert visitor.get(f"/api/v1/chat/{a_slug}/messages").json() == {"messages": []}
+    assert visitor.get(f"/api/v1/chat/{a_slug}/messages").json() == {
+        "changed": True,
+        "messages": [],
+        "snapshot": None,
+        "cursor": None,
+    }
     assert [m["body"] for m in visitor.get(f"/api/v1/chat/{b_slug}/messages").json()["messages"]] == ["for B only"]
 
 

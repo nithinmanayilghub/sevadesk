@@ -38,7 +38,7 @@ def slug(shop) -> str:
 def test_first_visit_sets_an_httponly_visitor_cookie(client, slug, shop):
     response = client.get(messages_url(slug))
     assert response.status_code == 200, response.text
-    assert response.json() == {"messages": []}
+    assert response.json() == {"changed": True, "messages": [], "snapshot": None, "cursor": None}
     cookie = response.headers["set-cookie"]
     assert cookie.startswith(f"{VISITOR_COOKIE}=")
     for flag in ("HttpOnly", "Secure", "SameSite=lax", "Path=/"):
@@ -58,7 +58,12 @@ def test_send_then_return_sees_own_messages(client, make_client, slug):
     assert (sent.json()["seq"], sent.json()["author_type"], sent.json()["body"]) == (1, "customer", "Fan not working")
     assert [m["body"] for m in client.get(messages_url(slug)).json()["messages"]] == ["Fan not working"]
     # Another browser opens the same Chat Page: it sees nothing of this chat.
-    assert make_client().get(messages_url(slug)).json() == {"messages": []}
+    assert make_client().get(messages_url(slug)).json() == {
+        "changed": True,
+        "messages": [],
+        "snapshot": None,
+        "cursor": None,
+    }
 
 
 def test_send_without_cookie_still_works(client, slug):
@@ -136,7 +141,7 @@ def test_public_routes_take_no_conversation_id():
             continue
         for operation in item.values():
             assert "conversation_id" not in {p["name"] for p in operation.get("parameters", [])}, path
-    for name in ("SendMessageIn", "MessageOut", "ChatMessagesOut"):
+    for name in ("SendMessageIn", "MessageOut", "ChatPollOut", "ChatSnapshot"):
         assert "conversation_id" not in schema["components"]["schemas"][name]["properties"], name
 
 

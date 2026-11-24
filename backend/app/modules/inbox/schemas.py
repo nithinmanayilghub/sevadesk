@@ -3,8 +3,10 @@
 #
 # No conversation_id in or out, on purpose (AR-10): a visitor is known only by their cookie,
 # so there is no id to guess or swap.
+import re
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
@@ -63,5 +65,49 @@ class MessageOut(BaseModel):
     created_at: datetime
 
 
-class ChatMessagesOut(BaseModel):
-    messages: list[MessageOut]  # this visitor's own Conversation only, oldest first
+class ChatSnapshot(BaseModel):
+    """The Conversation's state now. Epic 5/6 add reply_pending and the Booking status (AD-7)."""
+
+    conversation_state: str  # agent | handoff | closed
+
+
+class ChatPollOut(BaseModel):
+    """One poll answer (story 4.2). The same shape for the first load and every later poll."""
+
+    changed: bool  # False: nothing new since the cursor; keep what is on screen
+    messages: list[MessageOut]  # only the ones after the cursor, oldest first; [] when not changed
+    snapshot: ChatSnapshot | None  # None when not changed, or before the first Message
+    cursor: str | None  # send it back on the next poll; None before the first Message
+
+
+# v1.<business_id>.<after_seq>.<version>. fullmatch, not match + $: "$" also accepts a trailing "\n".
+_CURSOR_SHAPE = re.compile(r"v1\.([0-9a-f-]{36})\.(\d{1,9})\.(\d{1,15})")
+
+
+@dataclass(frozen=True)
+class ChatCursor:
+    """Where a Chat Page is: which Business, the last seq it has, and the version it saw.
+
+    "Opaque" for the browser: it keeps the text and sends it back, and never reads inside.
+    Nothing in it is secret or trusted: the server checks it against the cookie (story 4.2).
+    No conversation_id inside, on purpose (AR-10).
+    """
+
+    business_id: uuid.UUID
+    after_seq: int
+    version: int
+
+    def format(self) -> str:
+        return f"v1.{self.business_id}.{self.after_seq}.{self.version}"
+
+    @classmethod
+    def parse(cls, raw: str | None) -> ChatCursor | None:
+        """The cursor, or None for anything we did not make (then the poll sends everything)."""
+        match = _CURSOR_SHAPE.fullmatch(raw) if raw else None
+        if match is None:
+            return None
+        try:
+            business_id = uuid.UUID(match[1])  # 36 dashes fit the shape but are not a UUID
+        except ValueError:
+            return None
+        return cls(business_id=business_id, after_seq=int(match[2]), version=int(match[3]))

@@ -1,5 +1,5 @@
 # The inbox front door (AD-2). Other modules call only these functions.
-# - list_messages: a Customer's own Conversation (story 4.1, FR-15).
+# - poll_messages: the slow Chat Page poll, new Messages + snapshot + cursor (story 4.2, AD-7).
 # - receive_message: save one Customer Message, once, with the next seq (AR-12, AR-13).
 #
 # This file is channel-neutral (NFR-9): it gets a Channel (channel.py) and never sees a
@@ -7,17 +7,20 @@
 #
 # Lock order: the Channel takes its own locks first (webchat: the visitor-token row), then
 # returns the Conversation row locked. Any new flow takes them in the same order.
+import uuid
+
+import redis
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
-from app.core.versions import mark_conversation_changed
+from app.core.versions import mark_conversation_changed, read_or_seed_version
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Message
 from app.modules.inbox.repository import MessageRepository
-from app.modules.inbox.schemas import ChatMessagesOut, MessageOut, SendMessageIn, detect_lang
+from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, MessageOut, SendMessageIn, detect_lang
 
 # Send limits (NFR-5), counted in Redis. Per IP is high on purpose: Indian mobile carriers put
 # many phones behind one IP address (CGNAT). Both count per Business (AD-3 key rule).
@@ -61,12 +64,41 @@ def _out(row: Message) -> MessageOut:
     )
 
 
-def list_messages(session: Session, channel: Channel) -> ChatMessagesOut:
-    """The sender's own Conversation, oldest first. Empty before the first send. Writes nothing."""
+def chat_unavailable() -> AppError:
+    """The 503 for a Redis failure on a chat route (fail closed, like the limiters)."""
+    return AppError("dependency_unavailable", _CHAT_UNAVAILABLE, 503)
+
+
+def poll_messages(session: Session, channel: Channel, after_seq: int) -> tuple[ChatPollOut, uuid.UUID | None]:
+    """The slow poll: the sender's Messages after after_seq, a snapshot, and a new cursor.
+
+    Also returns the Conversation id (None before the first Message), so the caller can
+    remember it for the fast poll. Writes nothing to Postgres (AD-5).
+    """
     conversation = channel.find_conversation(session)
     if conversation is None:
-        return ChatMessagesOut(messages=[])
-    return ChatMessagesOut(messages=[_out(row) for row in MessageRepository(session).list_for(conversation.id)])
+        return ChatPollOut(changed=True, messages=[], snapshot=None, cursor=None), None
+    business_id = current_business_id()
+    # The order rule (core/versions.py): the version FIRST, then the Messages. A send that
+    # commits in between leaves us with an older version, so the next poll reads again.
+    try:
+        version = read_or_seed_version(business_id, conversation.id)
+    except redis.RedisError as error:
+        raise chat_unavailable() from error
+    rows = MessageRepository(session).list_after(conversation.id, after_seq)
+    # The newest seq we really send. Not conversation.last_seq: that was read by an earlier
+    # query and can be older than a row this query saw (each query sees the newest commits).
+    # min(): a forged, too-high after_seq comes back down, so new Messages are never hidden.
+    next_seq = rows[-1].seq if rows else min(after_seq, conversation.last_seq)
+    return (
+        ChatPollOut(
+            changed=True,
+            messages=[_out(row) for row in rows],
+            snapshot=ChatSnapshot(conversation_state=conversation.state),
+            cursor=ChatCursor(business_id=business_id, after_seq=next_seq, version=version).format(),
+        ),
+        conversation.id,
+    )
 
 
 def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> MessageOut:

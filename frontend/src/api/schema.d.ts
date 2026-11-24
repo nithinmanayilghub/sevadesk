@@ -376,11 +376,6 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** ChatMessagesOut */
-        ChatMessagesOut: {
-            /** Messages */
-            messages: components["schemas"]["MessageOut"][];
-        };
         /** ChatPageOut */
         ChatPageOut: {
             /** Business Name */
@@ -390,6 +385,19 @@ export interface components {
             /** Services */
             services: components["schemas"]["ChatServiceOut"][];
         };
+        /**
+         * ChatPollOut
+         * @description One poll answer (story 4.2). The same shape for the first load and every later poll.
+         */
+        ChatPollOut: {
+            /** Changed */
+            changed: boolean;
+            /** Messages */
+            messages: components["schemas"]["MessageOut"][];
+            snapshot: components["schemas"]["ChatSnapshot"] | null;
+            /** Cursor */
+            cursor: string | null;
+        };
         /** ChatServiceOut */
         ChatServiceOut: {
             /** Name */
@@ -398,6 +406,14 @@ export interface components {
             duration_minutes: number;
             /** Price Paise */
             price_paise: number;
+        };
+        /**
+         * ChatSnapshot
+         * @description The Conversation's state now. Epic 5/6 add reply_pending and the Booking status (AD-7).
+         */
+        ChatSnapshot: {
+            /** Conversation State */
+            conversation_state: string;
         };
         /** ClosedDayIn */
         ClosedDayIn: {
@@ -1821,7 +1837,9 @@ export interface operations {
     };
     list_chat_messages: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string | null;
+            };
             header?: never;
             path: {
                 chat_slug: string;
@@ -1838,7 +1856,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChatMessagesOut"];
+                    "application/json": components["schemas"]["ChatPollOut"];
                 };
             };
             /** @description Not Found */
@@ -1857,6 +1875,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

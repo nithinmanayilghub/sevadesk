@@ -10,11 +10,13 @@
 # Lock order, for every flow that takes both locks: the visitor-token row FIRST, then the
 # Conversation row. One fixed order means two requests can never wait for each other (deadlock).
 import re
+import uuid
 from typing import Annotated
 
 from fastapi import Cookie, Response
 from sqlalchemy.orm import Session
 
+from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
 from app.core.tokens import hash_token
 from app.modules.inbox.models import Conversation, Customer
@@ -29,6 +31,15 @@ _TOKEN_SHAPE = re.compile(r"[A-Za-z0-9_-]{43}")
 
 # Use in a route: `cookie: VisitorTokenCookie = None` reads the cookie (None if missing).
 VisitorTokenCookie = Annotated[str | None, Cookie(alias=VISITOR_COOKIE)]
+
+
+# The fast-poll map (story 4.2): one Redis entry per browser per Business. A day is plenty:
+# an open Chat Page polls every 5 s, and each slow poll writes the entry again.
+_MAP_SECONDS = 24 * 60 * 60
+
+
+def _map_key(business_id: uuid.UUID, token_hash: str) -> str:
+    return f"chat_visitor:{business_id}:{token_hash}"  # purpose, then the Business (AD-3)
 
 
 def usable_token(raw: str | None) -> str | None:
@@ -64,6 +75,15 @@ class WebchatChannel:
         if visitor is None:
             return None  # a browser that has not sent anything yet: no rows, and none made
         return ConversationRepository(session).newest_for_visitor(visitor.id, lock=False)
+
+    def remember_conversation(self, slug: str, conversation_id: uuid.UUID) -> None:
+        """Note in Redis: this browser, on this slug, has this Conversation (for the fast poll).
+
+        Only the slow poll calls this, inside the slug's own tenant scope, after it found the
+        Conversation in Postgres by the cookie. So an entry is proof: a fast poll that finds it
+        knows the Business and the Conversation without Postgres (story 4.2). May raise RedisError.
+        """
+        get_redis().set(_map_key(current_business_id(), self._hash()), f"{slug} {conversation_id}", ex=_MAP_SECONDS)
 
     def open_conversation(self, session: Session) -> Conversation:
         tokens, conversations = VisitorTokenRepository(session), ConversationRepository(session)
