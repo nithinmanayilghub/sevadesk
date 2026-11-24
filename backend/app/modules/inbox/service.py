@@ -13,6 +13,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
+from app.core.versions import mark_conversation_changed
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Message
 from app.modules.inbox.repository import MessageRepository
@@ -99,4 +100,6 @@ def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> 
     )
     # add() flushed the INSERT; refresh reads back created_at and actions the database filled in.
     session.refresh(row)
+    # 5. Open Chat Pages must see it: raise the version, but only after the commit (AD-7).
+    mark_conversation_changed(session, conversation.id)
     return _out(row)

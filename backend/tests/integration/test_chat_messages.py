@@ -1,14 +1,12 @@
 # The public chat Message routes (story 4.1, FR-15, AD-16, NFR-5): read your own chat, and send.
 # Each TestClient is one browser: it keeps its cookies, like a real one.
 import uuid
-from dataclasses import dataclass
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from tests.integration.conftest import assert_not_found
-from tests.integration.test_tenant_isolation import _setup
 
 from app.core.db import get_engine
 from app.core.redis_client import get_redis
@@ -30,18 +28,6 @@ def messages_url(slug: str) -> str:
 
 def post(client: TestClient, slug: str, body: str = "Fan not working", client_id: uuid.UUID | None = None):
     return client.post(messages_url(slug), json={"body": body, "client_message_id": str(client_id or uuid.uuid4())})
-
-
-@dataclass
-class Shop:
-    slug: str
-    business_id: uuid.UUID
-
-
-@pytest.fixture
-def shop(sign_up_owner) -> Shop:
-    owner, business_id = sign_up_owner()
-    return Shop(slug=_setup(owner)["chat_slug"], business_id=business_id)
 
 
 @pytest.fixture
