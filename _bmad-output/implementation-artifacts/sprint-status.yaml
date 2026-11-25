@@ -62,7 +62,7 @@ development_status:
 
   epic-4: in-progress
   4-1-customer-sends-messages-on-the-chat-page: done
-  4-2-chat-page-stays-live-by-polling: backlog
+  4-2-chat-page-stays-live-by-polling: done
   4-3-inbox-lists-all-conversations: backlog
   4-4-reply-to-a-customer-and-take-over-the-chat: backlog
   4-5-delete-a-customer-and-all-their-data: backlog

@@ -256,8 +256,21 @@ def check_list_chat_messages(owners: TwoOwners) -> None:
     visitor = _make_client()
     a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
     _visitor_send(visitor, b_slug, "for B only")
-    assert visitor.get(f"/api/v1/chat/{a_slug}/messages").json() == {"messages": []}
-    assert [m["body"] for m in visitor.get(f"/api/v1/chat/{b_slug}/messages").json()["messages"]] == ["for B only"]
+    assert visitor.get(f"/api/v1/chat/{a_slug}/messages").json() == {
+        "changed": True,
+        "messages": [],
+        "snapshot": None,
+        "cursor": None,
+    }
+    b_answer = visitor.get(f"/api/v1/chat/{b_slug}/messages").json()
+    assert [m["body"] for m in b_answer["messages"]] == ["for B only"]
+    # B's cursor on A's slug (story 4.2): still A's empty answer, never B's "no change".
+    assert visitor.get(f"/api/v1/chat/{a_slug}/messages", params={"cursor": b_answer["cursor"]}).json() == {
+        "changed": True,
+        "messages": [],
+        "snapshot": None,
+        "cursor": None,
+    }
 
 
 def check_send_chat_message(owners: TwoOwners) -> None:

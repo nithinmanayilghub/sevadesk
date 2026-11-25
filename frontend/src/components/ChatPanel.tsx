@@ -6,6 +6,10 @@
 // - the DPDP notice above the composer until the first Message (NFR-8)
 // - a failed send shows "Not sent · Retry" and keeps the text while the page is open (UX-DR13)
 //
+// - stays live (story 4.2, AD-7): polls every 5 s with the cursor, and adds new Messages.
+//   It polls only once the chat exists (a cursor, or one saved send). "Reconnecting…" after
+//   3 failed polls in a row.
+//
 // Each send gets a client_message_id made here. A retry sends the SAME id, so the server
 // saves the Message once even if the first try did arrive (idempotent send).
 //
@@ -13,23 +17,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
+import { usePoll } from "@/api/usePoll";
+import { chatItems, mergePoll, type Sent } from "@/lib/chatPoll";
 import { useLoad } from "@/lib/useLoad";
 import { PILL_BUTTON } from "./pillButton";
 
-type MessageOut = components["schemas"]["MessageOut"];
-
 type ErrorBody = components["schemas"]["ErrorBody"];
-
-// One Message this page sent. "sent" holds the Message the server saved.
-// "failed" holds the server's reason (if it gave one), and whether a retry can work.
-type Sent = {
-  clientMessageId: string;
-  body: string;
-  status: "sending" | "sent" | "failed";
-  message?: MessageOut;
-  reason?: string;
-  canRetry?: boolean;
-};
 
 // Same as the server's MAX_BODY (inbox/schemas.py): the box stops at the limit.
 const MAX_BODY = 2000;
@@ -72,10 +65,29 @@ export function ChatPanel({
   const [text, setText] = useState("");
   const box = useRef<HTMLTextAreaElement>(null);
 
-  // Saved Messages first (server order), then this page's sends in the order they were made.
-  const sentIds = new Set(sent.map((item) => item.clientMessageId));
-  const saved = state.status === "ready" ? state.data.messages.filter((m) => !sentIds.has(m.client_message_id ?? "")) : [];
-  const hasMessages = saved.length + sent.length > 0;
+  const ready = state.status === "ready";
+  const cursor = ready ? state.data.cursor : null;
+
+  // The poll. usePoll keeps the newest copy of this function, so it always sends the newest
+  // cursor. replace() here is fine: a timer callback, not a child's effect. And usePoll drops
+  // an answer that comes back after the slug changed, so an old chat never merges in.
+  const { reconnecting } = usePoll(
+    async (signal) => {
+      const { data } = await api.GET("/api/v1/chat/{chat_slug}/messages", {
+        params: { path: { chat_slug: slug }, query: { cursor: cursor ?? undefined } },
+        signal,
+      });
+      if (data === undefined) return false; // 429 and 5xx count as failures
+      if (data.changed) state.replace((current) => mergePoll(current, data));
+      return true;
+    },
+    // Before the chat exists there is nothing to poll for (the first send makes it).
+    { enabled: ready && (cursor !== null || sent.some((item) => item.status === "sent")) },
+  );
+
+  // One list, sorted by seq: a reply polled after the Customer's send shows below it.
+  const items = chatItems(ready ? state.data.messages : [], sent);
+  const hasMessages = items.length > 0;
 
   // Tell the page (it folds the Services list on mobile). In an effect: never during render.
   useEffect(() => onHasMessages(hasMessages), [hasMessages, onHasMessages]);
@@ -116,43 +128,25 @@ export function ChatPanel({
 
   return (
     <section aria-label="Chat" className="flex flex-col gap-3">
-      {/* Always in the page, even empty: a live region added together with its first
-          Message is often not announced. role="log" = new lines are added at the end. */}
+      {/* Always in the page, empty while all is well: a live region added together with its
+          text is often not announced. */}
+      <p role="status" className="text-sm text-muted-foreground">
+        {reconnecting ? "Reconnecting…" : ""}
+      </p>
+      {/* Always in the page, even empty (the same reason). role="log" = new lines are added at the end. */}
       <ol role="log" aria-live="polite" className="flex flex-col gap-2">
-        {saved.map((m) => (
-          <Bubble key={m.seq} authorType={m.author_type} lang={m.lang} body={m.body} />
-        ))}
-        {sent.map((item) => (
-          <Bubble
-            key={item.clientMessageId}
-            authorType="customer"
-            lang={item.message?.lang}
-            body={item.body}
-            sending={item.status === "sending"}
-          >
-            {item.status === "failed" && (
-              <span className="flex flex-col items-end text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span>Not sent</span>
-                  {item.canRetry && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      {/* min-h-11 min-w-11: a 44 × 44 px target for a finger (UX-DR31). */}
-                      <button
-                        type="button"
-                        className="min-h-11 min-w-11 px-1 font-medium text-foreground underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                        onClick={() => void deliver(item.clientMessageId, item.body)}
-                      >
-                        Retry
-                      </button>
-                    </>
-                  )}
-                </span>
-                {item.reason && <span>{item.reason}</span>}
-              </span>
-            )}
-          </Bubble>
-        ))}
+        {items.map((entry) =>
+          entry.kind === "saved" ? (
+            <Bubble
+              key={`seq-${entry.message.seq}`}
+              authorType={entry.message.author_type}
+              lang={entry.message.lang}
+              body={entry.message.body}
+            />
+          ) : (
+            <SentBubble key={entry.item.clientMessageId} item={entry.item} onRetry={(id, body) => void deliver(id, body)} />
+          ),
+        )}
       </ol>
 
       {state.status === "loading" && (
@@ -212,6 +206,35 @@ export function ChatPanel({
         </>
       )}
     </section>
+  );
+}
+
+// One of this page's own sends. A failed one shows "Not sent", and Retry if a retry can work.
+function SentBubble({ item, onRetry }: { item: Sent; onRetry: (clientMessageId: string, body: string) => void }) {
+  return (
+    <Bubble authorType="customer" lang={item.message?.lang} body={item.body} sending={item.status === "sending"}>
+      {item.status === "failed" && (
+        <span className="flex flex-col items-end text-sm text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span>Not sent</span>
+            {item.canRetry && (
+              <>
+                <span aria-hidden="true">·</span>
+                {/* min-h-11 min-w-11: a 44 × 44 px target for a finger (UX-DR31). */}
+                <button
+                  type="button"
+                  className="min-h-11 min-w-11 px-1 font-medium text-foreground underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  onClick={() => onRetry(item.clientMessageId, item.body)}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </span>
+          {item.reason && <span>{item.reason}</span>}
+        </span>
+      )}
+    </Bubble>
   );
 }
 

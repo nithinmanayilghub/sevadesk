@@ -1,7 +1,7 @@
-// Tests for ChatPanel (story 4.1): the Customer's own chat on the Chat Page. Bubbles, the
-// DPDP notice, the composer, "Not sent · Retry", and the keyboard.
+// Tests for ChatPanel (stories 4.1, 4.2): the Customer's own chat on the Chat Page. Bubbles,
+// the DPDP notice, the composer, "Not sent · Retry", the keyboard, and polling.
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 import { ChatPanel } from "./ChatPanel";
@@ -28,8 +28,16 @@ function message(seq: number, body: string, extra: Partial<MessageOut> = {}): Me
   };
 }
 
+// One poll answer, as the server sends it (story 4.2). A chat with Messages has a cursor.
+function answer(messages: MessageOut[], cursor: string | null = messages.length ? "c1" : null) {
+  return {
+    data: { changed: true, messages, snapshot: cursor ? { conversation_state: "agent" } : null, cursor },
+    response: new Response(null, { status: 200 }),
+  } as never;
+}
+
 function loads(messages: MessageOut[]) {
-  GET.mockResolvedValue({ data: { messages }, response: new Response(null, { status: 200 }) } as never);
+  GET.mockResolvedValue(answer(messages));
 }
 
 function saves() {
@@ -289,4 +297,108 @@ test("Retry is at least 44 px wide and tall, for a finger", async () => {
   panel();
   await sendOne();
   expect(await screen.findByRole("button", { name: "Retry" })).toHaveClass("min-h-11", "min-w-11");
+});
+
+// --- Polling (story 4.2). Fake timers: each test moves the clock itself. ---
+describe("polling", () => {
+  const PATH = "/api/v1/chat/{chat_slug}/messages";
+  const failedPoll = { data: undefined, response: new Response(null, { status: 500 }) } as never;
+
+  // Let time pass, inside act() so React applies the answers.
+  async function wait(ms = 0) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  function agent(seq: number, body: string) {
+    return message(seq, body, { author_type: "agent", client_message_id: null });
+  }
+
+  // The client_message_id the page made for its first send.
+  function firstSendId(): string {
+    return (POST.mock.calls[0][1] as { body: { client_message_id: string } }).body.client_message_id;
+  }
+
+  async function sendNow(text: string) {
+    type(text);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await wait();
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  test("shows a new Message from a poll", async () => {
+    GET.mockResolvedValueOnce(answer([message(1, "Fan not working")], "c1"));
+    GET.mockResolvedValueOnce(answer([agent(2, "We can come today")], "c2"));
+    panel();
+    await wait();
+    expect(screen.getByText("Fan not working")).toBeInTheDocument();
+    await wait(5000);
+    expect(GET).toHaveBeenLastCalledWith(PATH, {
+      params: { path: { chat_slug: "ravi-k7m2qx" }, query: { cursor: "c1" } },
+      signal: expect.any(AbortSignal),
+    });
+    expect(screen.getByText("We can come today")).toBeInTheDocument();
+  });
+
+  test("polled reply after own send shows below it", async () => {
+    GET.mockResolvedValueOnce(answer([]));
+    GET.mockImplementationOnce((async () =>
+      answer(
+        [message(1, "Fan not working", { client_message_id: firstSendId() }), agent(2, "We can come today")],
+        "c2",
+      )) as never);
+    saves();
+    panel();
+    await wait();
+    await sendNow("Fan not working");
+    await wait(5000);
+    const texts = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(texts).toEqual(["Fan not working", "We can come today"]);
+  });
+
+  test("own sent Message is not shown twice when the poll returns it", async () => {
+    GET.mockResolvedValueOnce(answer([]));
+    GET.mockImplementation((async () =>
+      answer([message(1, "Fan not working", { client_message_id: firstSendId() })], "c1")) as never);
+    saves();
+    panel();
+    await wait();
+    await sendNow("Fan not working");
+    await wait(10_000);
+    expect(screen.getAllByText("Fan not working")).toHaveLength(1);
+  });
+
+  test("does not poll before the chat exists", async () => {
+    loads([]);
+    panel();
+    await wait(20_000);
+    expect(GET).toHaveBeenCalledTimes(1);
+  });
+
+  test("starts polling after the first send", async () => {
+    loads([]);
+    saves();
+    panel();
+    await wait();
+    await sendNow("Fan not working");
+    await wait(5000);
+    expect(GET).toHaveBeenCalledTimes(2);
+  });
+
+  test("shows Reconnecting… after 3 failed polls, then hides it", async () => {
+    GET.mockResolvedValueOnce(answer([message(1, "Fan not working")]));
+    GET.mockResolvedValueOnce(failedPoll).mockResolvedValueOnce(failedPoll).mockResolvedValueOnce(failedPoll);
+    GET.mockResolvedValue(answer([message(1, "Fan not working")]));
+    panel();
+    await wait();
+    await wait(10_000); // 2 failures
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    await wait(5000); // 3 failures
+    expect(screen.getByRole("status")).toHaveTextContent("Reconnecting…");
+    await wait(5000); // a success
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
 });

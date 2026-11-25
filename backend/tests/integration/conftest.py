@@ -117,6 +117,23 @@ def sign_up_owner(make_client):
     return sign_up
 
 
+@dataclass
+class Shop:
+    """A Business ready to chat: it has a Service, Working Hours, and a chat slug."""
+
+    slug: str
+    business_id: uuid.UUID
+
+
+@pytest.fixture
+def shop(sign_up_owner) -> Shop:
+    # Imported here, not at the top: that test module imports this file (no import loop).
+    from tests.integration.test_tenant_isolation import _setup
+
+    owner, business_id = sign_up_owner()
+    return Shop(slug=_setup(owner)["chat_slug"], business_id=business_id)
+
+
 def assert_not_found(response) -> None:
     """Our own 404 (FR-11). A plain "no such address" 404 from the router does not count."""
     assert response.status_code == 404, response.text

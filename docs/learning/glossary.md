@@ -180,3 +180,9 @@ Plain-word meanings. Newest terms at the bottom.
 - **Lock order** - Always take the locks in the same order (visitor row, then Conversation). Two requests that take them in opposite orders can wait for each other forever (a deadlock).
 - **Identity map** - SQLAlchemy's in-memory copy of each row it already read in a session. A second read normally hands back that old copy; `populate_existing` makes a locked read refresh it.
 - **CGNAT** - Carrier-grade NAT: a mobile carrier puts many phones behind one public IP address. So a per-IP limit must be generous, or many real Customers share one limit.
+- **Poll** - The page asks the server "anything new?" again and again, every 5 s. Simple and works everywhere; the cost is many small requests, so each "no" answer must be cheap.
+- **Cursor** - A bookmark the server gives the page: `v1.<business>.<last seq>.<version>`. The page sends it back on the next poll and never reads inside it. It is only a claim: the server checks it against the cookie.
+- **Version counter** - A number in Redis per Conversation (`ver:...`). Every commit that changes the chat adds 1. If the page's number equals Redis's number, nothing changed.
+- **Fast path / slow path** - Fast: answer "no change" from Redis only. Slow: read Postgres for the new Messages. The fast path is tried first; any doubt falls back to the slow path, which is always correct.
+- **after_commit** - A SQLAlchemy event that runs after a transaction is saved for good. The version goes up here, not before: a poll must never see the new number before it can see the new row.
+- **READ COMMITTED** - Postgres's default rule: each SQL statement sees every commit finished before it starts. So reading the version first and the Messages second can only make the page read again, never miss a Message.
