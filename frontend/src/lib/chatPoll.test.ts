@@ -83,3 +83,15 @@ test("chatItems sorts by seq and puts sending and failed items last, in send ord
     "sent d",
   ]);
 });
+
+test("a Message from another tab shows as saved", () => {
+  const items = chatItems(
+    [
+      message(1, { author_type: "customer", client_message_id: "a" }),
+      message(2, { author_type: "customer", client_message_id: "b" }), // sent by another tab
+    ],
+    [sent("a", "sent", 1)],
+  );
+  const names = items.map((i) => (i.kind === "saved" ? `saved ${i.message.seq}` : `sent ${i.item.clientMessageId}`));
+  expect(names).toEqual(["sent a", "saved 2"]);
+});
