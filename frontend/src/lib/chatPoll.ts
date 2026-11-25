@@ -22,6 +22,9 @@ export type ChatItem = { kind: "saved"; message: MessageOut } | { kind: "sent"; 
 
 export function mergePoll(current: ChatPollOut, next: ChatPollOut): ChatPollOut {
   if (!next.changed) return current; // nothing new: keep the same object, so nothing redraws
+  // No cursor = this browser has no chat now (its cookie was cleared). The old Messages are
+  // not its chat any more, and their seqs would hide a new chat's Messages: start over.
+  if (next.cursor === null) return next;
   const last = current.messages.at(-1)?.seq ?? 0;
   return {
     changed: true,

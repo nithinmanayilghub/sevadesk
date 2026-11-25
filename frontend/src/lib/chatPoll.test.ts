@@ -56,6 +56,13 @@ test("no new snapshot keeps the old one", () => {
   expect(next.snapshot).toEqual({ conversation_state: "agent" });
 });
 
+test("a null cursor means this browser has no chat now: show the server's answer", () => {
+  // Review finding: a cleared cookie made the page keep the old chat and its high seq, so a new
+  // chat's replies (seq 1, 2, …) were hidden as "already shown".
+  const gone: ChatPollOut = { changed: true, messages: [], snapshot: null, cursor: null };
+  expect(mergePoll(current, gone)).toBe(gone);
+});
+
 function sent(id: string, status: Sent["status"], seq?: number): Sent {
   const saved = seq === undefined ? undefined : message(seq, { author_type: "customer", client_message_id: id });
   return { clientMessageId: id, body: id, status, message: saved };
