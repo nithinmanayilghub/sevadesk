@@ -1,6 +1,6 @@
 # The inbox front door (AD-2). Other modules call only these functions.
-# - unchanged: the fast Chat Page poll, "no change?" from Redis only (story 4.2, AD-7).
-# - poll_messages: the slow Chat Page poll, new Messages + snapshot + cursor (story 4.2, AD-7).
+# - poll_conversation: a Conversation's new Messages + snapshot + cursor (story 4.2, AD-7).
+#   The Chat Page poll (chat_poll.py) calls it on its slow path.
 # - receive_message: save one Customer Message, once, with the next seq (AR-12, AR-13).
 #
 # This file is channel-neutral (NFR-9): it gets a Channel (channel.py) and never sees a
@@ -8,8 +8,6 @@
 #
 # Lock order: the Channel takes its own locks first (webchat: the visitor-token row), then
 # returns the Conversation row locked. Any new flow takes them in the same order.
-import uuid
-
 import redis
 from sqlalchemy.orm import Session
 
@@ -17,9 +15,9 @@ from app.core.errors import AppError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
-from app.core.versions import mark_conversation_changed, read_or_seed_version, read_version
+from app.core.versions import mark_conversation_changed, read_or_seed_version
 from app.modules.inbox.channel import Channel
-from app.modules.inbox.models import Message
+from app.modules.inbox.models import Conversation, Message
 from app.modules.inbox.repository import MessageRepository
 from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, MessageOut, SendMessageIn, detect_lang
 
@@ -28,12 +26,7 @@ from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, Mes
 CHAT_SEND_IP_LIMIT = 120
 CHAT_SEND_CONVERSATION_LIMIT = 30
 CHAT_SEND_WINDOW_SECONDS = 600  # 10 minutes; also how long the lock lasts
-# Poll limit (AR-12): an open Chat Page polls 12 times a minute, so 600 is many tabs behind
-# one carrier IP. Per IP only, no per-Conversation poll limit: a poll writes nothing, and
-# NFR-5's per-Conversation limit is on sends (story 4.1).
-CHAT_POLL_IP_LIMIT = 600
-CHAT_POLL_WINDOW_SECONDS = 60
-_CHAT_UNAVAILABLE = "Chat is not available right now. Please try again."
+CHAT_UNAVAILABLE = "Chat is not available right now. Please try again."
 
 
 class TooManyMessages(AppError):
@@ -46,30 +39,15 @@ class TooManyMessages(AppError):
         )
 
 
-class TooManyPolls(AppError):
-    def __init__(self, retry_after: int):
-        super().__init__(
-            code="too_many_polls",
-            message="Too many requests. Please wait a minute.",
-            status_code=429,
-            headers={"Retry-After": str(retry_after)},
-        )
-
-
-def chat_poll_ip_limiter() -> AttemptLimiter:
-    """Per IP, per Business. The router counts it before any database work. Key: "<business_id>:<ip>"."""
-    return AttemptLimiter(get_redis(), "chat_poll:ip", CHAT_POLL_IP_LIMIT, CHAT_POLL_WINDOW_SECONDS, _CHAT_UNAVAILABLE)
-
-
 def chat_send_ip_limiter() -> AttemptLimiter:
     """Per IP, per Business. The router counts it BEFORE any database work. Key: "<business_id>:<ip>"."""
-    return AttemptLimiter(get_redis(), "chat_send:ip", CHAT_SEND_IP_LIMIT, CHAT_SEND_WINDOW_SECONDS, _CHAT_UNAVAILABLE)
+    return AttemptLimiter(get_redis(), "chat_send:ip", CHAT_SEND_IP_LIMIT, CHAT_SEND_WINDOW_SECONDS, CHAT_UNAVAILABLE)
 
 
 def chat_send_conversation_limiter() -> AttemptLimiter:
     """Per Conversation. Key: "<business_id>:<conversation_id>"."""
     return AttemptLimiter(
-        get_redis(), "chat_send:conv", CHAT_SEND_CONVERSATION_LIMIT, CHAT_SEND_WINDOW_SECONDS, _CHAT_UNAVAILABLE
+        get_redis(), "chat_send:conv", CHAT_SEND_CONVERSATION_LIMIT, CHAT_SEND_WINDOW_SECONDS, CHAT_UNAVAILABLE
     )
 
 
@@ -87,31 +65,17 @@ def _out(row: Message) -> MessageOut:
 
 def chat_unavailable() -> AppError:
     """The 503 for a Redis failure on a chat route (fail closed, like the limiters)."""
-    return AppError("dependency_unavailable", _CHAT_UNAVAILABLE, 503)
+    return AppError("dependency_unavailable", CHAT_UNAVAILABLE, 503)
 
 
-def unchanged(conversation_id: uuid.UUID, version: int) -> bool:
-    """The fast poll's question: is this Conversation still at the version the cursor saw?
+def poll_conversation(session: Session, conversation: Conversation | None, after_seq: int) -> ChatPollOut:
+    """A Conversation's Messages after after_seq, a snapshot, and a new cursor.
 
-    Redis only, no Postgres. A missing version (Redis lost it) is never "unchanged": the slow
-    poll then seeds a new one. Run inside the Business's tenant scope.
+    Channel-neutral: the caller finds the Conversation (Channel.find_conversation), or passes
+    None before the first Message. Writes nothing to Postgres (AD-5). Run inside the tenant scope.
     """
-    try:
-        current = read_version(current_business_id(), conversation_id)
-    except redis.RedisError as error:
-        raise chat_unavailable() from error
-    return current is not None and current == version
-
-
-def poll_messages(session: Session, channel: Channel, after_seq: int) -> tuple[ChatPollOut, uuid.UUID | None]:
-    """The slow poll: the sender's Messages after after_seq, a snapshot, and a new cursor.
-
-    Also returns the Conversation id (None before the first Message), so the caller can
-    remember it for the fast poll. Writes nothing to Postgres (AD-5).
-    """
-    conversation = channel.find_conversation(session)
     if conversation is None:
-        return ChatPollOut(changed=True, messages=[], snapshot=None, cursor=None), None
+        return ChatPollOut(changed=True, messages=[], snapshot=None, cursor=None)
     business_id = current_business_id()
     # The order rule (core/versions.py): the version FIRST, then the Messages. A send that
     # commits in between leaves us with an older version, so the next poll reads again.
@@ -124,14 +88,11 @@ def poll_messages(session: Session, channel: Channel, after_seq: int) -> tuple[C
     # query and can be older than a row this query saw (each query sees the newest commits).
     # min(): a forged, too-high after_seq comes back down, so new Messages are never hidden.
     next_seq = rows[-1].seq if rows else min(after_seq, conversation.last_seq)
-    return (
-        ChatPollOut(
-            changed=True,
-            messages=[_out(row) for row in rows],
-            snapshot=ChatSnapshot(conversation_state=conversation.state),
-            cursor=ChatCursor(business_id=business_id, after_seq=next_seq, version=version).format(),
-        ),
-        conversation.id,
+    return ChatPollOut(
+        changed=True,
+        messages=[_out(row) for row in rows],
+        snapshot=ChatSnapshot(conversation_state=conversation.state),
+        cursor=ChatCursor(business_id=business_id, after_seq=next_seq, version=version).format(),
     )
 
 

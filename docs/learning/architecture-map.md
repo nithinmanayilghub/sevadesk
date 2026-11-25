@@ -167,7 +167,7 @@ must be cheap: it comes from Redis only, and Postgres is not touched.
 
 ```mermaid
 flowchart LR
-    CU([Chat Page<br/>cookie + cursor]) -->|"GET .../messages?cursor=v1.biz.seq.ver"| R[inbox router]
+    CU([Chat Page<br/>cookie + cursor]) -->|"GET .../messages?cursor=v1.biz.seq.ver"| R[inbox router → chat_poll]
     R --> M{Redis map<br/>chat_visitor:biz:hash<br/>slug matches?}
     M -->|yes| L1[count poll<br/>per IP]
     L1 --> V{Redis ver:biz:conv<br/>= cursor version?}
@@ -183,10 +183,11 @@ flowchart LR
 | Part | Lives in | What it guarantees |
 |---|---|---|
 | `ver:<business_id>:<conversation_id>` (version counter) | `core/versions.py` | goes up only **after** a commit; starts at a random big number, so a lost key never matches an old cursor |
+| Fast and slow paths in one module (`poll_chat`) | `inbox/chat_poll.py` | the router only passes the cookie token, cursor and IP; every poll rule (count once, cursor rule, Redis down = 503) lives in one place |
 | `chat_visitor:<business_id>:<token_hash>` (the map) | `inbox/webchat.py` | written only by the slug's own slow poll, so a hit proves the Business and the Conversation |
-| Order rule: version first, then Messages | `inbox/service.py` `poll_messages` | a send that commits between the two reads is never missed: the next poll reads again |
+| Order rule: version first, then Messages | `inbox/service.py` `poll_conversation` | a send that commits between the two reads is never missed: the next poll reads again |
 | Cursor `v1.<business>.<after_seq>.<version>` | `inbox/schemas.py` | the browser never reads inside it; a cursor we did not make = a full poll |
-| Poll limit 600 / 60 s per IP per Business | `inbox/service.py`, router | counted only after the map proves the Business, so a forged id makes no Redis key |
+| Poll limit 600 / 60 s per IP per Business | `inbox/chat_poll.py` | counted only after the map proves the Business, so a forged id makes no Redis key |
 | `usePoll` | `frontend/src/api/usePoll.ts` | one loop for every live screen: 5 s, never two at once, abort at 5 s, stops when hidden |
 | `chatItems` | `frontend/src/lib/chatPoll.ts` | one list sorted by `seq`: a reply shows below the Customer's own send |
 

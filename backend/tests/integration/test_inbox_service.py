@@ -28,7 +28,8 @@ def send(business_id: uuid.UUID, token: str, body: str = "Fan not working", clie
 
 def bodies(business_id: uuid.UUID, token: str) -> list[str]:
     with Session(get_engine()) as session, session.begin(), tenant_scope(business_id):
-        return [m.body for m in service.poll_messages(session, WebchatChannel(token), 0)[0].messages]
+        conversation = WebchatChannel(token).find_conversation(session)
+        return [m.body for m in service.poll_conversation(session, conversation, 0).messages]
 
 
 def count(model, business_id: uuid.UUID) -> int:
@@ -239,4 +240,5 @@ def test_another_channel_needs_no_service_change(sign_up_owner):
         with Session(get_engine()) as session, session.begin(), tenant_scope(business_id):
             service.receive_message(session, channel, SendMessageIn(body=body, client_message_id=uuid.uuid4()))
     with Session(get_engine()) as session, tenant_scope(business_id):
-        assert [m.body for m in service.poll_messages(session, channel, 0)[0].messages] == ["one", "two"]
+        answer = service.poll_conversation(session, channel.find_conversation(session), 0)
+        assert [m.body for m in answer.messages] == ["one", "two"]

@@ -16,7 +16,7 @@ from app.core.db import get_engine
 from app.core.redis_client import get_redis
 from app.core.settings import get_settings
 from app.core.versions import version_key
-from app.modules.inbox import service
+from app.modules.inbox import chat_poll
 from app.modules.inbox.models import Conversation, Message, VisitorToken
 from app.modules.inbox.repository import MessageRepository
 from app.modules.inbox.schemas import ChatCursor
@@ -228,7 +228,7 @@ def test_unknown_slug_with_a_cursor_is_not_found(client, shop):
 def test_poll_limit_returns_429(client, shop, monkeypatch, path):
     post(client, shop.slug)
     cursor = poll(client, shop.slug)["cursor"]  # poll 1 (slow)
-    monkeypatch.setattr(service, "CHAT_POLL_IP_LIMIT", 2)
+    monkeypatch.setattr(chat_poll, "CHAT_POLL_IP_LIMIT", 2)
     params = {"cursor": cursor} if path == "fast" else {}
     assert client.get(messages_url(shop.slug), params=params).status_code == 200  # poll 2
     response = client.get(messages_url(shop.slug), params=params)  # poll 3
