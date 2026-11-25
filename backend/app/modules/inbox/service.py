@@ -1,4 +1,5 @@
 # The inbox front door (AD-2). Other modules call only these functions.
+# - unchanged: the fast Chat Page poll, "no change?" from Redis only (story 4.2, AD-7).
 # - poll_messages: the slow Chat Page poll, new Messages + snapshot + cursor (story 4.2, AD-7).
 # - receive_message: save one Customer Message, once, with the next seq (AR-12, AR-13).
 #
@@ -16,7 +17,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
-from app.core.versions import mark_conversation_changed, read_or_seed_version
+from app.core.versions import mark_conversation_changed, read_or_seed_version, read_version
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Message
 from app.modules.inbox.repository import MessageRepository
@@ -27,6 +28,11 @@ from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, Mes
 CHAT_SEND_IP_LIMIT = 120
 CHAT_SEND_CONVERSATION_LIMIT = 30
 CHAT_SEND_WINDOW_SECONDS = 600  # 10 minutes; also how long the lock lasts
+# Poll limit (AR-12): an open Chat Page polls 12 times a minute, so 600 is many tabs behind
+# one carrier IP. Per IP only, no per-Conversation poll limit: a poll writes nothing, and
+# NFR-5's per-Conversation limit is on sends (story 4.1).
+CHAT_POLL_IP_LIMIT = 600
+CHAT_POLL_WINDOW_SECONDS = 60
 _CHAT_UNAVAILABLE = "Chat is not available right now. Please try again."
 
 
@@ -38,6 +44,21 @@ class TooManyMessages(AppError):
             status_code=429,
             headers={"Retry-After": str(retry_after)},
         )
+
+
+class TooManyPolls(AppError):
+    def __init__(self, retry_after: int):
+        super().__init__(
+            code="too_many_polls",
+            message="Too many requests. Please wait a minute.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def chat_poll_ip_limiter() -> AttemptLimiter:
+    """Per IP, per Business. The router counts it before any database work. Key: "<business_id>:<ip>"."""
+    return AttemptLimiter(get_redis(), "chat_poll:ip", CHAT_POLL_IP_LIMIT, CHAT_POLL_WINDOW_SECONDS, _CHAT_UNAVAILABLE)
 
 
 def chat_send_ip_limiter() -> AttemptLimiter:
@@ -67,6 +88,19 @@ def _out(row: Message) -> MessageOut:
 def chat_unavailable() -> AppError:
     """The 503 for a Redis failure on a chat route (fail closed, like the limiters)."""
     return AppError("dependency_unavailable", _CHAT_UNAVAILABLE, 503)
+
+
+def unchanged(conversation_id: uuid.UUID, version: int) -> bool:
+    """The fast poll's question: is this Conversation still at the version the cursor saw?
+
+    Redis only, no Postgres. A missing version (Redis lost it) is never "unchanged": the slow
+    poll then seeds a new one. Run inside the Business's tenant scope.
+    """
+    try:
+        current = read_version(current_business_id(), conversation_id)
+    except redis.RedisError as error:
+        raise chat_unavailable() from error
+    return current is not None and current == version
 
 
 def poll_messages(session: Session, channel: Channel, after_seq: int) -> tuple[ChatPollOut, uuid.UUID | None]:

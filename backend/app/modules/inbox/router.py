@@ -3,8 +3,15 @@
 #   Messages after the cursor, a snapshot, and a new cursor.
 # - POST /api/v1/chat/{chat_slug}/messages: send one Message.
 #
-# Both are public: no ActorDep. The slug picks the Business (ChatBusinessDep, AD-3 b) and the
-# visitor cookie picks the chat (AD-16). Neither takes a conversation_id (AR-10).
+# Both are public: no ActorDep. The slug picks the Business (AD-3 b) and the visitor cookie
+# picks the chat (AD-16). Neither takes a conversation_id (AR-10).
+#
+# The poll has two paths:
+# - Fast: cursor + cookie -> Redis map -> Redis version. Same version = "no change". No Postgres.
+# - Slow: everything else. Postgres finds the Business and the Messages, then fills the map.
+# AD-3 note: on the fast path the tenant comes from the visitor token. The cursor's Business id
+# is only a claim; a map entry proves it, and only the slug's own slow path writes one.
+import uuid
 from typing import Annotated
 
 import redis
@@ -13,6 +20,7 @@ from fastapi import APIRouter, Query, Request, Response
 from app.core.client_ip import client_ip
 from app.core.db import SessionDep
 from app.core.errors import ErrorEnvelope
+from app.core.tenancy import tenant_scope
 from app.core.tokens import new_token
 from app.modules.business.dependencies import ChatBusinessDep, chat_business_scope
 from app.modules.inbox import service
@@ -38,13 +46,21 @@ def _visitor_token(cookie: str | None, response: Response) -> str:
     return token
 
 
+def _count_poll(request: Request, business_id: uuid.UUID) -> None:
+    """One poll against the per-IP limit (count first, like the send limit). May raise 429 or 503."""
+    wait = service.chat_poll_ip_limiter().hit(f"{business_id}:{client_ip(request)}")
+    if wait is not None:
+        raise service.TooManyPolls(retry_after=wait)
+
+
 @router.get(
     "/chat/{chat_slug}/messages",
     operation_id="list_chat_messages",
-    responses={404: _ERROR, 503: _ERROR},
+    responses={404: _ERROR, 429: _ERROR, 503: _ERROR},
 )
 def list_chat_messages(
     chat_slug: str,
+    request: Request,
     response: Response,
     session: SessionDep,
     cookie: VisitorTokenCookie = None,
@@ -52,16 +68,37 @@ def list_chat_messages(
 ) -> ChatPollOut:
     # No ChatBusinessDep here: a dependency would query Postgres before this code runs.
     # SessionDep is lazy: it opens no database connection until the first query.
+    slug = chat_slug.lower()
     parsed = ChatCursor.parse(cursor)  # None for no cursor, or one we did not make
-    token = _visitor_token(cookie, response)
-    channel = WebchatChannel(token)
+    known_browser = usable_token(cookie) is not None  # a new browser cannot be in the map
+    channel = WebchatChannel(_visitor_token(cookie, response))
+    counted = False
+
+    # The fast path: Redis only.
+    if parsed is not None and known_browser:
+        try:
+            conversation_id = channel.cached_conversation(parsed.business_id, slug)
+        except redis.RedisError as error:
+            raise service.chat_unavailable() from error
+        if conversation_id is not None:
+            # Proven now: this browser chats in parsed.business_id via this slug. So only now
+            # count the poll there (a forged Business id never gets a counter in Redis).
+            with tenant_scope(parsed.business_id):
+                _count_poll(request, parsed.business_id)
+                counted = True
+                if service.unchanged(conversation_id, parsed.version):
+                    return ChatPollOut(changed=False, messages=[], snapshot=None, cursor=parsed.format())
+
+    # The slow path: Postgres. A bad or unknown slug is a 404 here.
     with chat_business_scope(session, chat_slug) as business:
+        if not counted:  # a counted fast path proved this same Business: count once only
+            _count_poll(request, business.business_id)
         # A cursor from another Business (the cookie is shared by every slug) starts at 0.
         after_seq = parsed.after_seq if parsed and parsed.business_id == business.business_id else 0
         answer, conversation_id = service.poll_messages(session, channel, after_seq)
         if conversation_id is not None:
             try:
-                channel.remember_conversation(chat_slug.lower(), conversation_id)
+                channel.remember_conversation(slug, conversation_id)
             except redis.RedisError as error:
                 raise service.chat_unavailable() from error
     return answer

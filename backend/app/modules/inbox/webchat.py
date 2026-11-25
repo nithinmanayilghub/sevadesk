@@ -67,8 +67,8 @@ class WebchatChannel:
     def __init__(self, token: str):
         self._token = token
 
-    def _hash(self) -> str:
-        return hash_token(f"{current_business_id()}:{self._token}")
+    def _hash(self, business_id: uuid.UUID | None = None) -> str:
+        return hash_token(f"{business_id or current_business_id()}:{self._token}")
 
     def find_conversation(self, session: Session) -> Conversation | None:
         visitor = VisitorTokenRepository(session).find(self._hash())
@@ -84,6 +84,24 @@ class WebchatChannel:
         knows the Business and the Conversation without Postgres (story 4.2). May raise RedisError.
         """
         get_redis().set(_map_key(current_business_id(), self._hash()), f"{slug} {conversation_id}", ex=_MAP_SECONDS)
+
+    def cached_conversation(self, business_id: uuid.UUID, slug: str) -> uuid.UUID | None:
+        """The fast poll's lookup: this browser's Conversation in that Business, via that slug.
+
+        No tenant scope needed: the cursor names the Business. That is only a claim, so it
+        counts only if the slow poll of THIS slug wrote the entry (the slug must match).
+        None for a miss or a bad value. May raise RedisError.
+        """
+        value = get_redis().get(_map_key(business_id, self._hash(business_id)))
+        if value is None:
+            return None
+        saved_slug, _, raw_id = value.decode().partition(" ")
+        if saved_slug != slug:
+            return None  # the cookie is shared by every slug: B's entry is not proof for A
+        try:
+            return uuid.UUID(raw_id)
+        except ValueError:
+            return None
 
     def open_conversation(self, session: Session) -> Conversation:
         tokens, conversations = VisitorTokenRepository(session), ConversationRepository(session)
