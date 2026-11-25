@@ -1,4 +1,4 @@
-# SevaDesk architecture map (Epic 4, after Story 4.1)
+# SevaDesk architecture map (Epic 4, after Story 4.2)
 
 Epic 1 built the **skeleton**: every part exists and talks to the others, but the app only says
 "Namaste". Epics 2+ put real features into this skeleton.
@@ -159,3 +159,36 @@ flowchart LR
 | No `conversation_id` in public routes | `inbox/schemas.py`, test | a visitor cannot ask for someone else's chat |
 
 Tenant sources now: **session cookie** (team), **chat slug** (Customers). Epic 6 adds the **job payload**.
+
+## 8. Epic 4: the Chat Page stays live (Story 4.2)
+
+The page asks "anything new?" every 5 s (a **poll**). Most answers are "no", so that answer
+must be cheap: it comes from Redis only, and Postgres is not touched.
+
+```mermaid
+flowchart LR
+    CU([Chat Page<br/>cookie + cursor]) -->|"GET .../messages?cursor=v1.biz.seq.ver"| R[inbox router]
+    R --> M{Redis map<br/>chat_visitor:biz:hash<br/>slug matches?}
+    M -->|yes| L1[count poll<br/>per IP]
+    L1 --> V{Redis ver:biz:conv<br/>= cursor version?}
+    V -->|yes| NC["changed: false<br/>(no Postgres)"]
+    M -->|no| SLOW
+    V -->|no| SLOW[slow path: slug → Business<br/>count poll, read ver FIRST,<br/>then Messages after seq]
+    SLOW --> DB[(Postgres)]
+    SLOW --> MAP[write the map again]
+    SLOW --> NEW["changed: true<br/>new Messages + snapshot + cursor"]
+    SEND[POST a Message] -->|after commit| BUMP[INCR ver:biz:conv]
+```
+
+| Part | Lives in | What it guarantees |
+|---|---|---|
+| `ver:<business_id>:<conversation_id>` (version counter) | `core/versions.py` | goes up only **after** a commit; starts at a random big number, so a lost key never matches an old cursor |
+| `chat_visitor:<business_id>:<token_hash>` (the map) | `inbox/webchat.py` | written only by the slug's own slow poll, so a hit proves the Business and the Conversation |
+| Order rule: version first, then Messages | `inbox/service.py` `poll_messages` | a send that commits between the two reads is never missed: the next poll reads again |
+| Cursor `v1.<business>.<after_seq>.<version>` | `inbox/schemas.py` | the browser never reads inside it; a cursor we did not make = a full poll |
+| Poll limit 600 / 60 s per IP per Business | `inbox/service.py`, router | counted only after the map proves the Business, so a forged id makes no Redis key |
+| `usePoll` | `frontend/src/api/usePoll.ts` | one loop for every live screen: 5 s, never two at once, abort at 5 s, stops when hidden |
+| `chatItems` | `frontend/src/lib/chatPoll.ts` | one list sorted by `seq`: a reply shows below the Customer's own send |
+
+Tenant sources now: **session cookie** (team), **chat slug** (Customers), and on the fast poll
+the **visitor token**, proven by the map. Epic 6 adds the **job payload**.

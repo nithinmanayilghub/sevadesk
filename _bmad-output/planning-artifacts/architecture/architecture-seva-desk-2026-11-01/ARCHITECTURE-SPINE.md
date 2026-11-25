@@ -103,6 +103,7 @@ flowchart TD
   - **No stuck replies.** `reply_pending` is derived, never stored: last Customer `seq` > last reply `seq` and state is `agent`. Every pending reply ends within 30 s in an Agent Message or the FR-22 message; a SAQ job timeout plus an aborted-job handler guarantee this when the worker crashes.
   - Chat Page and Inbox poll one endpoint shape. It returns new Messages plus a snapshot: `conversation_state`, `reply_pending`, and the Booking status. `inbox` composes the Booking status by calling `bookings`.
   - **Cheap polls.** After each commit that changes a Conversation or its Booking, a Redis counter `ver:<business_id>:<conversation_id>` goes up. A poll whose client version matches the counter returns "no change" without touching Postgres.
+    - *Story 4.2 (decision A):* the fast poll finds the Conversation through a Redis map `chat_visitor:<business_id>:<token_hash>` → `"<slug> <conversation_id>"`, written only by the slug's own slow poll. No signed cursor, no new secret.
   - Polling runs every 1–2 s while a reply is pending, never more than 5 s apart while the tab is visible, and stops when the tab is hidden. Poll endpoints are rate-limited.
 
 ### AD-8 — The agent gets facts only from tools; money never comes from the model
