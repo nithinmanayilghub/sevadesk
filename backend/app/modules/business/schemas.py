@@ -250,3 +250,10 @@ class ChatPageOut(BaseModel):
     # False until the Business has an active Service AND Working Hours.
     taking_requests: bool
     services: list[ChatServiceOut]  # active only, oldest first
+
+
+class InboxFacts(BaseModel):
+    """What the Inbox needs from the Business (story 4.3): the chat link and the timezone."""
+
+    chat_slug: str  # the empty Inbox's "Copy link"
+    timezone: str  # Inbox times show in it (UX-DR4), e.g. "Asia/Kolkata"

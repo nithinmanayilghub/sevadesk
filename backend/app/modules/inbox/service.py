@@ -16,10 +16,24 @@ from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
 from app.core.versions import mark_conversation_changed, read_or_seed_version
+from app.modules.accounts import service as accounts_service
+from app.modules.accounts.schemas import Actor, Permission
+from app.modules.business import service as business_service
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Conversation, Message
-from app.modules.inbox.repository import MessageRepository
-from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, MessageOut, SendMessageIn, detect_lang
+from app.modules.inbox.repository import ConversationRepository, MessageRepository
+from app.modules.inbox.schemas import (
+    ChatCursor,
+    ChatPollOut,
+    ChatSnapshot,
+    InboxCursor,
+    InboxPage,
+    InboxRow,
+    MessageOut,
+    SendMessageIn,
+    detect_lang,
+    preview,
+)
 
 # Send limits (NFR-5), counted in Redis. Per IP is high on purpose: Indian mobile carriers put
 # many phones behind one IP address (CGNAT). Both count per Business (AD-3 key rule).
@@ -133,3 +147,49 @@ def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> 
     # 5. Open Chat Pages must see it: raise the version, but only after the commit (AD-7).
     mark_conversation_changed(session, conversation.id)
     return _out(row)
+
+
+INBOX_PAGE_SIZE = 20
+
+
+class InvalidCursor(AppError):
+    def __init__(self):
+        super().__init__(code="invalid_cursor", message="This list is out of date. Reload the page.", status_code=422)
+
+
+def _row(conversation: Conversation, newest: Message) -> InboxRow:
+    return InboxRow(
+        conversation_id=conversation.id,
+        state=conversation.state,
+        last_message_preview=preview(newest.body),
+        last_message_at=conversation.last_message_at,
+    )
+
+
+def list_inbox(session: Session, actor: Actor, cursor: str | None, limit: int) -> InboxPage:
+    """One page of the Inbox: Needs Human first, then newest activity first (FR-23).
+
+    cursor=None is the first page. A page's next_cursor names its last row; the next page
+    starts right after that row (keyset paging), so a chat never shows twice or goes missing.
+    """
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    after = None
+    if cursor is not None:
+        after = InboxCursor.parse(cursor)
+        if after is None:
+            raise InvalidCursor()
+    rows = ConversationRepository(session).inbox_page(after, limit)
+    shown = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit:  # the extra row came back: there is a next page
+        last, _ = shown[-1]
+        next_cursor = InboxCursor(
+            pinned=last.state == "handoff", last_message_at=last.last_message_at, conversation_id=last.id
+        ).format()
+    facts = business_service.inbox_facts(session)
+    return InboxPage(
+        conversations=[_row(conversation, newest) for conversation, newest in shown],
+        next_cursor=next_cursor,
+        chat_slug=facts.chat_slug,
+        timezone=facts.timezone,
+    )

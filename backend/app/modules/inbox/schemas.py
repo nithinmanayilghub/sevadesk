@@ -7,7 +7,7 @@ import re
 import unicodedata
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
@@ -111,3 +111,76 @@ class ChatCursor:
         except ValueError:
             return None
         return cls(business_id=business_id, after_seq=int(match[2]), version=int(match[3]))
+
+
+# ---------------------------------------------------------------- the Inbox list (story 4.3, FR-23)
+
+PREVIEW_CHARS = 120
+
+
+def preview(body: str) -> str:
+    """A Message as one short line: line breaks and runs of spaces become one space, then cut.
+
+    The cut counts code points, so it never splits one character; it can split a Devanagari
+    cluster (क्ष) at the very end, which the screen hides anyway (CSS truncate).
+    """
+    return " ".join(body.split())[:PREVIEW_CHARS]
+
+
+class InboxRow(BaseModel):
+    """One Conversation in the Inbox list. No name or phone yet: no story has collected them."""
+
+    conversation_id: uuid.UUID
+    state: Literal["agent", "handoff", "closed"]  # the badge: Agent / Needs Human / Closed
+    last_message_preview: str  # one line, at most PREVIEW_CHARS
+    last_message_at: datetime  # sorts the list; shown in the Business timezone
+
+
+class InboxPage(BaseModel):
+    """One page of the Inbox, Needs Human first, then newest activity first."""
+
+    conversations: list[InboxRow]
+    next_cursor: str | None  # send it back for the next page; None on the last page
+    chat_slug: str  # the empty Inbox's "Copy link" (Staff cannot read /setup)
+    timezone: str  # the Business timezone, e.g. "Asia/Kolkata": times show in it (UX-DR4)
+
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+_ONE_MICROSECOND = timedelta(microseconds=1)
+# v1.<pinned 0|1>.<microseconds since 1970 UTC>.<conversation_id>. fullmatch, like ChatCursor.
+_INBOX_CURSOR_SHAPE = re.compile(r"v1\.([01])\.(\d{1,17})\.([0-9a-f-]{36})")
+
+
+@dataclass(frozen=True)
+class InboxCursor:
+    """A keyset cursor: the sort key of the last row on a page. The next page starts after it.
+
+    Why not "skip the first 20 rows" (OFFSET)? A new Message moves a chat to the top, so
+    every row shifts by one, and OFFSET would show one row twice. A sort key does not shift.
+    The time is whole microseconds (an integer), so it round-trips exactly (no float).
+    Nothing in it is secret: it only says where to start, inside the User's own Business.
+    """
+
+    pinned: bool  # the row was Needs Human
+    last_message_at: datetime
+    conversation_id: uuid.UUID  # the tie-breaker when two rows have the same time
+
+    def format(self) -> str:
+        micros = (self.last_message_at - _EPOCH) // _ONE_MICROSECOND
+        return f"v1.{int(self.pinned)}.{micros}.{self.conversation_id}"
+
+    @classmethod
+    def parse(cls, raw: str) -> InboxCursor | None:
+        """The cursor, or None for anything we did not make."""
+        match = _INBOX_CURSOR_SHAPE.fullmatch(raw)
+        if match is None:
+            return None
+        try:
+            conversation_id = uuid.UUID(match[3])  # 36 dashes fit the shape but are not a UUID
+        except ValueError:
+            return None
+        return cls(
+            pinned=match[1] == "1",
+            last_message_at=_EPOCH + int(match[2]) * _ONE_MICROSECOND,
+            conversation_id=conversation_id,
+        )

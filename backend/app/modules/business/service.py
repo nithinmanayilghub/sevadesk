@@ -35,6 +35,7 @@ from app.modules.business.schemas import (
     ClosedDayIn,
     ClosedDayList,
     ClosedDayOut,
+    InboxFacts,
     OpenHours,
     ServiceIn,
     ServiceList,
@@ -269,3 +270,12 @@ def get_chat_page(session: Session, business: ChatBusiness) -> ChatPageOut:
         taking_requests=has_services and has_working_hours,
         services=services,
     )
+
+
+def inbox_facts(session: Session) -> InboxFacts:
+    """The current Business's chat slug and timezone, for the Inbox (story 4.3).
+
+    No Role check here: inbox calls it only after its own check (USE_INBOX_AND_BOOKINGS).
+    """
+    business = BusinessRepository(session).get_current()
+    return InboxFacts(chat_slug=business.chat_slug, timezone=business.timezone)

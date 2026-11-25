@@ -6,12 +6,13 @@
 # (for example a last_seq another request just raised), so we ask SQLAlchemy to refresh the copy.
 import uuid
 
-from sqlalchemy import Select
+from sqlalchemy import Select, and_, literal, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.repository import TenantRepository
 from app.core.tenancy import current_business_id
-from app.modules.inbox.models import Conversation, Customer, Message, VisitorToken
+from app.modules.inbox.models import PINNED, Conversation, Customer, Message, VisitorToken
+from app.modules.inbox.schemas import InboxCursor
 
 
 def _locked[T](query: Select[T]) -> Select[T]:
@@ -61,6 +62,38 @@ class ConversationRepository(TenantRepository[Conversation]):
             .limit(1)
         )
         return self.session.scalars(_locked(query) if lock else query).one_or_none()
+
+    def inbox_page(self, after: InboxCursor | None, limit: int) -> list[tuple[Conversation, Message]]:
+        """Up to limit + 1 Conversations with their newest Message, in the Inbox order (story 4.3).
+
+        It reads two tenant tables in one JOIN, so it writes the tenant filter by hand: the
+        base class filters one model only. The join itself also matches business_id.
+
+        The extra row is not shown: it only tells the caller "there is a next page".
+        The newest Message is the one with seq = last_seq; (business_id, conversation_id, seq)
+        is unique, so the join finds exactly one, through that unique index.
+        """
+        business_id = current_business_id()
+        query = (
+            select(Conversation, Message)
+            .join(
+                Message,
+                and_(
+                    Message.business_id == Conversation.business_id,
+                    Message.conversation_id == Conversation.id,
+                    Message.seq == Conversation.last_seq,
+                ),
+            )
+            .where(Conversation.business_id == business_id)
+            .order_by(PINNED.desc(), Conversation.last_message_at.desc(), Conversation.id.desc())
+            .limit(limit + 1)
+        )
+        if after is not None:
+            # Row compare: "comes after the cursor row in this order". Every part sorts DESC,
+            # so "after" means "less than" for the whole row (false < true for PINNED).
+            sort_key = tuple_(PINNED.self_group(), Conversation.last_message_at, Conversation.id)
+            query = query.where(sort_key < tuple_(literal(after.pinned), after.last_message_at, after.conversation_id))
+        return [(conversation, message) for conversation, message in self.session.execute(query)]
 
 
 class MessageRepository(TenantRepository[Message]):
