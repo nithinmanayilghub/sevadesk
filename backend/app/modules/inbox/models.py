@@ -14,7 +14,16 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKeyConstraint, Index, Text, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    Text,
+    UniqueConstraint,
+    func,
+    literal_column,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -74,7 +83,28 @@ class Conversation(TenantModel):
     # The seq of the newest Message. The next Message gets last_seq + 1, set while this
     # row is locked, so two Messages never get the same number (AD-7).
     last_seq: Mapped[int] = mapped_column(server_default="0")
+    # When the newest Message arrived: the Inbox sorts by it (story 4.3). A copy of a fact that
+    # lives on the messages (a "denormalized" column), so the sort never scans all Messages.
+    # Set by every new Message: the customer now; user and agent replies (4.4, Epic 6) must too.
+    last_message_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# "Needs Human first" (story 4.3): true for a handoff Conversation. One expression for the
+# index below AND every Inbox query (sort, page, count). 'handoff' is written as fixed SQL text,
+# not sent as a parameter: Postgres matches a query to an expression index only when the query
+# says the same thing, and "state = $1" (a prepared query's parameter) is not "state = 'handoff'".
+PINNED = Conversation.state == literal_column("'handoff'")
+
+# The Inbox order: Needs Human first, then newest activity, then id as a tie-breaker. One index
+# serves the list, its pages (keyset cursor), and the count. Migration 0010 creates it.
+Index(
+    "ix_conversations_inbox_order",
+    Conversation.business_id,
+    PINNED.self_group().desc(),  # self_group: the brackets an index expression needs
+    Conversation.last_message_at.desc(),
+    Conversation.id.desc(),
+)
 
 
 class Message(TenantModel):

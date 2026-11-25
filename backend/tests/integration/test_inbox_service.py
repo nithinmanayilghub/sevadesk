@@ -242,3 +242,44 @@ def test_another_channel_needs_no_service_change(sign_up_owner):
     with Session(get_engine()) as session, tenant_scope(business_id):
         answer = service.poll_conversation(session, channel.find_conversation(session), 0)
         assert [m.body for m in answer.messages] == ["one", "two"]
+
+
+def _last_message_at(business_id: uuid.UUID):
+    # A direct database read of the one Conversation in this Business.
+    with Session(get_engine()) as session:
+        return session.scalars(
+            select(Conversation.last_message_at).where(Conversation.business_id == business_id)
+        ).one()
+
+
+def test_last_message_at_follows_the_newest_message(sign_up_owner):
+    # Behaviour: the Conversation remembers when its newest Message arrived (the Inbox order, story 4.3).
+    _, business_id = sign_up_owner()
+    token = new_token()
+    send(business_id, token, "first")
+    second = send(business_id, token, "second")
+    assert _last_message_at(business_id) == second.created_at
+
+
+def test_retry_leaves_last_message_at_unchanged(sign_up_owner):
+    # Behaviour: a retry of a saved Message is not new activity, so the time stays.
+    _, business_id = sign_up_owner()
+    token, client_id = new_token(), uuid.uuid4()
+    send(business_id, token, "hello", client_id)
+    before = _last_message_at(business_id)
+    send(business_id, token, "hello", client_id)
+    assert _last_message_at(business_id) == before
+
+
+def test_last_message_at_never_moves_back(sign_up_owner):
+    # Behaviour: a send whose transaction started earlier cannot move the time back.
+    _, business_id = sign_up_owner()
+    token = new_token()
+    send(business_id, token, "first")
+    with get_engine().begin() as connection:
+        connection.execute(
+            text("UPDATE conversations SET last_message_at = '2099-01-01 00:00+00' WHERE business_id = :b"),
+            {"b": business_id},
+        )
+    send(business_id, token, "second")
+    assert _last_message_at(business_id).year == 2099

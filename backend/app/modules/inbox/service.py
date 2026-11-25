@@ -127,6 +127,9 @@ def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> 
     )
     # add() flushed the INSERT; refresh reads back created_at and actions the database filled in.
     session.refresh(row)
+    # The Inbox order (story 4.3). max(): now() is when the transaction STARTED, so a send that
+    # started earlier but waited for the lock can save later with an older time. Never go back.
+    conversation.last_message_at = max(conversation.last_message_at, row.created_at)
     # 5. Open Chat Pages must see it: raise the version, but only after the commit (AD-7).
     mark_conversation_changed(session, conversation.id)
     return _out(row)
