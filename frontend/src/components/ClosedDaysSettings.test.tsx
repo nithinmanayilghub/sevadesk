@@ -81,7 +81,7 @@ test("Remove sends DELETE, reloads, and moves focus to the date box", async () =
   expect(DELETE).toHaveBeenCalledWith("/api/v1/closed-days/{closed_day_id}", {
     params: { path: { closed_day_id: "c-1" } },
   });
-  expect(screen.getByLabelText("Date")).toHaveFocus();
+  await vi.waitFor(() => expect(screen.getByLabelText("Date")).toHaveFocus()); // focus moves in an effect
 });
 
 test("a Remove that finds the day already gone reloads the list", async () => {

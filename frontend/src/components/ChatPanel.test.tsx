@@ -124,7 +124,8 @@ test("no notice when the chat already has Messages", async () => {
   panel();
   await screen.findByText("Fan not working");
   expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
-  expect(onHasMessages).toHaveBeenLastCalledWith(true);
+  // onHasMessages runs in a useEffect, which may run just after the text shows: wait for it.
+  await vi.waitFor(() => expect(onHasMessages).toHaveBeenLastCalledWith(true));
 });
 
 test("no composer and no notice when the Business is not taking requests", async () => {

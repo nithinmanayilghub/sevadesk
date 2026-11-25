@@ -59,7 +59,9 @@ test("a Price error shows next to the field and gets focus", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add Service" }));
   expect(await screen.findByText("Enter a Price in rupees, for example 499.")).toBeInTheDocument();
   const price = screen.getByLabelText("Price (₹)");
-  expect(price).toHaveFocus();
+  // Focus moves in a useEffect, which React may run just AFTER the error text is on screen:
+  // wait for it, or a slow CI machine checks too early (flaky before).
+  await vi.waitFor(() => expect(price).toHaveFocus());
   expect(price).toHaveAttribute("aria-invalid", "true");
 });
 

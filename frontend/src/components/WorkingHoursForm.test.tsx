@@ -99,7 +99,8 @@ test("a field error shows under its day, and focus moves to the first error", as
   fireEvent.click(screen.getByRole("button", { name: "Save hours" }));
   expect(await day("Tuesday").findByText("End time must be after the start time.")).toBeInTheDocument();
   expect(day("Friday").getByText("Enter an end time.")).toBeInTheDocument();
-  expect(day("Tuesday").getByLabelText("End")).toHaveFocus(); // Tuesday comes before Friday
+  // Focus moves in a useEffect, just after the text shows: wait for it (flaky on slow CI before).
+  await vi.waitFor(() => expect(day("Tuesday").getByLabelText("End")).toHaveFocus()); // Tuesday comes before Friday
   expect(day("Tuesday").getByLabelText("End")).toHaveAttribute("aria-invalid", "true");
 });
 
