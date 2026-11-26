@@ -16,10 +16,25 @@ from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
 from app.core.versions import mark_conversation_changed, read_or_seed_version
+from app.modules.accounts import service as accounts_service
+from app.modules.accounts.schemas import Actor, Permission
+from app.modules.business import service as business_service
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Conversation, Message
-from app.modules.inbox.repository import MessageRepository
-from app.modules.inbox.schemas import ChatCursor, ChatPollOut, ChatSnapshot, MessageOut, SendMessageIn, detect_lang
+from app.modules.inbox.repository import ConversationRepository, MessageRepository
+from app.modules.inbox.schemas import (
+    ChatCursor,
+    ChatPollOut,
+    ChatSnapshot,
+    InboxCursor,
+    InboxPage,
+    InboxRow,
+    MessageOut,
+    NeedsHumanCount,
+    SendMessageIn,
+    detect_lang,
+    preview,
+)
 
 # Send limits (NFR-5), counted in Redis. Per IP is high on purpose: Indian mobile carriers put
 # many phones behind one IP address (CGNAT). Both count per Business (AD-3 key rule).
@@ -127,6 +142,92 @@ def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> 
     )
     # add() flushed the INSERT; refresh reads back created_at and actions the database filled in.
     session.refresh(row)
+    # The Inbox order (story 4.3). max(): now() is when the transaction STARTED, so a send that
+    # started earlier but waited for the lock can save later with an older time. Never go back.
+    conversation.last_message_at = max(conversation.last_message_at, row.created_at)
     # 5. Open Chat Pages must see it: raise the version, but only after the commit (AD-7).
     mark_conversation_changed(session, conversation.id)
     return _out(row)
+
+
+INBOX_PAGE_SIZE = 20
+
+
+class InvalidCursor(AppError):
+    def __init__(self):
+        super().__init__(code="invalid_cursor", message="This list is out of date. Reload the page.", status_code=422)
+
+
+def _row(conversation: Conversation, newest: Message) -> InboxRow:
+    return InboxRow(
+        conversation_id=conversation.id,
+        state=conversation.state,
+        last_message_preview=preview(newest.body),
+        last_message_at=conversation.last_message_at,
+    )
+
+
+def list_inbox(session: Session, actor: Actor, cursor: str | None, limit: int) -> InboxPage:
+    """One page of the Inbox: Needs Human first, then newest activity first (FR-23).
+
+    cursor=None is the first page. A page's next_cursor names its last row; the next page
+    starts right after that row (keyset paging), so a chat never shows twice or goes missing.
+    """
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    after = None
+    if cursor is not None:
+        after = InboxCursor.parse(cursor)
+        if after is None:
+            raise InvalidCursor()
+    rows = ConversationRepository(session).inbox_page(after, limit)
+    shown = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit:  # the extra row came back: there is a next page
+        last, _ = shown[-1]
+        next_cursor = InboxCursor(
+            pinned=last.state == "handoff", last_message_at=last.last_message_at, conversation_id=last.id
+        ).format()
+    facts = business_service.inbox_facts(session)
+    return InboxPage(
+        conversations=[_row(conversation, newest) for conversation, newest in shown],
+        next_cursor=next_cursor,
+        chat_slug=facts.chat_slug,
+        timezone=facts.timezone,
+    )
+
+
+# The Inbox poll limit (AD-7: poll endpoints are rate-limited). One budget per team member, for
+# both Inbox routes. An open Inbox tab polls 2 routes every 5 s = 24 a minute, so 120 a minute
+# is room for 5 tabs (a phone and a laptop, say). A 60 s window keeps a lockout short.
+INBOX_POLL_LIMIT = 120
+INBOX_POLL_WINDOW_SECONDS = 60
+
+
+class TooManyInboxPolls(AppError):
+    def __init__(self, retry_after: int):
+        super().__init__(
+            code="too_many_requests",
+            message="The inbox is busy. Please try again in a minute.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def inbox_poll_limiter() -> AttemptLimiter:
+    """Per member, per Business. Key: "<business_id>:<membership_id>". Redis down = 503."""
+    return AttemptLimiter(
+        get_redis(), "inbox_poll", INBOX_POLL_LIMIT, INBOX_POLL_WINDOW_SECONDS, "The inbox is not available right now."
+    )
+
+
+def count_inbox_poll(actor: Actor) -> None:
+    """Count one Inbox request. Raises TooManyInboxPolls (429), or 503 if Redis is down."""
+    wait = inbox_poll_limiter().hit(f"{actor.business_id}:{actor.membership_id}")
+    if wait is not None:
+        raise TooManyInboxPolls(retry_after=wait)
+
+
+def count_needs_human(session: Session, actor: Actor) -> NeedsHumanCount:
+    """How many Conversations are in Handoff (Needs Human), for the Inbox tab's red number."""
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    return NeedsHumanCount(count=ConversationRepository(session).count_needs_human())

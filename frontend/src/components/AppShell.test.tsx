@@ -38,3 +38,31 @@ test("on a settings page, More is the current item", () => {
     expect(nav.getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
   }
 });
+
+// Story 4.3: the red Needs Human count on the Inbox tab (UX-DR16).
+const OWNER_PERMISSIONS = ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"] as const;
+
+test("shows a red count on Inbox, read once by screen readers", () => {
+  render(<AppShell permissions={[...OWNER_PERMISSIONS]} inboxCount={3}>x</AppShell>);
+  for (const name of ["Main", "Sidebar"]) {
+    const nav = within(screen.getByRole("navigation", { name }));
+    expect(nav.getByRole("link", { name: "Inbox, 3 need a human" })).toBeInTheDocument();
+    expect(nav.getByText("3")).toHaveAttribute("aria-hidden", "true");
+  }
+});
+
+test("shows 99+ above 99", () => {
+  render(<AppShell permissions={[...OWNER_PERMISSIONS]} inboxCount={150}>x</AppShell>);
+  expect(screen.getAllByText("99+")).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: "Inbox, 150 need a human" })).toHaveLength(2);
+});
+
+test("no pill at 0", () => {
+  render(<AppShell permissions={[...OWNER_PERMISSIONS]} inboxCount={0}>x</AppShell>);
+  expect(screen.getAllByRole("link", { name: "Inbox" })).toHaveLength(2);
+});
+
+test("no pill when inboxCount is omitted", () => {
+  render(<AppShell permissions={[...OWNER_PERMISSIONS]}>x</AppShell>);
+  expect(screen.getAllByRole("link", { name: "Inbox" })).toHaveLength(2);
+});

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pytest
 from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 from tests.integration.conftest import _make_client, assert_not_found, set_owner_roles
 
@@ -283,6 +283,34 @@ def check_send_chat_message(owners: TwoOwners) -> None:
     assert [m["seq"] for m in visitor.get(f"/api/v1/chat/{a_slug}/messages").json()["messages"]] == [1]
 
 
+def _inbox_ids(client: TestClient) -> list[str]:
+    response = client.get("/api/v1/inbox/conversations")
+    assert response.status_code == 200, response.text
+    return [row["conversation_id"] for row in response.json()["conversations"]]
+
+
+def check_list_inbox(owners: TwoOwners) -> None:
+    # B's visitor writes first: A's Inbox stays empty. Then A's visitor writes: A sees only that one.
+    a_slug, b_slug = _setup(owners.a)["chat_slug"], _setup(owners.b)["chat_slug"]
+    _visitor_send(_make_client(), b_slug, "for B only")
+    assert _inbox_ids(owners.a) == []
+    _visitor_send(_make_client(), a_slug, "for A")
+    b_ids = _inbox_ids(owners.b)
+    a_ids = _inbox_ids(owners.a)
+    assert len(a_ids) == 1 and len(b_ids) == 1 and a_ids != b_ids
+
+
+def check_count_needs_human(owners: TwoOwners) -> None:
+    # B has one Needs Human chat; A's count stays 0.
+    _visitor_send(_make_client(), _setup(owners.b)["chat_slug"], "help")
+    with get_engine().begin() as connection:
+        connection.execute(
+            update(Conversation).where(Conversation.business_id == owners.b_business_id).values(state="handoff")
+        )
+    assert owners.b.get("/api/v1/inbox/needs-human-count").json() == {"count": 1}
+    assert owners.a.get("/api/v1/inbox/needs-human-count").json() == {"count": 0}
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -312,6 +340,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/chat/{chat_slug}"): check_get_chat_page,
     ("GET", "/api/v1/chat/{chat_slug}/messages"): check_list_chat_messages,
     ("POST", "/api/v1/chat/{chat_slug}/messages"): check_send_chat_message,
+    ("GET", "/api/v1/inbox/conversations"): check_list_inbox,
+    ("GET", "/api/v1/inbox/needs-human-count"): check_count_needs_human,
 }
 
 

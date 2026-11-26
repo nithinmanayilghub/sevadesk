@@ -12,6 +12,7 @@ import { canOpen } from "@/lib/pages";
 import { PermissionsProvider } from "@/lib/permissions";
 import { applyTheme, ThemeProvider, type Theme } from "@/lib/theme";
 import { useLoad } from "@/lib/useLoad";
+import { useNeedsHumanCount } from "@/lib/useNeedsHumanCount";
 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   const pathname = usePathname();
@@ -21,6 +22,11 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   const { reload } = me;
   // null while there is no data: loading, or a failed reload.
   const theme: Theme | null = me.status === "ready" ? me.data.theme : null;
+  // The red Needs Human number on the Inbox tab (story 4.3). Called here, before the early
+  // returns below (hooks must run in the same order on every render). Only for Users who may
+  // open the Inbox (canOpen: the same rule as the page itself): anyone else would get a 403
+  // every 5 s.
+  const inboxCount = useNeedsHumanCount(me.status === "ready" && canOpen("/app/inbox", me.data.permissions));
 
   useEffect(() => {
     // Back after log-out: Chrome may show a frozen copy of this page from its back-forward
@@ -61,7 +67,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
     // The provider shares the permissions with every page, so a page can hide its own buttons.
     <PermissionsProvider permissions={permissions}>
       <ThemeProvider theme={me.data.theme} setTheme={setTheme}>
-        <AppShell permissions={permissions}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
+        <AppShell permissions={permissions} inboxCount={inboxCount}>{canOpen(pathname, permissions) ? children : <NoAccess />}</AppShell>
       </ThemeProvider>
     </PermissionsProvider>
   );

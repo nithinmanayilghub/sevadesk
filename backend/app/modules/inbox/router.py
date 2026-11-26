@@ -7,6 +7,11 @@
 # picks the chat (AD-16). Neither takes a conversation_id (AR-10).
 #
 # The poll's fast and slow paths live in chat_poll.py. This file only reads the HTTP facts.
+#
+# Logged-in Inbox routes (story 4.3), for Owner and Staff (the Role check is in service.py):
+# - GET /api/v1/inbox/conversations?cursor=…&limit=…: one page of the Inbox list (FR-23).
+# - GET /api/v1/inbox/needs-human-count: the red number on the Inbox tab (UX-DR16).
+# Both count against one per-member poll limit (AD-7) before any of their own queries.
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
@@ -15,9 +20,10 @@ from app.core.client_ip import client_ip
 from app.core.db import SessionDep
 from app.core.errors import ErrorEnvelope
 from app.core.tokens import new_token
+from app.modules.accounts.dependencies import ActorDep
 from app.modules.business.dependencies import ChatBusinessDep
 from app.modules.inbox import chat_poll, service
-from app.modules.inbox.schemas import ChatPollOut, MessageOut, SendMessageIn
+from app.modules.inbox.schemas import ChatPollOut, InboxPage, MessageOut, NeedsHumanCount, SendMessageIn
 from app.modules.inbox.webchat import VisitorTokenCookie, WebchatChannel, set_visitor_cookie, usable_token
 
 router = APIRouter(prefix="/api/v1")
@@ -84,3 +90,28 @@ def send_chat_message(
     # Only a send does this: a GET still changes nothing it does not have to.
     set_visitor_cookie(response, token)
     return service.receive_message(session, WebchatChannel(token), body)
+
+
+@router.get(
+    "/inbox/conversations",
+    operation_id="list_inbox_conversations",
+    responses={401: _ERROR, 403: _ERROR, 422: _ERROR, 429: _ERROR, 503: _ERROR},
+)
+def list_inbox_conversations(
+    session: SessionDep,
+    actor: ActorDep,
+    cursor: Annotated[str | None, Query(max_length=128)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = service.INBOX_PAGE_SIZE,
+) -> InboxPage:
+    service.count_inbox_poll(actor)  # the poll limit first, before the service's queries
+    return service.list_inbox(session, actor, cursor, limit)
+
+
+@router.get(
+    "/inbox/needs-human-count",
+    operation_id="count_needs_human",
+    responses={401: _ERROR, 403: _ERROR, 429: _ERROR, 503: _ERROR},
+)
+def count_needs_human(session: SessionDep, actor: ActorDep) -> NeedsHumanCount:
+    service.count_inbox_poll(actor)
+    return service.count_needs_human(session, actor)
