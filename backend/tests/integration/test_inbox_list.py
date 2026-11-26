@@ -10,8 +10,11 @@ from tests.integration.conftest import set_owner_roles
 from tests.integration.test_inbox_service import send
 
 from app.core.db import get_engine
+from app.core.redis_client import get_redis
+from app.core.settings import get_settings
 from app.core.tenancy import tenant_scope
 from app.core.tokens import new_token
+from app.modules.inbox import service
 from app.modules.inbox.models import Conversation
 from app.modules.inbox.repository import ConversationRepository
 
@@ -181,3 +184,50 @@ def test_technician_gets_403(sign_up_owner):
     response = owner.get(URL)
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "forbidden"
+
+
+# ---------------------------------------------------------------- Needs Human count + poll limit
+
+COUNT_URL = "/api/v1/inbox/needs-human-count"
+
+
+def test_count_needs_human(sign_up_owner):
+    # Behaviour: the count is the number of Needs Human (handoff) chats, for the red tab badge.
+    owner, business_id = sign_up_owner()
+    first, second, _ = new_chat(business_id), new_chat(business_id), new_chat(business_id)
+    set_state(first, "handoff")
+    set_state(second, "handoff")
+    response = owner.get(COUNT_URL)
+    assert response.status_code == 200
+    assert response.json() == {"count": 2}
+
+
+def test_technician_count_is_403(sign_up_owner):
+    owner, business_id = sign_up_owner()
+    set_owner_roles(business_id, ["technician"])
+    assert owner.get(COUNT_URL).status_code == 403
+
+
+def test_inbox_poll_limit(sign_up_owner, monkeypatch):
+    # Behaviour: both Inbox routes share one limit per member; past it, 429 with Retry-After.
+    owner, _ = sign_up_owner()
+    monkeypatch.setattr(service, "INBOX_POLL_LIMIT", 2)
+    assert owner.get(URL).status_code == 200
+    assert owner.get(COUNT_URL).status_code == 200
+    response = owner.get(URL)
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "too_many_requests"
+    assert int(response.headers["Retry-After"]) > 0
+    assert owner.get(COUNT_URL).status_code == 429
+
+
+def test_inbox_redis_down_is_503(sign_up_owner, monkeypatch):
+    # Behaviour: without the counter there is no limit, so we refuse (fail closed), like log-in.
+    owner, _ = sign_up_owner()
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:1/0")  # port 1 refuses at once
+    get_settings.cache_clear()
+    get_redis.cache_clear()
+    for url in (URL, COUNT_URL):
+        response = owner.get(url)
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "dependency_unavailable"

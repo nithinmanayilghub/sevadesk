@@ -6,7 +6,7 @@
 # (for example a last_seq another request just raised), so we ask SQLAlchemy to refresh the copy.
 import uuid
 
-from sqlalchemy import Select, and_, literal, select, tuple_
+from sqlalchemy import Select, and_, func, literal, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.repository import TenantRepository
@@ -94,6 +94,15 @@ class ConversationRepository(TenantRepository[Conversation]):
             sort_key = tuple_(PINNED.self_group(), Conversation.last_message_at, Conversation.id)
             query = query.where(sort_key < tuple_(literal(after.pinned), after.last_message_at, after.conversation_id))
         return [(conversation, message) for conversation, message in self.session.execute(query)]
+
+    def count_needs_human(self) -> int:
+        """How many of this Business's Conversations are in Handoff. Uses the Inbox index."""
+        query = (
+            select(func.count())
+            .select_from(Conversation)
+            .where(Conversation.business_id == current_business_id(), PINNED)
+        )
+        return self.session.scalar(query)
 
 
 class MessageRepository(TenantRepository[Message]):

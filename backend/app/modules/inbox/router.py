@@ -10,6 +10,8 @@
 #
 # Logged-in Inbox routes (story 4.3), for Owner and Staff (the Role check is in service.py):
 # - GET /api/v1/inbox/conversations?cursor=…&limit=…: one page of the Inbox list (FR-23).
+# - GET /api/v1/inbox/needs-human-count: the red number on the Inbox tab (UX-DR16).
+# Both count against one per-member poll limit (AD-7) before any of their own queries.
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
@@ -21,7 +23,7 @@ from app.core.tokens import new_token
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business.dependencies import ChatBusinessDep
 from app.modules.inbox import chat_poll, service
-from app.modules.inbox.schemas import ChatPollOut, InboxPage, MessageOut, SendMessageIn
+from app.modules.inbox.schemas import ChatPollOut, InboxPage, MessageOut, NeedsHumanCount, SendMessageIn
 from app.modules.inbox.webchat import VisitorTokenCookie, WebchatChannel, set_visitor_cookie, usable_token
 
 router = APIRouter(prefix="/api/v1")
@@ -93,7 +95,7 @@ def send_chat_message(
 @router.get(
     "/inbox/conversations",
     operation_id="list_inbox_conversations",
-    responses={401: _ERROR, 403: _ERROR, 422: _ERROR},
+    responses={401: _ERROR, 403: _ERROR, 422: _ERROR, 429: _ERROR, 503: _ERROR},
 )
 def list_inbox_conversations(
     session: SessionDep,
@@ -101,4 +103,15 @@ def list_inbox_conversations(
     cursor: Annotated[str | None, Query(max_length=128)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = service.INBOX_PAGE_SIZE,
 ) -> InboxPage:
+    service.count_inbox_poll(actor)  # the poll limit first, before the service's queries
     return service.list_inbox(session, actor, cursor, limit)
+
+
+@router.get(
+    "/inbox/needs-human-count",
+    operation_id="count_needs_human",
+    responses={401: _ERROR, 403: _ERROR, 429: _ERROR, 503: _ERROR},
+)
+def count_needs_human(session: SessionDep, actor: ActorDep) -> NeedsHumanCount:
+    service.count_inbox_poll(actor)
+    return service.count_needs_human(session, actor)

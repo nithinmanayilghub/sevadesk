@@ -184,3 +184,9 @@ class InboxCursor:
             last_message_at=_EPOCH + int(match[2]) * _ONE_MICROSECOND,
             conversation_id=conversation_id,
         )
+
+
+class NeedsHumanCount(BaseModel):
+    """How many Conversations wait for a human: the red number on the Inbox tab (UX-DR16)."""
+
+    count: int

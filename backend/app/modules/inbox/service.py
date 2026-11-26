@@ -30,6 +30,7 @@ from app.modules.inbox.schemas import (
     InboxPage,
     InboxRow,
     MessageOut,
+    NeedsHumanCount,
     SendMessageIn,
     detect_lang,
     preview,
@@ -193,3 +194,40 @@ def list_inbox(session: Session, actor: Actor, cursor: str | None, limit: int) -
         chat_slug=facts.chat_slug,
         timezone=facts.timezone,
     )
+
+
+# The Inbox poll limit (AD-7: poll endpoints are rate-limited). One budget per team member, for
+# both Inbox routes. An open Inbox tab polls 2 routes every 5 s = 24 a minute, so 120 a minute
+# is room for 5 tabs (a phone and a laptop, say). A 60 s window keeps a lockout short.
+INBOX_POLL_LIMIT = 120
+INBOX_POLL_WINDOW_SECONDS = 60
+
+
+class TooManyInboxPolls(AppError):
+    def __init__(self, retry_after: int):
+        super().__init__(
+            code="too_many_requests",
+            message="The inbox is busy. Please try again in a minute.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def inbox_poll_limiter() -> AttemptLimiter:
+    """Per member, per Business. Key: "<business_id>:<membership_id>". Redis down = 503."""
+    return AttemptLimiter(
+        get_redis(), "inbox_poll", INBOX_POLL_LIMIT, INBOX_POLL_WINDOW_SECONDS, "The inbox is not available right now."
+    )
+
+
+def count_inbox_poll(actor: Actor) -> None:
+    """Count one Inbox request. Raises TooManyInboxPolls (429), or 503 if Redis is down."""
+    wait = inbox_poll_limiter().hit(f"{actor.business_id}:{actor.membership_id}")
+    if wait is not None:
+        raise TooManyInboxPolls(retry_after=wait)
+
+
+def count_needs_human(session: Session, actor: Actor) -> NeedsHumanCount:
+    """How many Conversations are in Handoff (Needs Human), for the Inbox tab's red number."""
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    return NeedsHumanCount(count=ConversationRepository(session).count_needs_human())
