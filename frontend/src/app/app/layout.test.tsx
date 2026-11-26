@@ -16,11 +16,27 @@ const OWNER = {
   theme: "system",
 };
 const TECHNICIAN = { roles: ["technician"], permissions: ["see_own_bookings"], theme: "system" };
+const ME = "/api/v1/me";
+const COUNT = "/api/v1/inbox/needs-human-count";
+
+// Answers by path (story 4.3): the layout now asks two routes, so a queue of answers shared by
+// both would hand a /me answer to the count. /me: the queued answers first, then meAnswer.
+// The count route: always 3.
+let meAnswer: object = { data: OWNER };
+let meQueue: (() => Promise<unknown>)[] = [];
+const meNext = (answer: object) => meQueue.push(() => Promise.resolve(answer));
+const meCalls = () => GET.mock.calls.filter((call: unknown[]) => call[0] === ME).length;
+
 beforeEach(() => {
   location.pathname = "/app";
   delete document.documentElement.dataset.theme;
+  meAnswer = { data: OWNER };
+  meQueue = [];
   GET.mockReset();
-  GET.mockResolvedValue({ data: OWNER } as never);
+  GET.mockImplementation(((path: string) =>
+    path === COUNT
+      ? Promise.resolve({ data: { count: 3 } })
+      : (meQueue.shift()?.() ?? Promise.resolve(meAnswer))) as never);
 });
 
 function restoreFromBackForwardCache() {
@@ -38,7 +54,7 @@ test("shows the shell for the logged-in User", async () => {
 
 test("a Technician-only User on a forbidden page sees the no-access message in the normal shell", async () => {
   location.pathname = "/app/inbox";
-  GET.mockResolvedValue({ data: TECHNICIAN } as never);
+  meAnswer = { data: TECHNICIAN };
   render(<AppLayout params={Promise.resolve({})}>inbox body</AppLayout>);
   expect(await screen.findByRole("heading", { name: "You don't have access to this page." })).toBeInTheDocument();
   expect(screen.queryByText("inbox body")).not.toBeInTheDocument();
@@ -55,7 +71,7 @@ test("an Owner on the same page sees the page itself", async () => {
 
 // Regression (final review): any failure other than 401 left the loading block on screen forever.
 test("shows an error with a retry when /me fails with a server error", async () => {
-  GET.mockResolvedValueOnce({ error: { error: { code: "internal_error" } }, response: { status: 500 } } as never);
+  meNext({ error: { error: { code: "internal_error" } }, response: { status: 500 } });
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load. Please try again.");
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -64,7 +80,7 @@ test("shows an error with a retry when /me fails with a server error", async () 
 });
 
 test("shows the same error when the network fails", async () => {
-  GET.mockRejectedValueOnce(new Error("network down"));
+  meQueue.push(() => Promise.reject(new Error("network down")));
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load. Please try again.");
 });
@@ -74,12 +90,12 @@ test("asks the server again when Back restores the page from the cache", async (
   await screen.findByRole("navigation", { name: "Main" });
   act(() => restoreFromBackForwardCache());
   // A second /me call: after log-out it returns 401, and the API client goes to /login.
-  await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(meCalls()).toBe(2));
 });
 
 // Story 2.6: the chosen theme is written on <html> by the /app layout only.
 test("sets data-theme on <html> when the User chose dark", async () => {
-  GET.mockResolvedValue({ data: { ...OWNER, theme: "dark" } } as never);
+  meAnswer = { data: { ...OWNER, theme: "dark" } };
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   // waitFor: the theme effect can run just after the navigation appears (flaky under load).
   await vi.waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
@@ -92,7 +108,7 @@ test("sets no data-theme when the theme is system", async () => {
 });
 
 test("removes data-theme when the layout unmounts, so public pages follow the device", async () => {
-  GET.mockResolvedValue({ data: { ...OWNER, theme: "dark" } } as never);
+  meAnswer = { data: { ...OWNER, theme: "dark" } };
   const { unmount } = render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   await screen.findByRole("navigation", { name: "Main" });
   unmount();
@@ -100,11 +116,27 @@ test("removes data-theme when the layout unmounts, so public pages follow the de
 });
 
 test("keeps the User's theme on the error screen when a reload fails", async () => {
-  GET.mockResolvedValueOnce({ data: { ...OWNER, theme: "dark" } } as never);
-  GET.mockResolvedValueOnce({ data: undefined, response: { status: 500 } } as never);
+  meNext({ data: { ...OWNER, theme: "dark" } });
+  meNext({ data: undefined, response: { status: 500 } });
   render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
   await screen.findByRole("navigation", { name: "Main" });
   act(() => restoreFromBackForwardCache());
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load. Please try again.");
   expect(document.documentElement.dataset.theme).toBe("dark");
+});
+
+// Story 4.3: the red Needs Human count on the Inbox tab (UX-DR16).
+test("passes the Needs Human count to the Inbox tab", async () => {
+  render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  const links = await screen.findAllByRole("link", { name: "Inbox, 3 need a human" });
+  expect(links).toHaveLength(2); // the tab bar and the sidebar
+});
+
+test("a Technician-only User never calls the count route", async () => {
+  meAnswer = { data: TECHNICIAN };
+  render(<AppLayout params={Promise.resolve({})}>body</AppLayout>);
+  await screen.findByRole("navigation", { name: "Main" });
+  await act(async () => {}); // let effects run
+  expect(GET).not.toHaveBeenCalledWith(COUNT, expect.anything());
+  expect(GET).not.toHaveBeenCalledWith(COUNT);
 });

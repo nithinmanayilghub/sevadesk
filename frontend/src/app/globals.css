@@ -39,6 +39,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-status-requested: var(--status-requested);
   --color-status-handoff: var(--status-handoff);
+  --color-status-handoff-foreground: var(--status-handoff-foreground);
 
   /* Inter for Latin; Noto Sans Devanagari only for Hindi characters (see layout.tsx). */
   --font-sans: var(--font-inter), var(--font-devanagari), system-ui, sans-serif;
@@ -94,6 +95,9 @@
   --brand-soft: light-dark(#d1fae5, #064e3b);
   --status-requested: light-dark(#b45309, #fbbf24);
   --status-handoff: light-dark(#b91c1c, #f87171);
+  /* Text on a status-handoff fill (the Inbox count pill): white on the dark red, near-black on
+     the light red of dark mode (white on #f87171 is only 2.8:1). */
+  --status-handoff-foreground: light-dark(#ffffff, #18181b);
   --background-end: light-dark(#f4f4f5, #000000);
 }
 
