@@ -37,8 +37,9 @@ export function AppShell({ permissions, children }: { permissions: Permission[];
       <nav aria-label="Sidebar" className="hidden w-60 shrink-0 flex-col gap-1 border-r bg-card p-4 lg:flex">
         <NavLinks items={items} pathname={pathname} vertical />
       </nav>
-      {/* pb-20: room at the bottom so the fixed tab bar hides nothing on mobile. */}
-      <div className="flex flex-1 flex-col pb-20 lg:pb-0">{children}</div>
+      {/* pb-20: room at the bottom so the fixed tab bar hides nothing on mobile.
+          min-w-0: lets the page shrink to the screen, so long text never scrolls sideways. */}
+      <div className="flex min-w-0 flex-1 flex-col pb-20 lg:pb-0">{children}</div>
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 flex border-t bg-card px-2 py-1 lg:hidden">
         <NavLinks items={items} pathname={pathname} vertical={false} />
       </nav>
