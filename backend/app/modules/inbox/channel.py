@@ -7,8 +7,9 @@
 # inbox/service.py talks only to this port. It never sees a cookie or a phone number, so a
 # new channel is a new adapter file, with no change to the save logic (seq, locks, no copies).
 #
-# Outbound (deliver a reply to the Customer) is added when the first reply exists
-# (Story 4.4 staff replies, Epic 6 Agent replies). The Chat Page itself pulls by polling.
+# Outbound (deliver a reply to the Customer): the web Chat Page needs none. It PULLS new
+# Messages by polling (story 4.2), so a saved team reply (story 4.4) reaches it within 5 s.
+# A push method is added with the first channel that needs one (WhatsApp).
 from typing import Protocol
 
 from sqlalchemy.orm import Session

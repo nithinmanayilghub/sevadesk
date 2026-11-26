@@ -2,16 +2,21 @@
 # - poll_conversation: a Conversation's new Messages + snapshot + cursor (story 4.2, AD-7).
 #   The Chat Page poll (chat_poll.py) calls it on its slow path.
 # - receive_message: save one Customer Message, once, with the next seq (AR-12, AR-13).
+# - start_handoff / end_handoff: the ONLY code that changes a Conversation's state (AD-10,
+#   AR-15; a unit test guards this). reply / take_over / give_back call them (story 4.4).
 #
 # This file is channel-neutral (NFR-9): it gets a Channel (channel.py) and never sees a
 # cookie or a phone number. No commit here: the request owns the transaction (AD-15).
 #
 # Lock order: the Channel takes its own locks first (webchat: the visitor-token row), then
 # returns the Conversation row locked. Any new flow takes them in the same order.
+import uuid
+
 import redis
+from opentelemetry import trace
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError
+from app.core.errors import AppError, NotFound
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
@@ -26,6 +31,7 @@ from app.modules.inbox.schemas import (
     ChatCursor,
     ChatPollOut,
     ChatSnapshot,
+    ConversationStateOut,
     InboxCursor,
     InboxPage,
     InboxRow,
@@ -98,6 +104,10 @@ def poll_conversation(session: Session, conversation: Conversation | None, after
         version = read_or_seed_version(business_id, conversation.id)
     except redis.RedisError as error:
         raise chat_unavailable() from error
+    # Read the row AGAIN, after the version (story 4.4). The caller loaded it earlier; a
+    # take-over that committed in between would give an OLD state with a NEW version, and
+    # every later poll would then say "no change" while the screen shows the wrong state.
+    session.refresh(conversation)
     rows = MessageRepository(session).list_after(conversation.id, after_seq)
     # The newest seq we really send. Not conversation.last_seq: that was read by an earlier
     # query and can be older than a row this query saw (each query sees the newest commits).
@@ -128,26 +138,112 @@ def receive_message(session: Session, channel: Channel, data: SendMessageIn) -> 
     if wait is not None:
         raise TooManyMessages(retry_after=wait)  # the rollback undoes anything step 1 made
 
-    # 4. The next number. Safe because we hold the row lock: nobody else can take it meanwhile.
-    conversation.last_seq += 1
-    row = messages.add(
+    # 4. Save it with the next number, and tell open screens.
+    return _append(
+        session,
+        conversation,
         Message(
-            conversation_id=conversation.id,
-            seq=conversation.last_seq,
             author_type="customer",
             body=data.body,
             lang=detect_lang(data.body),
             client_message_id=data.client_message_id,
-        )
+        ),
     )
+
+
+def _append(session: Session, conversation: Conversation, message: Message) -> MessageOut:
+    """Save one Message at the end of a Conversation. The caller holds the row lock.
+
+    Shared by the Customer send and the team reply, so both number, sort, and announce a
+    Message the same way.
+    """
+    # The next number. Safe because we hold the row lock: nobody else can take it meanwhile.
+    conversation.last_seq += 1
+    message.conversation_id = conversation.id
+    message.seq = conversation.last_seq
+    row = MessageRepository(session).add(message)
     # add() flushed the INSERT; refresh reads back created_at and actions the database filled in.
     session.refresh(row)
     # The Inbox order (story 4.3). max(): now() is when the transaction STARTED, so a send that
     # started earlier but waited for the lock can save later with an older time. Never go back.
     conversation.last_message_at = max(conversation.last_message_at, row.created_at)
-    # 5. Open Chat Pages must see it: raise the version, but only after the commit (AD-7).
+    # Open Chat Pages and Inbox screens must see it: raise the version, after the commit (AD-7).
     mark_conversation_changed(session, conversation.id)
     return _out(row)
+
+
+# ---------------------------------------------------------------- Conversation state (AD-10)
+# Two rules for both setters:
+# - The caller holds the Conversation row lock, so two members clicking at once go in line.
+# - No real change -> no version bump: open screens are told "changed" only when it did.
+
+
+def _state_changed(session: Session, conversation: Conversation, old_state: str) -> None:
+    """After a real state change: tell open screens, and note it in this request's trace."""
+    mark_conversation_changed(session, conversation.id)
+    # A timed note in the trace: only the two states, no person and no text.
+    trace.get_current_span().add_event("conversation.state_changed", {"from": old_state, "to": conversation.state})
+
+
+def start_handoff(session: Session, conversation: Conversation) -> None:
+    """A person takes the chat: the Agent stops replying (FR-21). From any state, also closed
+    (the Customer wrote again). Already handoff: nothing changes."""
+    if conversation.state != "handoff":
+        old_state = conversation.state
+        conversation.state = "handoff"
+        _state_changed(session, conversation, old_state)
+
+
+def end_handoff(session: Session, conversation: Conversation) -> None:
+    """Give the chat back to the Agent (FR-21). Only from handoff: agent or closed stay as they are."""
+    if conversation.state == "handoff":
+        conversation.state = "agent"
+        _state_changed(session, conversation, "handoff")
+
+
+def _locked_for_member(session: Session, actor: Actor, conversation_id: uuid.UUID) -> Conversation:
+    """The Conversation a team member acts on, LOCKED. The Role check comes first, so a
+    Technician never learns whether an id exists. Another Business's id is a 404, never a 403."""
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    conversation = ConversationRepository(session).lock(conversation_id)
+    if conversation is None:
+        raise NotFound()
+    return conversation
+
+
+def reply(session: Session, actor: Actor, conversation_id: uuid.UUID, data: SendMessageIn) -> MessageOut:
+    """Save a team member's reply (FR-24). Replying starts a Handoff: the Agent pauses."""
+    conversation = _locked_for_member(session, actor, conversation_id)
+    # A retry of a reply we already saved (the answer got lost): hand back the same one.
+    existing = MessageRepository(session).find_by_client_id(conversation.id, data.client_message_id)
+    if existing is not None:
+        return _out(existing)
+    start_handoff(session, conversation)
+    return _append(
+        session,
+        conversation,
+        Message(
+            author_type="user",
+            author_membership_id=actor.membership_id,
+            body=data.body,
+            lang=detect_lang(data.body),
+            client_message_id=data.client_message_id,
+        ),
+    )
+
+
+def take_over(session: Session, actor: Actor, conversation_id: uuid.UUID) -> ConversationStateOut:
+    """The Handoff bar's "Take over" (UX-DR12)."""
+    conversation = _locked_for_member(session, actor, conversation_id)
+    start_handoff(session, conversation)
+    return ConversationStateOut(state=conversation.state)
+
+
+def give_back(session: Session, actor: Actor, conversation_id: uuid.UUID) -> ConversationStateOut:
+    """The Handoff bar's "Give back to Agent" (UX-DR12)."""
+    conversation = _locked_for_member(session, actor, conversation_id)
+    end_handoff(session, conversation)
+    return ConversationStateOut(state=conversation.state)
 
 
 INBOX_PAGE_SIZE = 20
