@@ -13,3 +13,9 @@ test.each([
   // The icon is decoration: the text already says it, so screen readers skip the icon.
   expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
 });
+
+test("the badge never shrinks or wraps next to a long preview (360px)", () => {
+  // Regression (final review): in a flex row, "Needs Human" broke onto two lines.
+  render(<StatusBadge state="handoff" />);
+  expect(screen.getByText("Needs Human")).toHaveClass("shrink-0", "whitespace-nowrap");
+});

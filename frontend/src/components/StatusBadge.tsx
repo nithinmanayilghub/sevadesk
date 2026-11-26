@@ -16,7 +16,7 @@ const BADGES: Record<State, { label: string; icon: LucideIcon; className: string
 export function StatusBadge({ state }: { state: State }) {
   const { label, icon: Icon, className } = BADGES[state];
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", className)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", className)}>
       <Icon className="size-3.5" aria-hidden="true" />
       {label}
     </span>

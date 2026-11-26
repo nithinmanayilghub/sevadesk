@@ -28,7 +28,8 @@ export function mergePoll(current: InboxPage, answer: InboxPage): InboxPage {
   // More rows on screen than one poll can send. The answer is the true top POLL_MAX now, so
   // every row on screen that is NOT in it ranks below it: keep those, in their order (also a
   // row a new chat just pushed from place 100 to 101). Keep the old cursor too: it loads what
-  // comes after the last of THOSE rows.
+  // comes after the last of THOSE rows. Known limit: a kept row shows its old badge and place
+  // until a reload. Fine while a chat can only move up; Story 4.4 ("resolve") moves one down.
   const inAnswer = new Set(answer.conversations.map((row) => row.conversation_id));
   const rest = current.conversations.filter((row) => !inAnswer.has(row.conversation_id));
   return { ...answer, conversations: [...answer.conversations, ...rest], next_cursor: current.next_cursor };
