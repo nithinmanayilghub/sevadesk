@@ -119,4 +119,24 @@ describe("polling", () => {
     expect(GET).toHaveBeenLastCalledWith(PATH, { params: { query: { limit: 25 } }, signal: expect.any(AbortSignal) });
     expect(screen.getByText("message c24")).toBeInTheDocument();
   });
+
+  test("a poll answer that arrives after Load more started is dropped", async () => {
+    // The poll is already in flight when the User clicks Load more. This mock IGNORES the
+    // abort signal (like a fetch helper that forgets it), so its old answer still arrives.
+    let finishPoll: (value: never) => void = () => {};
+    GET.mockResolvedValueOnce(answer(rows(0, 20), "p2"));
+    GET.mockImplementationOnce((() => new Promise((resolve) => (finishPoll = resolve))) as never);
+    GET.mockResolvedValueOnce(answer(rows(20, 25)));
+    GET.mockResolvedValue(answer(rows(0, 25)));
+    render(<InboxList />);
+    await wait();
+    await wait(5000); // the poll starts and waits
+    expect(GET).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await wait();
+    expect(screen.getByText("message c24")).toBeInTheDocument();
+    finishPoll(answer(rows(0, 20))); // the old top 20 arrive late
+    await wait();
+    expect(screen.getByText("message c24")).toBeInTheDocument();
+  });
 });

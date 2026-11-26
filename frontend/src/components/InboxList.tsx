@@ -31,6 +31,10 @@ export function InboxList() {
   const { reconnecting } = usePoll(
     async (signal) => {
       const { data } = await api.GET(PATH, { params: { query: { limit: pollLimit(shown) } }, signal });
+      // Stopped meanwhile (Load more started, or the screen closed): this answer is older than
+      // what is on screen, so drop it. Checked here, not left to fetch: the abort stops the
+      // data only if every layer passes the signal on.
+      if (signal.aborted) return false;
       if (data === undefined) return false; // 429 and 5xx count as failures
       state.replace((current) => mergePoll(current, data));
       return true;
