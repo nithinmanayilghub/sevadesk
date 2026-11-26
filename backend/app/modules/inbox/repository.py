@@ -97,11 +97,9 @@ class ConversationRepository(TenantRepository[Conversation]):
 
     def count_needs_human(self) -> int:
         """How many of this Business's Conversations are in Handoff. Uses the Inbox index."""
-        query = (
-            select(func.count())
-            .select_from(Conversation)
-            .where(Conversation.business_id == current_business_id(), PINNED)
-        )
+        # Starts from _select(), so the tenant filter comes from the one place that adds it
+        # (AD-3); with_only_columns swaps the selected rows for count(*), FROM and WHERE stay.
+        query = self._select().where(PINNED).with_only_columns(func.count(), maintain_column_froms=True)
         return self.session.scalar(query)
 
 

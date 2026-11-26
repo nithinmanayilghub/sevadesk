@@ -24,10 +24,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
   const theme: Theme | null = me.status === "ready" ? me.data.theme : null;
   // The red Needs Human number on the Inbox tab (story 4.3). Called here, before the early
   // returns below (hooks must run in the same order on every render). Only for Users who may
-  // use the Inbox: anyone else would get a 403 every 5 s.
-  const inboxCount = useNeedsHumanCount(
-    me.status === "ready" && me.data.permissions.includes("use_inbox_and_bookings"),
-  );
+  // open the Inbox (canOpen: the same rule as the page itself): anyone else would get a 403
+  // every 5 s.
+  const inboxCount = useNeedsHumanCount(me.status === "ready" && canOpen("/app/inbox", me.data.permissions));
 
   useEffect(() => {
     // Back after log-out: Chrome may show a frozen copy of this page from its back-forward
