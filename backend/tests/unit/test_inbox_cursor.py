@@ -30,3 +30,12 @@ def test_preview_is_one_short_line():
     # Behaviour: the Inbox row shows one line, at most 120 characters (code points).
     assert preview("a\n\n b\tc") == "a b c"
     assert len(preview("क" * 300)) == 120
+
+
+def test_biggest_cursor_time_does_not_crash():
+    # Behaviour: the regex allows at most 17 digits, so the time always fits in a datetime
+    # (max year 9999). 18 digits could reach past 9999 and crash with a 500.
+    raw = f"v1.0.{'9' * 17}.{ID}"
+    cursor = InboxCursor.parse(raw)
+    assert cursor is not None
+    assert cursor.last_message_at.year == 5138
