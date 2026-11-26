@@ -40,3 +40,35 @@ export function formatDuration(minutes: number): string {
   const parts = [hours > 0 ? `${hours} h` : "", rest > 0 ? `${rest} min` : ""];
   return parts.filter(Boolean).join(" ");
 }
+
+// The calendar date and clock time of a moment in a timezone, as plain numbers.
+// Intl gives the numbers (it knows every timezone's offsets); we write the text ourselves,
+// as everywhere in this file, so it is the same in every browser and in Node.
+function partsIn(moment: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(moment);
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
+}
+
+// An Inbox row's time (story 4.3), in the BUSINESS timezone (UX-DR4), not the viewer's:
+// today -> "10:42 am"; earlier this year -> "Wed, 4 Nov"; an older year -> "Thu, 4 Dec 2025".
+// "Today" is also the Business's today: 23:30 UTC is already the next day in IST.
+export function formatListTime(iso: string, now: Date, timeZone: string): string {
+  const at = partsIn(new Date(iso), timeZone);
+  const today = partsIn(now, timeZone);
+  if (at.year === today.year && at.month === today.month && at.day === today.day) {
+    return formatTime(`${at.hour}:${at.minute}`);
+  }
+  // The weekday of that calendar date (built in UTC, so no timezone can move it).
+  const weekday = WEEKDAYS[new Date(Date.UTC(at.year, at.month - 1, at.day)).getUTCDay()];
+  const date = `${weekday}, ${at.day} ${MONTHS[at.month - 1]}`;
+  return at.year === today.year ? date : `${date} ${at.year}`;
+}
