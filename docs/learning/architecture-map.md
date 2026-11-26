@@ -1,4 +1,4 @@
-# SevaDesk architecture map (Epic 4, after Story 4.2)
+# SevaDesk architecture map (Epic 4, after Story 4.3)
 
 Epic 1 built the **skeleton**: every part exists and talks to the others, but the app only says
 "Namaste". Epics 2+ put real features into this skeleton.
@@ -193,3 +193,29 @@ flowchart LR
 
 Tenant sources now: **session cookie** (team), **chat slug** (Customers), and on the fast poll
 the **visitor token**, proven by the map. Epic 6 adds the **job payload**.
+
+## 9. Epic 4: the team sees every chat (Story 4.3)
+
+```mermaid
+flowchart LR
+    B[Inbox tab, every 5 s] --> A[ActorDep: session → member + Business]
+    A --> L[count_inbox_poll<br/>120 / 60 s per member]
+    L --> R[require_roles<br/>Owner or Staff]
+    R --> Q["ONE query: conversations JOIN newest message<br/>(seq = last_seq)<br/>ORDER BY pinned, last_message_at, id (all DESC)"]
+    Q --> IX[(ix_conversations_inbox_order)]
+    Q --> P["InboxPage: rows + next_cursor<br/>+ chat_slug + timezone"]
+    SHELL["/app layout, every 5 s"] --> C[needs-human-count] --> IX
+    SEND[Customer sends] --> T["last_message_at = max(old, new)"]
+```
+
+| Part | Lives in | What it guarantees |
+|---|---|---|
+| `conversations.last_message_at` (a denormalized column) | `inbox/models.py`, migration `0010` | the sort never scans Messages; `max()` keeps it from going back when an earlier-started send saves later |
+| `PINNED` = `state = 'handoff'` as fixed SQL text | `inbox/models.py` | the same expression in the index and every query, so Postgres can use the index even for a prepared query |
+| `ix_conversations_inbox_order` | `inbox/models.py`, migration `0010` | one index serves the list order, the next page, and the count |
+| Keyset cursor `v1.<pinned>.<microseconds>.<id>` | `inbox/schemas.py` `InboxCursor` | a new Message cannot make a row show twice or go missing between pages; the id breaks ties |
+| `limit + 1` | `inbox/repository.py` `inbox_page` | one query also says "there is a next page" |
+| Poll limit 120 / 60 s per member, both routes | `inbox/service.py` `count_inbox_poll` | a lockout lasts at most a minute; Redis down = 503 (fail closed) |
+| `appendPage` / `mergePoll` | `frontend/src/lib/inboxList.ts` | Load more never shows a row twice; a poll never shrinks a long list |
+| No poll during Load more + `signal.aborted` check | `frontend/src/components/InboxList.tsx` | an older poll answer never wipes a page that was just added |
+| `useNeedsHumanCount` | `frontend/src/lib/useNeedsHumanCount.ts` | the red number on every app page; never asked for by a Technician-only User |
