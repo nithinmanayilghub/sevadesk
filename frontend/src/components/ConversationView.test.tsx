@@ -244,3 +244,17 @@ test("the header shows the Customer sheet button (story 4.5; who may see it: Cus
   await wait();
   expect(screen.getByRole("button", { name: "Customer" })).toBeInTheDocument();
 });
+
+test("a chat deleted while open shows not found, not Reconnecting (story 4.5)", async () => {
+  // Behaviour: the Owner deletes the Customer while this thread is open. The next poll gets a
+  // 404; the screen must say the chat is gone, not "Reconnecting…" forever.
+  GET.mockResolvedValueOnce(poll([message(1, "Fan not working")]));
+  GET.mockResolvedValue({ error: {}, response: new Response(null, { status: 404 }) } as never);
+  view();
+  await wait();
+  await wait(5000);
+  expect(screen.getByText("This conversation was not found.")).toBeInTheDocument();
+  await wait(15000); // more polls would only fail again: none are sent
+  expect(GET).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText("Reconnecting…")).not.toBeInTheDocument();
+});

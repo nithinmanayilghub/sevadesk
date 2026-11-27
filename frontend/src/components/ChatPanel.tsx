@@ -11,16 +11,13 @@
 //   It polls only once the chat exists (a cursor, or one saved send). "Reconnecting…" after
 //   3 failed polls in a row.
 //
-// The bubbles, the composer, and the send logic are shared with the Inbox (story 4.4):
-// ChatBubble.tsx, Composer.tsx, lib/useSends.ts.
+// The bubbles, the composer, and the live thread are shared with the Inbox:
+// ChatBubble.tsx, Composer.tsx, lib/useLiveThread.ts.
 //
 // Keep this light (NFR-6, 200 KB first load): plain elements, no ui/button, no icon sets.
 import { useEffect } from "react";
 import { api } from "@/api/client";
-import { usePoll } from "@/api/usePoll";
-import { chatItems, mergePoll } from "@/lib/chatPoll";
-import { useLoad } from "@/lib/useLoad";
-import { useSends } from "@/lib/useSends";
+import { useLiveThread } from "@/lib/useLiveThread";
 import { authorLabel, Bubble, SentBubble } from "./ChatBubble";
 import { Composer } from "./Composer";
 import { PILL_BUTTON } from "./pillButton";
@@ -36,52 +33,40 @@ export function ChatPanel({
   takingRequests: boolean;
   onHasMessages: (has: boolean) => void;
 }) {
-  const state = useLoad(
-    () => api.GET("/api/v1/chat/{chat_slug}/messages", { params: { path: { chat_slug: slug } } }),
-    [slug],
-  );
-  const { sent, send, retry } = useSends((body, clientMessageId) =>
-    api.POST("/api/v1/chat/{chat_slug}/messages", {
-      params: { path: { chat_slug: slug } },
-      body: { body, client_message_id: clientMessageId },
-    }),
-  );
-
-  const ready = state.status === "ready";
-  const cursor = ready ? state.data.cursor : null;
-
-  // The poll. usePoll keeps the newest copy of this function, so it always sends the newest
-  // cursor. replace() here is fine: a timer callback, not a child's effect. And usePoll drops
-  // an answer that comes back after the slug changed, so an old chat never merges in.
-  const { reconnecting } = usePoll(
-    async (signal) => {
-      const { data } = await api.GET("/api/v1/chat/{chat_slug}/messages", {
-        params: { path: { chat_slug: slug }, query: { cursor: cursor ?? undefined } },
-        signal,
-      });
-      if (data === undefined) return false; // 429 and 5xx count as failures
-      if (data.changed) state.replace((current) => mergePoll(current, data));
-      return true;
-    },
-    // Before the chat exists there is nothing to poll for (the first send makes it).
-    { enabled: ready && (cursor !== null || sent.some((item) => item.status === "sent")) },
-  );
+  // Load, poll every 5 s, merge, and sends: all in useLiveThread (shared with the Inbox). It
+  // polls only once the chat exists (a cursor, or one saved send). A slug that is gone (404)
+  // shows nothing here: the page already says "Chat page not found".
+  const thread = useLiveThread({
+    fetch: (cursor, signal) =>
+      signal
+        ? api.GET("/api/v1/chat/{chat_slug}/messages", {
+            params: { path: { chat_slug: slug }, query: { cursor } },
+            signal,
+          })
+        : api.GET("/api/v1/chat/{chat_slug}/messages", { params: { path: { chat_slug: slug } } }),
+    post: (body, clientMessageId) =>
+      api.POST("/api/v1/chat/{chat_slug}/messages", {
+        params: { path: { chat_slug: slug } },
+        body: { body, client_message_id: clientMessageId },
+      }),
+    inputs: [slug],
+  });
 
   // One list, sorted by seq: a reply polled after the Customer's send shows below it.
-  const items = chatItems(ready ? state.data.messages : [], sent);
+  const { items } = thread;
   const hasMessages = items.length > 0;
 
   // Tell the page (it folds the Services list on mobile). In an effect: never during render.
   useEffect(() => onHasMessages(hasMessages), [hasMessages, onHasMessages]);
 
-  if (state.status === "not_found") return null; // the page already says "Chat page not found"
+  if (thread.status === "not_found") return null; // the page already says "Chat page not found"
 
   return (
     <section aria-label="Chat" className="flex flex-col gap-3">
       {/* Always in the page, empty while all is well: a live region added together with its
           text is often not announced. */}
       <p role="status" className="text-sm text-muted-foreground">
-        {reconnecting ? "Reconnecting…" : ""}
+        {thread.reconnecting ? "Reconnecting…" : ""}
       </p>
       {/* Always in the page, even empty (the same reason). role="log" = new lines are added at the end. */}
       <ol role="log" aria-live="polite" className="flex flex-col gap-2">
@@ -95,19 +80,19 @@ export function ChatPanel({
               label={authorLabel(entry.message.author_type, businessName)}
             />
           ) : (
-            <SentBubble key={entry.item.clientMessageId} item={entry.item} authorType="customer" onRetry={retry} />
+            <SentBubble key={entry.item.clientMessageId} item={entry.item} authorType="customer" onRetry={thread.retry} />
           ),
         )}
       </ol>
 
-      {state.status === "loading" && (
+      {thread.status === "loading" && (
         <div aria-busy="true" aria-label="Loading chat" className="h-24 animate-pulse rounded-xl bg-muted" />
       )}
 
-      {state.status === "failed" && (
+      {thread.status === "failed" && (
         <div className="flex flex-col items-start gap-3">
           <p role="alert">Could not load the chat.</p>
-          <button type="button" className={PILL_BUTTON} onClick={state.reload}>
+          <button type="button" className={PILL_BUTTON} onClick={thread.reload}>
             Try again
           </button>
         </div>
@@ -115,7 +100,7 @@ export function ChatPanel({
 
       {/* The composer only once the chat has loaded: that GET set the visitor cookie, so the
           first send cannot make a second cookie. */}
-      {state.status === "ready" && takingRequests && (
+      {thread.status === "ready" && takingRequests && (
         <>
           {/* The DPDP notice (India's data protection law), before the first Message (NFR-8). */}
           {!hasMessages && (
@@ -124,7 +109,7 @@ export function ChatPanel({
               request.
             </p>
           )}
-          <Composer id="chat-message" label="Message" placeholder="Type a message…" onSend={send} />
+          <Composer id="chat-message" label="Message" placeholder="Type a message…" onSend={thread.send} />
         </>
       )}
     </section>
