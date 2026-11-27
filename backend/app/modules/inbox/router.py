@@ -12,6 +12,12 @@
 # - GET /api/v1/inbox/conversations?cursor=…&limit=…: one page of the Inbox list (FR-23).
 # - GET /api/v1/inbox/needs-human-count: the red number on the Inbox tab (UX-DR16).
 # Both count against one per-member poll limit (AD-7) before any of their own queries.
+#
+# One open Conversation (story 4.4, FR-21, FR-24). An id from another Business is a 404.
+# - GET  /api/v1/inbox/conversations/{id}/messages?cursor=…: the thread poll (counted too).
+# - POST /api/v1/inbox/conversations/{id}/messages: a team reply; it starts a Handoff.
+# - POST /api/v1/inbox/conversations/{id}/take-over and …/give-back: the Handoff bar.
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
@@ -23,7 +29,14 @@ from app.core.tokens import new_token
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.business.dependencies import ChatBusinessDep
 from app.modules.inbox import chat_poll, service
-from app.modules.inbox.schemas import ChatPollOut, InboxPage, MessageOut, NeedsHumanCount, SendMessageIn
+from app.modules.inbox.schemas import (
+    ChatPollOut,
+    ConversationStateOut,
+    InboxPage,
+    MessageOut,
+    NeedsHumanCount,
+    SendMessageIn,
+)
 from app.modules.inbox.webchat import VisitorTokenCookie, WebchatChannel, set_visitor_cookie, usable_token
 
 router = APIRouter(prefix="/api/v1")
@@ -115,3 +128,48 @@ def list_inbox_conversations(
 def count_needs_human(session: SessionDep, actor: ActorDep) -> NeedsHumanCount:
     service.count_inbox_poll(actor)
     return service.count_needs_human(session, actor)
+
+
+@router.get(
+    "/inbox/conversations/{conversation_id}/messages",
+    operation_id="poll_inbox_conversation",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR, 429: _ERROR, 503: _ERROR},
+)
+def poll_inbox_conversation(
+    conversation_id: uuid.UUID,
+    session: SessionDep,
+    actor: ActorDep,
+    cursor: Annotated[str | None, Query(max_length=128)] = None,
+) -> ChatPollOut:
+    service.count_inbox_poll(actor)  # the poll limit first, before the service's queries
+    return service.poll_for_member(session, actor, conversation_id, cursor)
+
+
+@router.post(
+    "/inbox/conversations/{conversation_id}/messages",
+    status_code=201,
+    operation_id="send_inbox_reply",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
+)
+def send_inbox_reply(
+    conversation_id: uuid.UUID, body: SendMessageIn, session: SessionDep, actor: ActorDep
+) -> MessageOut:
+    return service.reply(session, actor, conversation_id, body)
+
+
+@router.post(
+    "/inbox/conversations/{conversation_id}/take-over",
+    operation_id="take_over_conversation",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
+)
+def take_over_conversation(conversation_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> ConversationStateOut:
+    return service.take_over(session, actor, conversation_id)
+
+
+@router.post(
+    "/inbox/conversations/{conversation_id}/give-back",
+    operation_id="give_back_conversation",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
+)
+def give_back_conversation(conversation_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> ConversationStateOut:
+    return service.give_back(session, actor, conversation_id)

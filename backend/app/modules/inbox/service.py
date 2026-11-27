@@ -20,7 +20,7 @@ from app.core.errors import AppError, NotFound
 from app.core.rate_limit import AttemptLimiter
 from app.core.redis_client import get_redis
 from app.core.tenancy import current_business_id
-from app.core.versions import mark_conversation_changed, read_or_seed_version
+from app.core.versions import mark_conversation_changed, read_or_seed_version, read_version
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
 from app.modules.business import service as business_service
@@ -232,6 +232,30 @@ def reply(session: Session, actor: Actor, conversation_id: uuid.UUID, data: Send
     )
 
 
+def poll_for_member(session: Session, actor: Actor, conversation_id: uuid.UUID, cursor: str | None) -> ChatPollOut:
+    """One open Conversation in the Inbox: what changed since the cursor (AD-7, same shape as
+    the Chat Page poll). Writes nothing to Postgres.
+
+    Fast path, Redis only: the cursor's Business must be the actor's (a cursor is only a
+    claim), and the version key is built from the ACTOR's Business, never the cursor's. A
+    version key exists only for a Conversation that its own Business has polled or changed,
+    so another Business's id never matches here and goes on to the slow path's 404.
+    """
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    parsed = ChatCursor.parse(cursor)
+    ours = parsed is not None and parsed.business_id == actor.business_id
+    if ours:
+        try:
+            unchanged = read_version(actor.business_id, conversation_id) == parsed.version
+        except redis.RedisError as error:
+            raise chat_unavailable() from error
+        if unchanged:
+            return ChatPollOut(changed=False, messages=[], snapshot=None, cursor=parsed.format())
+    # Slow path: Postgres. get_or_raise hides other Businesses' rows: a 404 for them.
+    conversation = ConversationRepository(session).get_or_raise(conversation_id)
+    return poll_conversation(session, conversation, parsed.after_seq if ours else 0)
+
+
 def take_over(session: Session, actor: Actor, conversation_id: uuid.UUID) -> ConversationStateOut:
     """The Handoff bar's "Take over" (UX-DR12)."""
     conversation = _locked_for_member(session, actor, conversation_id)
@@ -293,8 +317,8 @@ def list_inbox(session: Session, actor: Actor, cursor: str | None, limit: int) -
 
 
 # The Inbox poll limit (AD-7: poll endpoints are rate-limited). One budget per team member, for
-# both Inbox routes. An open Inbox tab polls 2 routes every 5 s = 24 a minute, so 120 a minute
-# is room for 5 tabs (a phone and a laptop, say). A 60 s window keeps a lockout short.
+# the 3 Inbox poll routes. An Inbox tab with a chat open polls 3 routes every 5 s = 36 a minute,
+# so 120 a minute is room for 3 tabs (a phone and a laptop, say). A 60 s window keeps a lockout short.
 INBOX_POLL_LIMIT = 120
 INBOX_POLL_WINDOW_SECONDS = 60
 

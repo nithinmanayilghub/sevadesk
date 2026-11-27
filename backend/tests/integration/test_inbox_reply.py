@@ -5,19 +5,26 @@ import threading
 import time
 import uuid
 
+import pytest
+import redis
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
-from tests.integration.conftest import _owner_membership
+from tests.integration.conftest import _owner_membership, assert_not_found, set_owner_roles
+from tests.integration.test_chat_messages import post
+from tests.integration.test_chat_poll import conversation_of, poll
 from tests.integration.test_inbox_list import new_chat, set_state
+from tests.integration.test_tenant_isolation import _setup
 
 from app.core.db import get_engine
+from app.core.errors import AppError
 from app.core.tenancy import tenant_scope
+from app.core.tokens import new_token
 from app.core.versions import read_version
 from app.modules.accounts.schemas import Actor
 from app.modules.inbox import service
 from app.modules.inbox.models import Conversation, Message
 from app.modules.inbox.repository import ConversationRepository
-from app.modules.inbox.schemas import MessageOut, SendMessageIn
+from app.modules.inbox.schemas import ChatCursor, MessageOut, SendMessageIn
 
 
 def owner_actor(business_id: uuid.UUID) -> Actor:
@@ -175,3 +182,173 @@ def test_poll_reads_state_after_version(sign_up_owner, monkeypatch):
         conversation = ConversationRepository(session).get(conversation_id)  # loaded: state agent
         answer = service.poll_conversation(session, conversation, 0)
     assert answer.snapshot.conversation_state == "handoff"
+
+
+# ---------------------------------------------------------------- Part 2: the routes (HTTP)
+
+
+def thread_url(conversation_id) -> str:
+    return f"/api/v1/inbox/conversations/{conversation_id}/messages"
+
+
+def take_over_url(conversation_id) -> str:
+    return f"/api/v1/inbox/conversations/{conversation_id}/take-over"
+
+
+def give_back_url(conversation_id) -> str:
+    return f"/api/v1/inbox/conversations/{conversation_id}/give-back"
+
+
+def reply_body(text: str = "On my way") -> dict:
+    return {"body": text, "client_message_id": str(uuid.uuid4())}
+
+
+def all_routes(client, conversation_id) -> list:
+    """One call to each of the 4 team routes, for checks that apply to all of them."""
+    return [
+        client.get(thread_url(conversation_id)),
+        client.post(thread_url(conversation_id), json=reply_body()),
+        client.post(take_over_url(conversation_id)),
+        client.post(give_back_url(conversation_id)),
+    ]
+
+
+def open_thread(client, conversation_id, cursor: str | None = None) -> dict:
+    params = {} if cursor is None else {"cursor": cursor}
+    response = client.get(thread_url(conversation_id), params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_open_conversation_shows_full_history(sign_up_owner):
+    # Behaviour: opening a chat shows every Message, oldest first, and who replies now.
+    owner, business_id = sign_up_owner()
+    token = new_token()
+    conversation_id = new_chat(business_id, "first", token)
+    new_chat(business_id, "second", token)
+    answer = open_thread(owner, conversation_id)
+    assert answer["changed"] is True
+    assert [m["body"] for m in answer["messages"]] == ["first", "second"]
+    assert answer["snapshot"] == {"conversation_state": "agent"}
+    assert answer["cursor"]
+
+
+def test_thread_poll_no_change(sign_up_owner):
+    # Behaviour: a poll with the newest cursor says "no change" and sends no Messages.
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    cursor = open_thread(owner, conversation_id)["cursor"]
+    again = open_thread(owner, conversation_id, cursor)
+    assert (again["changed"], again["messages"]) == (False, [])
+
+
+def test_reply_route(sign_up_owner):
+    # Behaviour: a reply is saved, and the next poll shows it and the handoff state.
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    cursor = open_thread(owner, conversation_id)["cursor"]
+    response = owner.post(thread_url(conversation_id), json=reply_body())
+    assert response.status_code == 201, response.text
+    assert response.json()["author_type"] == "user"
+    after = open_thread(owner, conversation_id, cursor)
+    assert after["changed"] is True
+    assert [m["body"] for m in after["messages"]] == ["On my way"]
+    assert after["snapshot"] == {"conversation_state": "handoff"}
+
+
+def test_chat_page_poll_sees_team_reply(sign_up_owner, make_client):
+    # Behaviour: the Customer's open Chat Page gets the team reply on its next poll (FR-24).
+    owner, business_id = sign_up_owner()
+    slug = _setup(owner)["chat_slug"]
+    customer = make_client()
+    assert poll(customer, slug)["cursor"] is None  # first visit: sets the cookie
+    assert post(customer, slug).status_code == 201
+    cursor = poll(customer, slug)["cursor"]
+    assert poll(customer, slug, cursor)["changed"] is False  # the fast path is warm
+    conversation_id = conversation_of(business_id).id
+    assert owner.post(thread_url(conversation_id), json=reply_body()).status_code == 201
+    answer = poll(customer, slug, cursor)
+    assert answer["changed"] is True
+    assert [(m["author_type"], m["body"]) for m in answer["messages"]] == [("user", "On my way")]
+
+
+def test_take_over_and_give_back_routes(sign_up_owner):
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    taken = owner.post(take_over_url(conversation_id))
+    assert (taken.status_code, taken.json()) == (200, {"state": "handoff"})
+    given = owner.post(give_back_url(conversation_id))
+    assert (given.status_code, given.json()) == (200, {"state": "agent"})
+
+
+def test_state_change_adds_a_span_event(sign_up_owner, spans):
+    # Behaviour: a state change leaves a note in the request's trace: the two states, nothing more.
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    spans.clear()
+    assert owner.post(take_over_url(conversation_id)).status_code == 200
+    events = [e for s in spans.finished() for e in s.events if e.name == "conversation.state_changed"]
+    assert [dict(e.attributes) for e in events] == [{"from": "agent", "to": "handoff"}]
+
+
+def test_other_business_conversation_is_404(sign_up_owner):
+    # Behaviour: an id from another Business looks like a missing one, and nothing changes there.
+    owner_a, _ = sign_up_owner()
+    _, business_b = sign_up_owner()
+    conversation_b = new_chat(business_b)
+    for response in all_routes(owner_a, conversation_b):
+        assert_not_found(response)
+    assert len(messages(conversation_b)) == 1
+    assert row(conversation_b).state == "agent"
+
+
+def test_fast_path_other_business_is_404(sign_up_owner):
+    # Behaviour: a cursor never opens another Business's chat, even one that names it exactly.
+    owner_a, business_a = sign_up_owner()
+    owner_b, business_b = sign_up_owner()
+    conversation_b = new_chat(business_b)
+    open_thread(owner_b, conversation_b)  # B's own poll seeds B's version
+    version_b = read_version(business_b, conversation_b)
+    for business_id in (business_b, business_a):
+        cursor = ChatCursor(business_id=business_id, after_seq=1, version=version_b).format()
+        assert_not_found(owner_a.get(thread_url(conversation_b), params={"cursor": cursor}))
+
+
+def test_technician_gets_403_on_team_routes(sign_up_owner):
+    # Behaviour: a Technician-only member may not read or change chats (FR-10).
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    set_owner_roles(business_id, ["technician"])
+    assert [r.status_code for r in all_routes(owner, conversation_id)] == [403, 403, 403, 403]
+    assert row(conversation_id).state == "agent"
+
+
+def test_reply_bad_body_is_422(sign_up_owner):
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    response = owner.post(thread_url(conversation_id), json=reply_body("   "))
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert error["fields"] == [{"field": "body", "message": "Write a message first."}]
+
+
+def test_bad_conversation_id_is_422(sign_up_owner):
+    owner, _ = sign_up_owner()
+    assert owner.get(thread_url("abc")).status_code == 422
+
+
+def test_poll_for_member_redis_down_is_503(sign_up_owner, monkeypatch):
+    # Behaviour: without Redis the poll cannot tell "no change", so it refuses (fail closed).
+    _, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+
+    def redis_down(*_):
+        raise redis.RedisError("down")
+
+    monkeypatch.setattr(service, "read_version", redis_down)
+    cursor = ChatCursor(business_id=business_id, after_seq=1, version=1).format()
+    with Session(get_engine()) as session, session.begin(), tenant_scope(business_id):
+        with pytest.raises(AppError) as raised:
+            service.poll_for_member(session, owner_actor(business_id), conversation_id, cursor)
+    assert raised.value.status_code == 503
