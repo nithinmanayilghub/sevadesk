@@ -92,6 +92,21 @@ test("shows saved Messages: the Customer's on the right, others on the left", as
   });
 });
 
+test("a team reply shows the Business name above the bubble; the Agent shows its label", async () => {
+  // Behaviour: the Customer sees WHO wrote each reply (UX-DR7). Users have no names yet, so a
+  // team reply carries the Business name.
+  loads([
+    message(1, "Fan not working"),
+    message(2, "We can come today", { author_type: "user" }),
+    message(3, "Which day suits you?", { author_type: "agent" }),
+  ]);
+  panel();
+  const team = (await screen.findByText("We can come today")).closest("li")!;
+  expect(team).toHaveTextContent(/^Ravi Electricals/);
+  expect(screen.getByText("Which day suits you?").closest("li")).toHaveTextContent(/^SevaDesk assistant/);
+  expect(screen.getByText("Fan not working").closest("li")).toHaveTextContent(/^Fan not working$/);
+});
+
 test('marks Hindi text with lang="hi"', async () => {
   loads([message(1, "नमस्ते", { lang: "hi" }), message(2, "Hello")]);
   panel();
@@ -357,7 +372,8 @@ describe("polling", () => {
     await sendNow("Fan not working");
     await wait(5000);
     const texts = screen.getAllByRole("listitem").map((li) => li.textContent);
-    expect(texts).toEqual(["Fan not working", "We can come today"]);
+    // The Agent's bubble carries its label above the text (UX-DR7, story 4.4).
+    expect(texts).toEqual(["Fan not working", "SevaDesk assistantWe can come today"]);
   });
 
   test("own sent Message is not shown twice when the poll returns it", async () => {
