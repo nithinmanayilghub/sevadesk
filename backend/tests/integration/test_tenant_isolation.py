@@ -311,6 +311,53 @@ def check_count_needs_human(owners: TwoOwners) -> None:
     assert owners.a.get("/api/v1/inbox/needs-human-count").json() == {"count": 0}
 
 
+def _b_chat(owners: TwoOwners) -> str:
+    """One Customer chat in Business B. Returns its id, as B's own Inbox shows it."""
+    _visitor_send(_make_client(), _setup(owners.b)["chat_slug"], "for B only")
+    (conversation_id,) = _inbox_ids(owners.b)
+    return conversation_id
+
+
+def _b_chat_unchanged(owners: TwoOwners, conversation_id: str) -> None:
+    # B still sees exactly its one Customer Message, and the Agent still replies.
+    answer = owners.b.get(f"/api/v1/inbox/conversations/{conversation_id}/messages").json()
+    assert [m["author_type"] for m in answer["messages"]] == ["customer"]
+    assert answer["snapshot"] == {"conversation_state": "agent"}
+
+
+def check_poll_inbox_conversation(owners: TwoOwners) -> None:
+    # A cannot read B's chat, with or without a cursor; B can.
+    conversation_id = _b_chat(owners)
+    url = f"/api/v1/inbox/conversations/{conversation_id}/messages"
+    b_cursor = owners.b.get(url).json()["cursor"]
+    assert_not_found(owners.a.get(url))
+    assert_not_found(owners.a.get(url, params={"cursor": b_cursor}))
+    _b_chat_unchanged(owners, conversation_id)
+
+
+def _check_a_cannot_post(owners: TwoOwners, suffix: str, body: dict | None = None) -> None:
+    conversation_id = _b_chat(owners)
+    assert_not_found(owners.a.post(f"/api/v1/inbox/conversations/{conversation_id}/{suffix}", json=body))
+    _b_chat_unchanged(owners, conversation_id)
+
+
+def check_send_inbox_reply(owners: TwoOwners) -> None:
+    _check_a_cannot_post(owners, "messages", {"body": "hi", "client_message_id": str(uuid.uuid4())})
+
+
+def check_take_over_conversation(owners: TwoOwners) -> None:
+    _check_a_cannot_post(owners, "take-over")
+
+
+def check_give_back_conversation(owners: TwoOwners) -> None:
+    # Give back changes nothing on an agent chat anyway, so first B takes it over itself.
+    conversation_id = _b_chat(owners)
+    assert owners.b.post(f"/api/v1/inbox/conversations/{conversation_id}/take-over").status_code == 200
+    assert_not_found(owners.a.post(f"/api/v1/inbox/conversations/{conversation_id}/give-back"))
+    answer = owners.b.get(f"/api/v1/inbox/conversations/{conversation_id}/messages").json()
+    assert answer["snapshot"] == {"conversation_state": "handoff"}  # still B's handoff
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -342,6 +389,10 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("POST", "/api/v1/chat/{chat_slug}/messages"): check_send_chat_message,
     ("GET", "/api/v1/inbox/conversations"): check_list_inbox,
     ("GET", "/api/v1/inbox/needs-human-count"): check_count_needs_human,
+    ("GET", "/api/v1/inbox/conversations/{conversation_id}/messages"): check_poll_inbox_conversation,
+    ("POST", "/api/v1/inbox/conversations/{conversation_id}/messages"): check_send_inbox_reply,
+    ("POST", "/api/v1/inbox/conversations/{conversation_id}/take-over"): check_take_over_conversation,
+    ("POST", "/api/v1/inbox/conversations/{conversation_id}/give-back"): check_give_back_conversation,
 }
 
 

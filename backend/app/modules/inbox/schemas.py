@@ -186,6 +186,12 @@ class InboxCursor:
         )
 
 
+class ConversationStateOut(BaseModel):
+    """Who replies now, after Take over or Give back (story 4.4): agent | handoff | closed."""
+
+    state: Literal["agent", "handoff", "closed"]
+
+
 class NeedsHumanCount(BaseModel):
     """How many Conversations wait for a human: the red number on the Inbox tab (UX-DR16)."""
 

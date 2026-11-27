@@ -193,3 +193,8 @@ Plain-word meanings. Newest terms at the bottom.
 - **Expression index** - An index on a computed value, like `(state = 'handoff')`, not only on a plain column. A query can use it only when it says exactly the same expression.
 - **Prepared statement / generic plan** - After a query runs a few times, the driver (psycopg) asks Postgres to plan it once and reuse the plan. With a parameter (`state = $1`) the reused "generic" plan cannot know the value is 'handoff', so it cannot use an index on `state = 'handoff'`. Writing 'handoff' as fixed SQL text avoids this.
 - **Fail closed** - When a safety check cannot run (Redis is down, so no rate counter), refuse the request (503) instead of letting it through unchecked.
+- **Handoff** - A person takes a chat from the Agent (the AI bot). While a chat is in Handoff, the Agent sends nothing. "Give back to Agent" ends it.
+- **State machine** - A fixed list of states (`agent`, `handoff`, `closed`) and fixed moves between them. In SevaDesk only named functions (`start_handoff`, `end_handoff`) may make a move.
+- **Code guard test** - A test that reads the source code (with Python's `ast` module) instead of running it, to enforce a rule such as "only these two functions write `state`".
+- **Span event** - A timed note inside one span of a trace, with a few attributes. `conversation.state_changed {from, to}` records each Handoff change.
+- **Stale-poll guard** - A poll that was asked before a click can answer after it, with older data. The screen keeps the click's state and its old cursor, so the next poll reads again.

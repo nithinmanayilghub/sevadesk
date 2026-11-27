@@ -29,7 +29,9 @@ export function mergePoll(current: InboxPage, answer: InboxPage): InboxPage {
   // every row on screen that is NOT in it ranks below it: keep those, in their order (also a
   // row a new chat just pushed from place 100 to 101). Keep the old cursor too: it loads what
   // comes after the last of THOSE rows. Known limit: a kept row shows its old badge and place
-  // until a reload. Fine while a chat can only move up; Story 4.4 ("resolve") moves one down.
+  // until a reload. Give back to Agent (story 4.4) moves a chat DOWN (out of Needs Human), so
+  // with over 100 rows on screen that chat can keep its old badge until a reload. Kept: rare.
+  // Also, after a take-over or give-back the whole list catches up on its next poll (≤ 5 s).
   const inAnswer = new Set(answer.conversations.map((row) => row.conversation_id));
   const rest = current.conversations.filter((row) => !inAnswer.has(row.conversation_id));
   return { ...answer, conversations: [...answer.conversations, ...rest], next_cursor: current.next_cursor };

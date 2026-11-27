@@ -63,6 +63,13 @@ class ConversationRepository(TenantRepository[Conversation]):
         )
         return self.session.scalars(_locked(query) if lock else query).one_or_none()
 
+    def lock(self, conversation_id: uuid.UUID) -> Conversation | None:
+        """This Business's Conversation with this id, LOCKED (story 4.4), or None.
+
+        Another Business's id gives None, like a missing one: the tenant filter hides it.
+        """
+        return self.session.scalars(_locked(self._select().where(Conversation.id == conversation_id))).one_or_none()
+
     def inbox_page(self, after: InboxCursor | None, limit: int) -> list[tuple[Conversation, Message]]:
         """Up to limit + 1 Conversations with their newest Message, in the Inbox order (story 4.3).
 
