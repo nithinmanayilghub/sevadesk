@@ -6,6 +6,7 @@
 #   hours_on for slot math (Epic 5) and the Agent.
 # - Chat Page (story 3.3, FR-14): the Owner's setup status, and the public Chat Page.
 #   find_chat_business turns a slug into a Business for every public chat route (story 4.1).
+# - Slot math (story 5.1): get_active_service and business_timezone, for bookings.
 import re
 import uuid
 from datetime import date, datetime
@@ -110,6 +111,18 @@ def list_active_services(session: Session) -> list[ServiceOut]:
     No Role check: Customers see these too. The caller must already be in a tenant scope.
     """
     return [_out(row) for row in ServiceRepository(session).list_active()]
+
+
+def get_active_service(session: Session, service_id: uuid.UUID) -> ServiceOut:
+    """One Service the Business offers now. For slot math (story 5.1).
+
+    Raises NotFound when it is missing, deactivated, or another Business's (the tenant filter
+    hides those, so all three look the same). No Role check: the caller checks first.
+    """
+    row = ServiceRepository(session).get_or_raise(service_id)
+    if not row.is_active:
+        raise NotFound()
+    return _out(row)
 
 
 # ---------------------------------------------------------------- working hours (story 3.2, FR-13)
@@ -279,3 +292,8 @@ def inbox_facts(session: Session) -> InboxFacts:
     """
     business = BusinessRepository(session).get_current()
     return InboxFacts(chat_slug=business.chat_slug, timezone=business.timezone)
+
+
+def business_timezone(session: Session) -> str:
+    """The current Business's timezone, e.g. "Asia/Kolkata" (AR-5). For slot math (story 5.1)."""
+    return BusinessRepository(session).get_current().timezone

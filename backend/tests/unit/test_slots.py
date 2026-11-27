@@ -58,6 +58,8 @@ def test_two_technicians_one_free():
 def test_touching_booking_does_not_block():
     # The job ends at 11:00; a Slot that starts at 11:00 does not overlap it.
     assert starts(busy=[(ist(MONDAY, "10:00"), ist(MONDAY, "11:00"))]) == ["11:00"]
+    # The job starts at 11:00; the Slot 10:00-11:00 ends there, so it is free too.
+    assert starts(busy=[(ist(MONDAY, "11:00"), ist(MONDAY, "12:00"))]) == ["10:00"]
 
 
 def test_no_technicians_means_no_slots():
