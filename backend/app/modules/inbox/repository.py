@@ -5,6 +5,7 @@
 # row normally hands back that OLD copy. After waiting for a lock, we must see the NEW values
 # (for example a last_seq another request just raised), so we ask SQLAlchemy to refresh the copy.
 import uuid
+from typing import NamedTuple
 
 from sqlalchemy import Select, and_, func, literal, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
@@ -13,6 +14,13 @@ from app.core.repository import TenantRepository
 from app.core.tenancy import current_business_id
 from app.modules.inbox.models import PINNED, Conversation, Customer, Message, VisitorToken
 from app.modules.inbox.schemas import InboxCursor
+
+
+class CustomerCounts(NamedTuple):
+    """A Customer's data size, by name, so a caller cannot mix up the two numbers."""
+
+    conversations: int
+    messages: int
 
 
 def _locked[T](query: Select[T]) -> Select[T]:
@@ -64,6 +72,7 @@ class VisitorTokenRepository(TenantRepository[VisitorToken]):
         self.ensure(token_hash)
         row = self.session.scalars(query).one_or_none()
         if row is None:
+            # A delete removed the row while we waited for its lock: make it again.
             self.ensure(token_hash)
             row = self.session.scalars(query).one()
         return row
@@ -95,29 +104,37 @@ class ConversationRepository(TenantRepository[Conversation]):
 
     def visitor_token_ids_of(self, customer_id: uuid.UUID) -> list[uuid.UUID]:
         """The visitor tokens this Customer's Conversations point at (no lock: these ids never change)."""
-        query = select(Conversation.visitor_token_id).where(
-            Conversation.business_id == current_business_id(), Conversation.customer_id == customer_id
+        # Starts from _select(), so the tenant filter comes from the one place that adds it (AD-3).
+        query = (
+            self._select()
+            .where(Conversation.customer_id == customer_id)
+            .with_only_columns(Conversation.visitor_token_id, maintain_column_froms=True)
+            .distinct()
         )
-        return list(self.session.scalars(query.distinct()))
+        return list(self.session.scalars(query))
 
     def lock_for_customer(self, customer_id: uuid.UUID) -> list[uuid.UUID]:
         """Lock this Customer's Conversations, in id order. Returns their ids."""
         query = _locked(self._select().where(Conversation.customer_id == customer_id).order_by(Conversation.id))
         return [conversation.id for conversation in self.session.scalars(query)]
 
-    def count_for_customer(self, customer_id: uuid.UUID) -> tuple[int, int]:
-        """(Conversations, Messages) of this Customer, for the Customer detail sheet."""
+    def count_for_customer(self, customer_id: uuid.UUID) -> CustomerCounts:
+        """How many Conversations and Messages this Customer has, for the Customer detail sheet."""
+        # Starts from _select() (the tenant filter, AD-3). The join also matches business_id.
+        # count(DISTINCT id): each Conversation is counted once, however many Messages it has.
         query = (
-            select(func.count(func.distinct(Conversation.id)), func.count(Message.id))
-            .select_from(Conversation)
+            self._select()
+            .where(Conversation.customer_id == customer_id)
             .outerjoin(
                 Message,
                 and_(Message.business_id == Conversation.business_id, Message.conversation_id == Conversation.id),
             )
-            .where(Conversation.business_id == current_business_id(), Conversation.customer_id == customer_id)
+            .with_only_columns(
+                func.count(func.distinct(Conversation.id)), func.count(Message.id), maintain_column_froms=True
+            )
         )
         conversations, messages = self.session.execute(query).one()
-        return conversations, messages
+        return CustomerCounts(conversations=conversations, messages=messages)
 
     def inbox_page(self, after: InboxCursor | None, limit: int) -> list[tuple[Conversation, Message]]:
         """Up to limit + 1 Conversations with their newest Message, in the Inbox order (story 4.3).

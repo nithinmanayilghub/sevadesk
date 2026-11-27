@@ -234,7 +234,7 @@ test("a closed chat shows no bar but shows the composer", async () => {
   expect(screen.getByRole("textbox", { name: "Reply" })).toBeInTheDocument();
 });
 
-test("the header has a Customer button for the Owner only (story 4.5)", async () => {
+test("the header shows the Customer sheet button (story 4.5; who may see it: CustomerSheet.test)", async () => {
   GET.mockResolvedValue(poll([message(1, "Fan not working")]));
   render(
     <PermissionsProvider permissions={["use_inbox_and_bookings", "manage_customer_data"]}>
@@ -243,11 +243,4 @@ test("the header has a Customer button for the Owner only (story 4.5)", async ()
   );
   await wait();
   expect(screen.getByRole("button", { name: "Customer" })).toBeInTheDocument();
-});
-
-test("staff see no Customer button (story 4.5)", async () => {
-  GET.mockResolvedValue(poll([message(1, "Fan not working")]));
-  view(); // no provider: the default permission list is empty
-  await wait();
-  expect(screen.queryByRole("button", { name: "Customer" })).not.toBeInTheDocument();
 });

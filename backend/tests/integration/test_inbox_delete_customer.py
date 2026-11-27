@@ -1,6 +1,10 @@
 # Delete a Customer and all their data (story 4.5, NFR-8, AR-11, AD-13).
 # Part 1 calls the service directly: each call runs in its own Session and transaction,
 # like one request (AD-15). Part 2 (the routes) is further down.
+#
+# The lock-race tests write raw SQL (text()) on a separate connection on purpose: they play
+# "another request in the middle of its transaction" (holding a row lock, deleting rows), which
+# the app's own code paths cannot pause halfway. AD-3's "raw SQL only in core" is for app code.
 import threading
 import time
 import uuid
@@ -25,8 +29,7 @@ from app.modules.inbox.schemas import CustomerOut, MessageOut
 
 
 def customer_of(conversation_id: uuid.UUID) -> uuid.UUID:
-    with Session(get_engine()) as session:
-        return session.get(Conversation, conversation_id).customer_id
+    return ids_of(conversation_id)[0]
 
 
 def details(business_id: uuid.UUID, conversation_id: uuid.UUID) -> CustomerOut:
@@ -193,6 +196,8 @@ def test_owner_deletes_by_route(sign_up_owner):
     assert_not_found(owner.get(f"/api/v1/inbox/conversations/{conversation_id}/messages"))
 
 
+# In the tenant-isolation suite too (CI: pytest -m isolation), as Story 4.5 asks (FR-10, FR-11).
+@pytest.mark.isolation
 @pytest.mark.parametrize("roles", [["staff"], ["technician"], ["staff", "technician"]])
 def test_only_the_owner_may_delete(sign_up_owner, roles):
     # Behaviour: Staff and Technicians get 403 on both routes (FR-10), and nothing is deleted.

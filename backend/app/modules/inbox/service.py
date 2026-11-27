@@ -371,12 +371,12 @@ def customer_details(session: Session, actor: Actor, conversation_id: uuid.UUID)
     accounts_service.require_roles(actor, Permission.MANAGE_CUSTOMER_DATA)
     conversation = ConversationRepository(session).get_or_raise(conversation_id)  # 404 if not ours
     customer = CustomerRepository(session).get_or_raise(conversation.customer_id)
-    conversations, messages = ConversationRepository(session).count_for_customer(customer.id)
+    counts = ConversationRepository(session).count_for_customer(customer.id)
     return CustomerOut(
         customer_id=customer.id,
         created_at=customer.created_at,
-        conversation_count=conversations,
-        message_count=messages,
+        conversation_count=counts.conversations,
+        message_count=counts.messages,
     )
 
 

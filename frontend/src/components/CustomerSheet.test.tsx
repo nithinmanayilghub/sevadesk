@@ -44,7 +44,12 @@ async function openConfirm() {
   return screen.findByRole("alertdialog");
 }
 
-test("the owner sees a Customer button; staff do not", () => {
+test("the owner sees a Customer button", () => {
+  renderAs(OWNER);
+  expect(screen.getByRole("button", { name: "Customer" })).toBeInTheDocument();
+});
+
+test("staff (no manage_customer_data) see no Customer button", () => {
   renderAs(["use_inbox_and_bookings"]);
   expect(screen.queryByRole("button", { name: "Customer" })).not.toBeInTheDocument();
 });
@@ -93,8 +98,6 @@ test("cancel deletes nothing", async () => {
   expect(DELETE).not.toHaveBeenCalled();
 });
 
-
-// CustomerSheet.test.tsx: 3) a new test
 test("the sheet has a description for screen readers", async () => {
   renderAs(OWNER);
   fireEvent.click(screen.getByRole("button", { name: "Customer" }));
