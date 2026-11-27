@@ -60,7 +60,7 @@ development_status:
   3-3-share-the-chat-page-link: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-customer-sends-messages-on-the-chat-page: done
   4-2-chat-page-stays-live-by-polling: done
   4-3-inbox-lists-all-conversations: done
@@ -68,8 +68,8 @@ development_status:
   4-5-delete-a-customer-and-all-their-data: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-calculate-free-slots: backlog
+  epic-5: in-progress
+  5-1-calculate-free-slots: done
   5-2-create-a-booking-for-a-phone-in-customer: backlog
   5-3-cancel-and-complete-bookings: backlog
   5-4-calendar-day-and-week-views: backlog

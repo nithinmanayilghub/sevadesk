@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.orm import Session
-from tests.integration.conftest import membership_of
+from tests.integration.conftest import membership_of, set_owner_roles
 from tests.integration.test_tenant_isolation import HOURS_WEEK, SERVICE
 
 from app.core.db import get_engine
@@ -133,3 +133,41 @@ def test_inactive_service_is_not_found(sign_up_owner):
     assert changed.status_code == 200, changed.text
     with pytest.raises(NotFound):
         _starts(business_id, service_id)
+
+
+# ---------------------------------------------------------------- the HTTP route (FR-10)
+
+FORBIDDEN_BODY = {"error": {"code": "forbidden", "message": "You don't have access to this."}}
+
+
+def _get_slots(client, service_id: uuid.UUID):
+    return client.get("/api/v1/bookings/slots", params={"service_id": str(service_id)})
+
+
+def test_owner_gets_free_slots(sign_up_owner):
+    owner, _, service_id = _shop(sign_up_owner)
+    response = _get_slots(owner, service_id)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["timezone"] == "Asia/Kolkata"
+    assert body["slots"][0] == {"start": "2026-11-30T04:30:00Z", "end": "2026-11-30T05:30:00Z"}  # Mon 10-11 IST
+
+
+def test_staff_gets_free_slots(sign_up_owner):
+    owner, business_id, service_id = _shop(sign_up_owner)
+    set_owner_roles(business_id, ["staff"])  # the only member is now Staff: no Technician left
+    response = _get_slots(owner, service_id)
+    assert response.status_code == 200, response.text
+    assert response.json()["slots"] == []  # nobody can do the job, so no time is free
+
+
+def test_technician_only_gets_403(sign_up_owner):
+    owner, business_id, service_id = _shop(sign_up_owner)
+    set_owner_roles(business_id, ["technician"])
+    response = _get_slots(owner, service_id)
+    assert response.status_code == 403
+    assert response.json() == FORBIDDEN_BODY
+
+
+def test_logged_out_gets_401(make_client):
+    assert _get_slots(make_client(), uuid.uuid4()).status_code == 401
