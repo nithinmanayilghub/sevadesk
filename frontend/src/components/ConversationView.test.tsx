@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
+import { PermissionsProvider } from "@/lib/permissions";
 import { ConversationView, HINT_KEY } from "./ConversationView";
 
 vi.mock("@/api/client", () => ({ api: { GET: vi.fn(), POST: vi.fn() } }));
@@ -231,4 +232,29 @@ test("a closed chat shows no bar but shows the composer", async () => {
   await wait();
   expect(screen.queryByRole("button", { name: /Take over|Give back/ })).not.toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "Reply" })).toBeInTheDocument();
+});
+
+test("the header shows the Customer sheet button (story 4.5; who may see it: CustomerSheet.test)", async () => {
+  GET.mockResolvedValue(poll([message(1, "Fan not working")]));
+  render(
+    <PermissionsProvider permissions={["use_inbox_and_bookings", "manage_customer_data"]}>
+      <ConversationView conversationId={ID} />
+    </PermissionsProvider>,
+  );
+  await wait();
+  expect(screen.getByRole("button", { name: "Customer" })).toBeInTheDocument();
+});
+
+test("a chat deleted while open shows not found, not Reconnecting (story 4.5)", async () => {
+  // Behaviour: the Owner deletes the Customer while this thread is open. The next poll gets a
+  // 404; the screen must say the chat is gone, not "Reconnecting…" forever.
+  GET.mockResolvedValueOnce(poll([message(1, "Fan not working")]));
+  GET.mockResolvedValue({ error: {}, response: new Response(null, { status: 404 }) } as never);
+  view();
+  await wait();
+  await wait(5000);
+  expect(screen.getByText("This conversation was not found.")).toBeInTheDocument();
+  await wait(15000); // more polls would only fail again: none are sent
+  expect(GET).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText("Reconnecting…")).not.toBeInTheDocument();
 });

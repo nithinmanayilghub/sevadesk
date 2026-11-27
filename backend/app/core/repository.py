@@ -10,7 +10,7 @@
 #   Then the database itself refuses a row that points into another Business.
 import uuid
 
-from sqlalchemy import ForeignKey, Select, select
+from sqlalchemy import ColumnElement, ForeignKey, Select, delete, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.core.db import Base
@@ -46,6 +46,15 @@ class TenantRepository[ModelT: TenantModel]:
         if row is None:
             raise NotFound()
         return row
+
+    def delete_where(self, *conditions: ColumnElement[bool]) -> int:
+        """Delete this Business's rows that match ALL conditions, in one DELETE statement.
+
+        The tenant filter is added here, like in _select, so a delete can never reach another
+        Business's rows. Returns how many rows were deleted.
+        """
+        statement = delete(self.model).where(self.model.business_id == current_business_id(), *conditions)
+        return self.session.execute(statement).rowcount
 
     def add(self, row: ModelT) -> ModelT:
         # Always the current Business: a caller cannot choose another one.

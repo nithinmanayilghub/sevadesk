@@ -48,6 +48,8 @@ class Permission(StrEnum):
     USE_INBOX_AND_BOOKINGS = "use_inbox_and_bookings"  # the Inbox, and approve Bookings
     SEE_OWN_BOOKINGS = "see_own_bookings"  # the Bookings assigned to you
     SEE_DASHBOARD = "see_dashboard"
+    # No FR-10 row: see and delete a Customer's data (NFR-8, DPDP; story 4.5).
+    MANAGE_CUSTOMER_DATA = "manage_customer_data"
 
 
 class LoginRequest(BaseModel):

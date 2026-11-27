@@ -4,6 +4,7 @@
 # - receive_message: save one Customer Message, once, with the next seq (AR-12, AR-13).
 # - start_handoff / end_handoff: the ONLY code that changes a Conversation's state (AD-10,
 #   AR-15; a unit test guards this). reply / take_over / give_back call them (story 4.4).
+# - customer_details / delete_customer: the Customer detail sheet and the DPDP delete (story 4.5).
 #
 # This file is channel-neutral (NFR-9): it gets a Channel (channel.py) and never sees a
 # cookie or a phone number. No commit here: the request owns the transaction (AD-15).
@@ -25,13 +26,19 @@ from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
 from app.modules.business import service as business_service
 from app.modules.inbox.channel import Channel
-from app.modules.inbox.models import Conversation, Message
-from app.modules.inbox.repository import ConversationRepository, MessageRepository
+from app.modules.inbox.models import Conversation, Customer, Message, VisitorToken
+from app.modules.inbox.repository import (
+    ConversationRepository,
+    CustomerRepository,
+    MessageRepository,
+    VisitorTokenRepository,
+)
 from app.modules.inbox.schemas import (
     ChatCursor,
     ChatPollOut,
     ChatSnapshot,
     ConversationStateOut,
+    CustomerOut,
     InboxCursor,
     InboxPage,
     InboxRow,
@@ -351,3 +358,65 @@ def count_needs_human(session: Session, actor: Actor) -> NeedsHumanCount:
     """How many Conversations are in Handoff (Needs Human), for the Inbox tab's red number."""
     accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
     return NeedsHumanCount(count=ConversationRepository(session).count_needs_human())
+
+
+# ---------------------------------------------------------------- Delete a Customer (NFR-8, AD-13)
+
+
+def customer_details(session: Session, actor: Actor, conversation_id: uuid.UUID) -> CustomerOut:
+    """The Customer of this Conversation, for the Customer detail sheet. Owner only.
+
+    The Role check comes first, so Staff and Technicians never learn whether an id exists.
+    """
+    accounts_service.require_roles(actor, Permission.MANAGE_CUSTOMER_DATA)
+    conversation = ConversationRepository(session).get_or_raise(conversation_id)  # 404 if not ours
+    customer = CustomerRepository(session).get_or_raise(conversation.customer_id)
+    counts = ConversationRepository(session).count_for_customer(customer.id)
+    return CustomerOut(
+        customer_id=customer.id,
+        created_at=customer.created_at,
+        conversation_count=counts.conversations,
+        message_count=counts.messages,
+    )
+
+
+def delete_customer(session: Session, actor: Actor, customer_id: uuid.UUID) -> None:
+    """Delete a Customer and ALL their data, in this request's one transaction (AD-13, AD-15).
+
+    Either every row goes, or (on any error, the rollback) none does: never a half delete.
+
+    Lock order, the same as a Customer send (webchat.open_conversation): visitor token rows
+    first, then Conversation rows. A send that is saving right now holds those locks; we wait
+    for it, and then delete its new Message too. Two flows that take locks in the same order
+    can only queue, never wait on each other in a circle (a deadlock).
+    """
+    accounts_service.require_roles(actor, Permission.MANAGE_CUSTOMER_DATA)
+    customers, tokens = CustomerRepository(session), VisitorTokenRepository(session)
+    conversations, messages = ConversationRepository(session), MessageRepository(session)
+
+    # The Customer row first: a second delete of the same Customer waits here, then gets a 404.
+    if customers.lock(customer_id) is None:
+        raise NotFound()  # missing, already deleted, or another Business's (the filter hides it)
+
+    # Which visitor tokens are theirs: the ones their Conversations point at. A token's
+    # Conversations always belong to ONE Customer (open_conversation makes the Customer and the
+    # Conversation together), so deleting these tokens takes nobody else's chat.
+    token_ids = conversations.visitor_token_ids_of(customer_id)
+    tokens.lock_ids(token_ids)  # lock 1, like a send
+    conversation_ids = conversations.lock_for_customer(customer_id)  # lock 2, like a send
+
+    # Epic 5: call bookings.delete_for_customer(customer_id) HERE, before our own rows (AD-13).
+
+    # Children first, parent last: each foreign key still points at a row that exists.
+    deleted_messages = messages.delete_where(Message.conversation_id.in_(conversation_ids))
+    conversations.delete_where(Conversation.id.in_(conversation_ids))
+    tokens.delete_where(VisitorToken.id.in_(token_ids))
+    customers.delete_where(Customer.id == customer_id)
+
+    # Open Chat Pages and Inbox screens: their next poll must not say "no change" (AD-7).
+    for conversation_id in conversation_ids:
+        mark_conversation_changed(session, conversation_id)
+    # A timed note in this request's trace: counts only, no ids and no text (NFR-8).
+    trace.get_current_span().add_event(
+        "customer.deleted", {"conversations": len(conversation_ids), "messages": deleted_messages}
+    )

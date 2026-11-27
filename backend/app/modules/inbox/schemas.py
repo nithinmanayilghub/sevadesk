@@ -192,6 +192,15 @@ class ConversationStateOut(BaseModel):
     state: Literal["agent", "handoff", "closed"]
 
 
+class CustomerOut(BaseModel):
+    """The Customer detail sheet (story 4.5). No name or phone yet: those come in a later story."""
+
+    customer_id: uuid.UUID
+    created_at: datetime  # "Customer since"
+    conversation_count: int
+    message_count: int
+
+
 class NeedsHumanCount(BaseModel):
     """How many Conversations wait for a human: the red number on the Inbox tab (UX-DR16)."""
 

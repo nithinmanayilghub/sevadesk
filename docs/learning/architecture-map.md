@@ -1,4 +1,4 @@
-# SevaDesk architecture map (Epic 4, after Story 4.3)
+# SevaDesk architecture map (end of Epic 4, after Story 4.5)
 
 Epic 1 built the **skeleton**: every part exists and talks to the others, but the app only says
 "Namaste". Epics 2+ put real features into this skeleton.
@@ -219,3 +219,44 @@ flowchart LR
 | `appendPage` / `mergePoll` | `frontend/src/lib/inboxList.ts` | Load more never shows a row twice; a poll never shrinks a long list |
 | No poll during Load more + `signal.aborted` check | `frontend/src/components/InboxList.tsx` | an older poll answer never wipes a page that was just added |
 | `useNeedsHumanCount` | `frontend/src/lib/useNeedsHumanCount.ts` | the red number on every app page; never asked for by a Technician-only User |
+
+## 10. Epic 4 complete: reply, Handoff, and delete (Stories 4.4–4.5)
+
+```mermaid
+flowchart LR
+    subgraph Customer
+        CP[Chat Page<br/>polls every 5 s]
+    end
+    subgraph Team["Owner / Staff (logged in)"]
+        IN[Inbox list] --> CV[ConversationView<br/>polls every 5 s]
+        CV --> HB[Handoff bar:<br/>Take over / Give back]
+        CV --> RP[Reply]
+        CV --> CS["Customer sheet<br/>(Owner only)"]
+    end
+    CP -->|POST send| WS["webchat.open_conversation<br/>lock 1: token → lock 2: Conversation"]
+    RP -->|POST reply| SV
+    HB -->|take-over / give-back| SV
+    CS -->|DELETE customer| DEL["delete_customer<br/>lock Customer → tokens → Conversations<br/>delete Messages → Conversations → tokens → Customer"]
+    WS --> SV["inbox/service.py<br/>_append, start_handoff, end_handoff"]
+    SV --> PG[(Postgres)]
+    DEL --> PG
+    SV -->|after commit| RV[("Redis ver:<br/>version + 1")]
+    DEL -->|after commit| RV
+    RV -.->|"version differs → slow path"| CP
+    RV -.-> CV
+```
+
+| Part | Lives in | What it guarantees |
+|---|---|---|
+| `start_handoff` / `end_handoff` (the only state setters) | `inbox/service.py` | one place decides who replies; a code guard test refuses state writes anywhere else |
+| `_append` | `inbox/service.py` | a Customer send and a team reply number, sort and announce a Message the same way |
+| `delete_customer` | `inbox/service.py` | all of a Customer's rows go in one transaction, child-first; never a half delete (NFR-8) |
+| One lock order: token → Conversation | `webchat.py`, `service.py` | a send and a delete only queue, never deadlock; a test fails if the order changes |
+| `ensure_and_lock` | `inbox/repository.py` | a send that waited for a row a delete removed makes it again: a new Customer, not a 500 |
+| `delete_where` | `core/repository.py` | every DELETE gets the Business filter from one place |
+| `manage_customer_data` (Owner only) | `accounts/permissions.py` | Staff and Technicians get 403 before any lookup, for real and fake ids alike |
+| Version bump after commit | `core/versions.py` | every change (reply, Handoff, delete) wakes open screens on their next poll |
+
+Epic 4 in one line: a Customer chats without an account, the team sees and answers every chat
+live within 5 s, a person can take over from the Agent, and the Owner can erase a Customer.
+Epic 5 adds Bookings; `bookings.delete_for_customer` then runs first inside `delete_customer`.

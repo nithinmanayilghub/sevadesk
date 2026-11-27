@@ -52,7 +52,13 @@ def test_login_sets_a_safe_cookie(client):
     assert response.status_code == 200
     assert response.json() == {
         "roles": ["owner", "technician"],
-        "permissions": ["manage_setup", "use_inbox_and_bookings", "see_own_bookings", "see_dashboard"],
+        "permissions": [
+            "manage_setup",
+            "use_inbox_and_bookings",
+            "see_own_bookings",
+            "see_dashboard",
+            "manage_customer_data",
+        ],
         "theme": "system",
     }
     cookie = response.headers["set-cookie"]

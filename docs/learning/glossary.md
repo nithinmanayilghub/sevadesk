@@ -198,3 +198,13 @@ Plain-word meanings. Newest terms at the bottom.
 - **Code guard test** - A test that reads the source code (with Python's `ast` module) instead of running it, to enforce a rule such as "only these two functions write `state`".
 - **Span event** - A timed note inside one span of a trace, with a few attributes. `conversation.state_changed {from, to}` records each Handoff change.
 - **Stale-poll guard** - A poll that was asked before a click can answer after it, with older data. The screen keeps the click's state and its old cursor, so the next poll reads again.
+- **Deadlock** - Two requests that each hold a lock the other one needs, so both wait forever. Postgres finds the circle and stops one with an error. Fixed by taking locks in one fixed order (see Lock order).
+- **Right to erasure (DPDP delete)** - India's DPDP Act lets a person ask a Business to delete their data. In SevaDesk the Owner deletes a Customer with all their chats in one transaction (NFR-8).
+- **Child-first delete** - Delete the rows that point at others (Messages) before the rows they point at (Customer). A foreign key refuses to delete a parent that still has children.
+- **Tenant-filtered delete (`delete_where`)** - A DELETE that always adds "business_id = this Business", added in one place in the base repository, so no delete can reach another Business's rows.
+- **Skipped deleted row (READ COMMITTED)** - A request that waits for a row lock, then sees that the row was deleted meanwhile, gets no row. Code that waits on a lock must handle "the row is gone" (`ensure_and_lock` makes it again).
+- **Mutation check** - Break the code on purpose (remove one line), run the test, and see it fail. It proves the test really checks that line.
+- **Sheet** - A panel that slides in from the side of the screen, on top of the page. A dialog, so focus stays inside it until it closes.
+- **AlertDialog** - A dialog for a dangerous choice (like delete). It needs an explicit answer: Cancel or the action. A click outside does not close it.
+- **Accessible description (`aria-describedby`)** - Extra text that a screen reader reads after a dialog's title. Radix links `SheetDescription` to the sheet by itself.
+- **Live thread (`useLiveThread`)** - One chat that stays up to date on screen: load it, poll every 5 s, merge new Messages, keep this screen's own sends, ignore a poll older than a click, and end with "not found" if the chat was deleted. The Chat Page and the Inbox thread both use this one deep module; each only gives its two fetchers.
