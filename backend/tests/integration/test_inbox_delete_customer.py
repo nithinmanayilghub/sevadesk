@@ -8,6 +8,7 @@ import uuid
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+from tests.integration.conftest import assert_not_found, set_owner_roles
 from tests.integration.test_chat_messages import post
 from tests.integration.test_chat_poll import poll
 from tests.integration.test_inbox_list import new_chat
@@ -166,3 +167,44 @@ def test_delete_waits_for_a_send(sign_up_owner):
     assert not thread.is_alive(), "the delete never finished"
     assert result["error"] is None, result["error"]
     assert rows_left(customer_id, conversation_id, token_id) == NONE_LEFT
+
+
+# ---------------------------------------------------------------- Part 2: the routes
+
+
+def customer_url(conversation_id) -> str:
+    return f"/api/v1/inbox/conversations/{conversation_id}/customer"
+
+
+def delete_url(customer_id) -> str:
+    return f"/api/v1/inbox/customers/{customer_id}"
+
+
+def test_owner_deletes_by_route(sign_up_owner):
+    # Behaviour: the Owner reads the sheet, deletes with 204, and then the chat is a 404.
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    sheet = owner.get(customer_url(conversation_id))
+    assert sheet.status_code == 200, sheet.text
+    assert sheet.json()["message_count"] == 1
+    response = owner.delete(delete_url(sheet.json()["customer_id"]))
+    assert response.status_code == 204, response.text
+    assert_not_found(owner.get(f"/api/v1/inbox/conversations/{conversation_id}/messages"))
+
+
+@pytest.mark.parametrize("roles", [["staff"], ["technician"], ["staff", "technician"]])
+def test_only_the_owner_may_delete(sign_up_owner, roles):
+    # Behaviour: Staff and Technicians get 403 on both routes (FR-10), and nothing is deleted.
+    # The Role check runs first, so a made-up id gets the same 403 (no hint that ids exist).
+    owner, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    customer_id, token_id = ids_of(conversation_id)
+    set_owner_roles(business_id, roles)
+    statuses = [
+        owner.get(customer_url(conversation_id)).status_code,
+        owner.delete(delete_url(customer_id)).status_code,
+        owner.get(customer_url(uuid.uuid4())).status_code,
+        owner.delete(delete_url(uuid.uuid4())).status_code,
+    ]
+    assert statuses == [403, 403, 403, 403]
+    assert rows_left(customer_id, conversation_id, token_id)["messages"] == 1

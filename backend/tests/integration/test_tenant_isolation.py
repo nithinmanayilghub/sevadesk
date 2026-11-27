@@ -358,6 +358,21 @@ def check_give_back_conversation(owners: TwoOwners) -> None:
     assert answer["snapshot"] == {"conversation_state": "handoff"}  # still B's handoff
 
 
+def check_get_conversation_customer(owners: TwoOwners) -> None:
+    # A cannot read B's Customer through B's chat id; B can.
+    conversation_id = _b_chat(owners)
+    assert_not_found(owners.a.get(f"/api/v1/inbox/conversations/{conversation_id}/customer"))
+    assert owners.b.get(f"/api/v1/inbox/conversations/{conversation_id}/customer").status_code == 200
+
+
+def check_delete_customer(owners: TwoOwners) -> None:
+    # A cannot delete B's Customer: a 404, and B's chat is still all there.
+    conversation_id = _b_chat(owners)
+    customer_id = owners.b.get(f"/api/v1/inbox/conversations/{conversation_id}/customer").json()["customer_id"]
+    assert_not_found(owners.a.delete(f"/api/v1/inbox/customers/{customer_id}"))
+    _b_chat_unchanged(owners, conversation_id)
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -393,6 +408,8 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("POST", "/api/v1/inbox/conversations/{conversation_id}/messages"): check_send_inbox_reply,
     ("POST", "/api/v1/inbox/conversations/{conversation_id}/take-over"): check_take_over_conversation,
     ("POST", "/api/v1/inbox/conversations/{conversation_id}/give-back"): check_give_back_conversation,
+    ("GET", "/api/v1/inbox/conversations/{conversation_id}/customer"): check_get_conversation_customer,
+    ("DELETE", "/api/v1/inbox/customers/{customer_id}"): check_delete_customer,
 }
 
 

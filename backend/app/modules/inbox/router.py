@@ -17,6 +17,10 @@
 # - GET  /api/v1/inbox/conversations/{id}/messages?cursor=…: the thread poll (counted too).
 # - POST /api/v1/inbox/conversations/{id}/messages: a team reply; it starts a Handoff.
 # - POST /api/v1/inbox/conversations/{id}/take-over and …/give-back: the Handoff bar.
+#
+# The Customer detail sheet (story 4.5, NFR-8), Owner only (the Role check is in service.py):
+# - GET    /api/v1/inbox/conversations/{id}/customer: the Customer of this chat, with counts.
+# - DELETE /api/v1/inbox/customers/{id}: delete the Customer and all their chats (204).
 import uuid
 from typing import Annotated
 
@@ -32,6 +36,7 @@ from app.modules.inbox import chat_poll, service
 from app.modules.inbox.schemas import (
     ChatPollOut,
     ConversationStateOut,
+    CustomerOut,
     InboxPage,
     MessageOut,
     NeedsHumanCount,
@@ -173,3 +178,22 @@ def take_over_conversation(conversation_id: uuid.UUID, session: SessionDep, acto
 )
 def give_back_conversation(conversation_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> ConversationStateOut:
     return service.give_back(session, actor, conversation_id)
+
+
+@router.get(
+    "/inbox/conversations/{conversation_id}/customer",
+    operation_id="get_conversation_customer",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
+)
+def get_conversation_customer(conversation_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> CustomerOut:
+    return service.customer_details(session, actor, conversation_id)
+
+
+@router.delete(
+    "/inbox/customers/{customer_id}",
+    status_code=204,
+    operation_id="delete_customer",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 422: _ERROR},
+)
+def delete_customer(customer_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> None:
+    service.delete_customer(session, actor, customer_id)
