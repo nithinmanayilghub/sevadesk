@@ -106,10 +106,9 @@ class WebchatChannel:
     def open_conversation(self, session: Session) -> Conversation:
         tokens, conversations = VisitorTokenRepository(session), ConversationRepository(session)
         token_hash = self._hash()
-        tokens.ensure(token_hash)
-        # Lock 1: this browser's row. Two first sends (a double tap) now run one after the
-        # other, so the second one finds the Conversation the first one made.
-        visitor = tokens.lock(token_hash)
+        # Lock 1: this browser's row (made first if it is new). Two first sends (a double tap)
+        # now run one after the other, so the second one finds the Conversation the first made.
+        visitor = tokens.ensure_and_lock(token_hash)
         # Lock 2: the Conversation row, in the same query that reads it (fresh values).
         conversation = conversations.newest_for_visitor(visitor.id, lock=True)
         if conversation is None:

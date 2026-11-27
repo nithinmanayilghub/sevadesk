@@ -13,6 +13,7 @@ from tests.integration.test_chat_messages import post
 from tests.integration.test_chat_poll import poll
 from tests.integration.test_inbox_list import new_chat
 from tests.integration.test_inbox_reply import owner_actor
+from tests.integration.test_inbox_service import send
 
 from app.core.db import get_engine
 from app.core.errors import NotFound
@@ -20,7 +21,7 @@ from app.core.tenancy import tenant_scope
 from app.core.tokens import new_token
 from app.modules.inbox import service
 from app.modules.inbox.models import Conversation, Customer, Message, VisitorToken
-from app.modules.inbox.schemas import CustomerOut
+from app.modules.inbox.schemas import CustomerOut, MessageOut
 
 
 def customer_of(conversation_id: uuid.UUID) -> uuid.UUID:
@@ -208,3 +209,82 @@ def test_only_the_owner_may_delete(sign_up_owner, roles):
     ]
     assert statuses == [403, 403, 403, 403]
     assert rows_left(customer_id, conversation_id, token_id)["messages"] == 1
+
+
+# ---------------------------------------------------------------- Part 3: review fixes
+
+
+def test_send_during_a_delete_starts_a_new_chat(sign_up_owner):
+    # Behaviour (review finding 1): a Customer send that waits for the token lock while a
+    # delete removes that token row does not fail with a 500. It makes the row again and
+    # starts a NEW Customer; the Message is saved.
+    _, business_id = sign_up_owner()
+    token = new_token()
+    conversation_id = new_chat(business_id, token=token)
+    customer_id, token_id = ids_of(conversation_id)
+    result: dict[str, object] = {}
+
+    def run_send() -> None:
+        try:
+            result["saved"] = send(business_id, token, "are you there?")
+        except BaseException as error:  # noqa: BLE001 - reported by the assert below
+            result["saved"] = error
+
+    with get_engine().connect() as conn:
+        tx = conn.begin()
+        # Play "a delete in progress": it holds the token row lock, then deletes all the rows.
+        conn.execute(text("SELECT id FROM visitor_tokens WHERE id = :id FOR UPDATE"), {"id": token_id})
+        thread = threading.Thread(target=run_send)
+        thread.start()
+        time.sleep(0.5)
+        assert thread.is_alive(), "the send did not wait for the token lock"
+        conn.execute(text("DELETE FROM messages WHERE conversation_id = :c"), {"c": conversation_id})
+        conn.execute(text("DELETE FROM conversations WHERE id = :c"), {"c": conversation_id})
+        conn.execute(text("DELETE FROM visitor_tokens WHERE id = :t"), {"t": token_id})
+        conn.execute(text("DELETE FROM customers WHERE id = :c"), {"c": customer_id})
+        tx.commit()
+        thread.join(timeout=30)
+    assert not thread.is_alive(), "the send never finished"
+    assert isinstance(result["saved"], MessageOut), result["saved"]
+    assert result["saved"].seq == 1  # a brand-new chat
+    new_conversation = new_chat(business_id, "and again", token=token)
+    assert customer_of(new_conversation) != customer_id
+
+
+def test_delete_takes_the_token_lock_before_the_conversation_lock(sign_up_owner):
+    # Behaviour (review finding 2): the delete locks in the SAME order as a send. Here a fake
+    # send holds only lock 1 (the token) when the delete starts, and takes lock 2 (the
+    # Conversation) afterwards. If the delete took the Conversation first, the two would wait
+    # on each other (a deadlock) and Postgres would kill one with an error.
+    _, business_id = sign_up_owner()
+    conversation_id = new_chat(business_id)
+    customer_id, token_id = ids_of(conversation_id)
+    result: dict[str, BaseException | None] = {}
+
+    def run_delete() -> None:
+        try:
+            delete(business_id, customer_id)
+            result["error"] = None
+        except BaseException as error:  # noqa: BLE001 - reported by the assert below
+            result["error"] = error
+
+    with get_engine().connect() as conn:
+        tx = conn.begin()
+        conn.execute(text("SELECT id FROM visitor_tokens WHERE id = :id FOR UPDATE"), {"id": token_id})  # lock 1
+        thread = threading.Thread(target=run_delete)
+        thread.start()
+        time.sleep(0.5)  # the delete is now waiting (on lock 1, if its order is right)
+        # Lock 2. With the wrong order the delete would already hold it: a deadlock here.
+        conn.execute(text("SET LOCAL lock_timeout = '5s'"))
+        conn.execute(text("SELECT id FROM conversations WHERE id = :id FOR UPDATE"), {"id": conversation_id})
+        conn.execute(
+            text(
+                "INSERT INTO messages (id, business_id, conversation_id, seq, author_type, body, lang)"
+                " VALUES (:id, :b, :c, 2, 'customer', 'one more', 'en')"
+            ),
+            {"id": uuid.uuid7(), "b": business_id, "c": conversation_id},
+        )
+        tx.commit()
+        thread.join(timeout=30)
+    assert result["error"] is None, result["error"]
+    assert rows_left(customer_id, conversation_id, token_id) == NONE_LEFT

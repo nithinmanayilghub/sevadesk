@@ -52,9 +52,21 @@ class VisitorTokenRepository(TenantRepository[VisitorToken]):
         )
         self.session.execute(statement)
 
-    def lock(self, token_hash: str) -> VisitorToken:
-        """This browser's row, locked: its sends now wait in line, one at a time."""
-        return self.session.scalars(_locked(self._select().where(VisitorToken.token_hash == token_hash))).one()
+    def ensure_and_lock(self, token_hash: str) -> VisitorToken:
+        """This browser's row, made if needed and LOCKED: its sends now wait in line, one at a time.
+
+        A Customer delete (story 4.5) can hold this row's lock and then delete the row. A send
+        that waited for that lock then finds NO row (under READ COMMITTED, a locked read skips a
+        row deleted meanwhile). So we make the row once more: this browser starts fresh, as a
+        new Customer. The second row is our own and not committed yet, so no one can delete it.
+        """
+        query = _locked(self._select().where(VisitorToken.token_hash == token_hash))
+        self.ensure(token_hash)
+        row = self.session.scalars(query).one_or_none()
+        if row is None:
+            self.ensure(token_hash)
+            row = self.session.scalars(query).one()
+        return row
 
     def lock_ids(self, ids: list[uuid.UUID]) -> None:
         """Lock these rows (story 4.5). In id order, so two callers always lock in the same order."""
