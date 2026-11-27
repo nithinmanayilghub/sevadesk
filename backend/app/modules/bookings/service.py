@@ -49,7 +49,7 @@ def list_free_slots(session: Session, actor: Actor, service_id: uuid.UUID) -> Fr
         hours_by_day=hours_by_day,
         duration=timedelta(minutes=service.duration_minutes),
         busy=busy,
-        technicians=len(accounts_service.active_technician_ids(session)),
+        technician_count=len(accounts_service.active_technician_ids(session)),
         tz=tz,
         now=now,
     )

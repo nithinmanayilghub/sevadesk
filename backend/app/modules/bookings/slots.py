@@ -35,7 +35,7 @@ def free_slots(
     hours_by_day: dict[date, OpenHours | None],
     duration: timedelta,
     busy: list[tuple[datetime, datetime]],
-    technicians: int,
+    technician_count: int,
     tz: ZoneInfo,
     now: datetime,
 ) -> list[SlotOut]:
@@ -43,7 +43,7 @@ def free_slots(
 
     hours_by_day: each date's open hours on the Business clock; None = closed.
     busy: (start, end) of every LIVE Booking (the repository already removed expired ones).
-    technicians: how many active Technicians the Business has (from accounts, AR-7).
+    technician_count: how many active Technicians the Business has (from accounts, AR-7).
     """
     step = timedelta(minutes=SLOT_STEP_MINUTES)
     slots = []
@@ -59,7 +59,7 @@ def free_slots(
         while start + duration <= close:
             end = start + duration
             taken = sum(1 for job in busy if _overlaps(job, start, end))
-            if start >= now and taken < technicians:
+            if start >= now and taken < technician_count:
                 slots.append(SlotOut(start=start, end=end))
             start += step
     return slots

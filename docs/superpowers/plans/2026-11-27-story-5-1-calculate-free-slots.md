@@ -25,6 +25,7 @@
 
 ## Decisions this plan makes (from the spec's open points)
 
+- **Slot length = the Service duration, not a constant.** The AC says "Slot length and step are fixed constants" (AR-24), but FR-17 says a Slot must "fit the Service duration". One fixed length would offer a 60-min Slot for a 2-hour job. So only the step (`SLOT_STEP_MINUTES = 30`) and the window (`SLOT_DAYS = 7`) are constants. (Recorded after the code review of PR #72.)
 - **Slot step 30 min.** Start times are Working-Hours start, +30, +60, … A Slot fits only if `start + duration <= close`.
 - **Window:** 7 Business-local dates: today (Business clock) to today + 6.
 - **Past starts are not free.** A Slot with `start < now` is dropped (today's morning, after the shop opened).

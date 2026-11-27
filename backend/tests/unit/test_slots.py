@@ -24,7 +24,7 @@ def starts(**changes) -> list[str]:
         "hours_by_day": {MONDAY: HOURS},
         "duration": HOUR,
         "busy": [],
-        "technicians": 1,
+        "technician_count": 1,
         "tz": TZ,
         "now": SUNDAY_MIDNIGHT,
     } | changes
@@ -41,7 +41,9 @@ def test_closed_day_gives_no_slots():
 
 
 def test_slot_at_end_of_working_hours():
-    slots = free_slots(hours_by_day={MONDAY: HOURS}, duration=HOUR, busy=[], technicians=1, tz=TZ, now=SUNDAY_MIDNIGHT)
+    slots = free_slots(
+        hours_by_day={MONDAY: HOURS}, duration=HOUR, busy=[], technician_count=1, tz=TZ, now=SUNDAY_MIDNIGHT
+    )
     assert slots[-1].end == ist(MONDAY, "12:00")  # ends exactly at closing time
 
 
@@ -51,8 +53,8 @@ def test_one_technician_fully_booked():
 
 def test_two_technicians_one_free():
     one_job = [(ist(MONDAY, "10:00"), ist(MONDAY, "12:00"))]
-    assert starts(technicians=2, busy=one_job) == ["10:00", "10:30", "11:00"]
-    assert starts(technicians=2, busy=one_job * 2) == []
+    assert starts(technician_count=2, busy=one_job) == ["10:00", "10:30", "11:00"]
+    assert starts(technician_count=2, busy=one_job * 2) == []
 
 
 def test_touching_booking_does_not_block():
@@ -63,7 +65,7 @@ def test_touching_booking_does_not_block():
 
 
 def test_no_technicians_means_no_slots():
-    assert starts(technicians=0) == []
+    assert starts(technician_count=0) == []
 
 
 def test_slots_before_now_are_dropped():
@@ -85,7 +87,7 @@ def test_dst_day_has_no_double_slots():
         hours_by_day={jump_day: OpenHours(start_time=time(1, 0), end_time=time(4, 0))},
         duration=HOUR,
         busy=[],
-        technicians=1,
+        technician_count=1,
         tz=new_york,
         now=datetime(2026, 1, 1, tzinfo=UTC),  # before the jump day, so no Slot is in the past
     )
@@ -103,9 +105,9 @@ def test_today_is_the_business_date_after_midnight():
 
 
 def test_slots_are_utc():
-    first = free_slots(hours_by_day={MONDAY: HOURS}, duration=HOUR, busy=[], technicians=1, tz=TZ, now=SUNDAY_MIDNIGHT)[
-        0
-    ]
+    first = free_slots(
+        hours_by_day={MONDAY: HOURS}, duration=HOUR, busy=[], technician_count=1, tz=TZ, now=SUNDAY_MIDNIGHT
+    )[0]
     assert first.start == datetime(2026, 11, 30, 4, 30, tzinfo=UTC)  # 10:00 in India
     assert first.start.tzinfo == UTC
 
