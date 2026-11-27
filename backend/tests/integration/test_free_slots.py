@@ -117,6 +117,16 @@ def test_window_is_seven_business_days(sign_up_owner):
     assert days == {date(2026, 11, 30) + timedelta(days=offset) for offset in range(6)}
 
 
+def test_window_starts_on_the_business_date_after_midnight(sign_up_owner, monkeypatch):
+    # 19:00 UTC on Fri 4 Dec is already 00:30 on Sat 5 Dec in India. The window must be
+    # Sat 5 - Fri 11 Dec. With the UTC date it would be Fri 4 - Thu 10, and lose Fri 11.
+    monkeypatch.setattr(bookings_service, "_now", lambda: datetime(2026, 12, 4, 19, 0, tzinfo=UTC))
+    _, business_id, service_id = _shop(sign_up_owner)
+    days = {start.date() for start in _starts(business_id, service_id)}
+    assert min(days) == date(2026, 12, 5)
+    assert max(days) == date(2026, 12, 11)
+
+
 def test_inactive_service_is_not_found(sign_up_owner):
     owner, business_id, service_id = _shop(sign_up_owner)
     changed = owner.put(f"/api/v1/services/{service_id}", json={**SERVICE, "is_active": False})
