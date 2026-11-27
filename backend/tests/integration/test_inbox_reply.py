@@ -323,6 +323,16 @@ def test_technician_gets_403_on_team_routes(sign_up_owner):
     assert row(conversation_id).state == "agent"
 
 
+def test_technician_gets_403_even_for_a_missing_id(sign_up_owner):
+    # Behaviour: the Role check runs BEFORE the lookup, so a Technician cannot tell
+    # real ids from made-up ones (both give the same answer).
+    owner, business_id = sign_up_owner()
+    set_owner_roles(business_id, ["technician"])
+    missing_id = uuid.uuid4()
+    responses = all_routes(owner, missing_id)
+    assert [r.status_code for r in responses] == [403, 403, 403, 403]
+
+
 def test_reply_bad_body_is_422(sign_up_owner):
     owner, business_id = sign_up_owner()
     conversation_id = new_chat(business_id)
