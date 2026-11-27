@@ -17,6 +17,9 @@ ALLOWED_ROLES: dict[Permission, frozenset[Role]] = {
     Permission.SEE_OWN_BOOKINGS: frozenset({Role.OWNER, Role.STAFF, Role.TECHNICIAN}),
     # See the Dashboard: Owner and Staff (Staff without team settings: that is MANAGE_SETUP).
     Permission.SEE_DASHBOARD: frozenset({Role.OWNER, Role.STAFF}),
+    # See and delete a Customer's data (NFR-8, not an FR-10 row): Owner only. A delete cannot
+    # be undone, so only the person responsible for the Business's data may do it.
+    Permission.MANAGE_CUSTOMER_DATA: frozenset({Role.OWNER}),
 }
 
 

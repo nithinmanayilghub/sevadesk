@@ -19,6 +19,8 @@ EXPECTED = {
     Permission.USE_INBOX_AND_BOOKINGS: {Role.OWNER, Role.STAFF},
     Permission.SEE_OWN_BOOKINGS: {Role.OWNER, Role.STAFF, Role.TECHNICIAN},
     Permission.SEE_DASHBOARD: {Role.OWNER, Role.STAFF},
+    # Not an FR-10 row: see and delete a Customer's data (NFR-8, story 4.5). Owner only.
+    Permission.MANAGE_CUSTOMER_DATA: {Role.OWNER},
 }
 
 # Every non-empty mix of Roles a person can have: 7 of them (3 single, 3 pairs, 1 with all three).

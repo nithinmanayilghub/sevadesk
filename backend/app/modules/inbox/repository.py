@@ -23,6 +23,13 @@ def _locked[T](query: Select[T]) -> Select[T]:
 class CustomerRepository(TenantRepository[Customer]):
     model = Customer
 
+    def lock(self, customer_id: uuid.UUID) -> Customer | None:
+        """This Business's Customer, LOCKED (story 4.5), or None (missing or another Business's).
+
+        Only the delete locks a Customer row, so two deletes of one Customer go in line.
+        """
+        return self.session.scalars(_locked(self._select().where(Customer.id == customer_id))).one_or_none()
+
 
 class VisitorTokenRepository(TenantRepository[VisitorToken]):
     model = VisitorToken
@@ -49,6 +56,10 @@ class VisitorTokenRepository(TenantRepository[VisitorToken]):
         """This browser's row, locked: its sends now wait in line, one at a time."""
         return self.session.scalars(_locked(self._select().where(VisitorToken.token_hash == token_hash))).one()
 
+    def lock_ids(self, ids: list[uuid.UUID]) -> None:
+        """Lock these rows (story 4.5). In id order, so two callers always lock in the same order."""
+        self.session.scalars(_locked(self._select().where(VisitorToken.id.in_(ids)).order_by(VisitorToken.id))).all()
+
 
 class ConversationRepository(TenantRepository[Conversation]):
     model = Conversation
@@ -69,6 +80,32 @@ class ConversationRepository(TenantRepository[Conversation]):
         Another Business's id gives None, like a missing one: the tenant filter hides it.
         """
         return self.session.scalars(_locked(self._select().where(Conversation.id == conversation_id))).one_or_none()
+
+    def visitor_token_ids_of(self, customer_id: uuid.UUID) -> list[uuid.UUID]:
+        """The visitor tokens this Customer's Conversations point at (no lock: these ids never change)."""
+        query = select(Conversation.visitor_token_id).where(
+            Conversation.business_id == current_business_id(), Conversation.customer_id == customer_id
+        )
+        return list(self.session.scalars(query.distinct()))
+
+    def lock_for_customer(self, customer_id: uuid.UUID) -> list[uuid.UUID]:
+        """Lock this Customer's Conversations, in id order. Returns their ids."""
+        query = _locked(self._select().where(Conversation.customer_id == customer_id).order_by(Conversation.id))
+        return [conversation.id for conversation in self.session.scalars(query)]
+
+    def count_for_customer(self, customer_id: uuid.UUID) -> tuple[int, int]:
+        """(Conversations, Messages) of this Customer, for the Customer detail sheet."""
+        query = (
+            select(func.count(func.distinct(Conversation.id)), func.count(Message.id))
+            .select_from(Conversation)
+            .outerjoin(
+                Message,
+                and_(Message.business_id == Conversation.business_id, Message.conversation_id == Conversation.id),
+            )
+            .where(Conversation.business_id == current_business_id(), Conversation.customer_id == customer_id)
+        )
+        conversations, messages = self.session.execute(query).one()
+        return conversations, messages
 
     def inbox_page(self, after: InboxCursor | None, limit: int) -> list[tuple[Conversation, Message]]:
         """Up to limit + 1 Conversations with their newest Message, in the Inbox order (story 4.3).
