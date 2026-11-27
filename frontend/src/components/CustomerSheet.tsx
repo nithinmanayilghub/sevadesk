@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { usePermissions } from "@/lib/permissions";
 import { useLoad } from "@/lib/useLoad";
 import { LoadFailed } from "./LoadFailed";
@@ -48,6 +48,7 @@ export function CustomerSheet({ conversationId }: { conversationId: string }) {
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Customer</SheetTitle>
+          <SheetDescription>Details and data deletion for this customer.</SheetDescription>
         </SheetHeader>
         {/* Only rendered while the sheet is open, so the data loads when the Owner opens it. */}
         <CustomerDetails conversationId={conversationId} />

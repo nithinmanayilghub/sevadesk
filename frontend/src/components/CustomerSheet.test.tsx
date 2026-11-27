@@ -92,3 +92,12 @@ test("cancel deletes nothing", async () => {
   await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   expect(DELETE).not.toHaveBeenCalled();
 });
+
+
+// CustomerSheet.test.tsx: 3) a new test
+test("the sheet has a description for screen readers", async () => {
+  renderAs(OWNER);
+  fireEvent.click(screen.getByRole("button", { name: "Customer" }));
+  const sheet = await screen.findByRole("dialog");
+  expect(sheet).toHaveAccessibleDescription("Details and data deletion for this customer.");
+});
