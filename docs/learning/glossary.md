@@ -208,3 +208,12 @@ Plain-word meanings. Newest terms at the bottom.
 - **AlertDialog** - A dialog for a dangerous choice (like delete). It needs an explicit answer: Cancel or the action. A click outside does not close it.
 - **Accessible description (`aria-describedby`)** - Extra text that a screen reader reads after a dialog's title. Radix links `SheetDescription` to the sheet by itself.
 - **Live thread (`useLiveThread`)** - One chat that stays up to date on screen: load it, poll every 5 s, merge new Messages, keep this screen's own sends, ignore a poll older than a click, and end with "not found" if the chat was deleted. The Chat Page and the Inbox thread both use this one deep module; each only gives its two fetchers.
+- **Slot** - One free start time for one Service, from start to start + Service duration. Free = inside Working Hours, not on a closed day, not in the past, and fewer live Bookings overlap it than there are active Technicians.
+- **Slot step** - How far apart Slot start times are: 30 min, counted from the opening time (`SLOT_STEP_MINUTES`).
+- **Live Booking** - A Booking that holds its time: `confirmed`, or `requested` with `expires_at` still in the future. One function, `is_live`, holds this rule.
+- **Computed on read** - Work a fact out each time you read, instead of storing it. "Expired" comes from `expires_at > now`, so it is right at once, with no cleanup job needed.
+- **Half-open range `[start, end)`** - A range that includes its start but not its end. So 10:00–11:00 and 11:00–12:00 do not overlap.
+- **Pure function** - A function that uses only its inputs (no database, no clock) and always gives the same output for the same inputs. Easy to unit test.
+- **DST (daylight saving time)** - Some countries move the clock 1 hour forward in spring and back in autumn. Then one clock time can be missing or come twice in a day. India has no DST.
+- **Business date** - Today's date on the Business's own clock (its timezone), not the server's UTC date.
+- **BOM (byte order mark)** - 3 invisible bytes that some Windows tools (PowerShell `-Encoding utf8`) put at the start of a file. Python and git see them as a change; remove them.
