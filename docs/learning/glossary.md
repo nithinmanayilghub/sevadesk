@@ -207,3 +207,4 @@ Plain-word meanings. Newest terms at the bottom.
 - **Sheet** - A panel that slides in from the side of the screen, on top of the page. A dialog, so focus stays inside it until it closes.
 - **AlertDialog** - A dialog for a dangerous choice (like delete). It needs an explicit answer: Cancel or the action. A click outside does not close it.
 - **Accessible description (`aria-describedby`)** - Extra text that a screen reader reads after a dialog's title. Radix links `SheetDescription` to the sheet by itself.
+- **Live thread (`useLiveThread`)** - One chat that stays up to date on screen: load it, poll every 5 s, merge new Messages, keep this screen's own sends, ignore a poll older than a click, and end with "not found" if the chat was deleted. The Chat Page and the Inbox thread both use this one deep module; each only gives its two fetchers.
