@@ -39,7 +39,8 @@ class Booking(TenantModel):
         CheckConstraint(f"state IN {_in(BOOKING_STATES)}", name="state_valid"),
         CheckConstraint("ends_at > starts_at", name="ends_after_starts"),
         CheckConstraint("price_paise > 0", name="price_valid"),
-        # "Expired" is worked out from expires_at (AD-9), so a request without it could never expire.
+        # "Live" is worked out from expires_at (AD-9): requested AND expires_at > now. With NULL,
+        # "NULL > now" is never true, so the request would never hold its Slot (a double booking).
         CheckConstraint("state <> 'requested' OR expires_at IS NOT NULL", name="request_has_expiry"),
         CheckConstraint(
             f"state NOT IN {_in(STATES_WITH_TECHNICIAN)} OR technician_membership_id IS NOT NULL",
