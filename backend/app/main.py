@@ -8,6 +8,7 @@ from app.core.origin_guard import add_origin_guard
 from app.core.telemetry import add_request_id, setup_telemetry
 from app.modules.accounts import router as accounts_router
 from app.modules.accounts import team_router
+from app.modules.bookings import router as bookings_router
 from app.modules.business import router as business_router
 from app.modules.inbox import router as inbox_router
 
@@ -25,6 +26,7 @@ app.include_router(accounts_router.router)
 app.include_router(team_router.router)
 app.include_router(business_router.router)
 app.include_router(inbox_router.router)
+app.include_router(bookings_router.router)
 register_error_handlers(app)
 # Added before add_request_id, so it runs INSIDE it: a refused request still gets a request ID and a log line.
 add_origin_guard(app)

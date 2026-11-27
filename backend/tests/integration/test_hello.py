@@ -27,6 +27,7 @@ def test_migration_creates_expected_tables(client):
         "visitor_tokens",
         "conversations",
         "messages",
+        "bookings",
     }
 
 

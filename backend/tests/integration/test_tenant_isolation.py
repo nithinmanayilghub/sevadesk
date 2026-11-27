@@ -373,6 +373,13 @@ def check_delete_customer(owners: TwoOwners) -> None:
     _b_chat_unchanged(owners, conversation_id)
 
 
+def check_list_free_slots(owners: TwoOwners) -> None:
+    # A cannot read the Slots of B's Service: a 404, the same as for a Service that does not exist.
+    b_service = _add_service(owners.b)
+    _put_week(owners.b, HOURS_WEEK)
+    assert_not_found(owners.a.get("/api/v1/bookings/slots", params={"service_id": b_service["service_id"]}))
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -410,6 +417,7 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("POST", "/api/v1/inbox/conversations/{conversation_id}/give-back"): check_give_back_conversation,
     ("GET", "/api/v1/inbox/conversations/{conversation_id}/customer"): check_get_conversation_customer,
     ("DELETE", "/api/v1/inbox/customers/{customer_id}"): check_delete_customer,
+    ("GET", "/api/v1/bookings/slots"): check_list_free_slots,
 }
 
 

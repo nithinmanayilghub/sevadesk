@@ -485,6 +485,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Free Slots */
+        get: operations["list_free_slots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -625,6 +642,13 @@ export interface components {
             field: string;
             /** Message */
             message: string;
+        };
+        /** FreeSlotsOut */
+        FreeSlotsOut: {
+            /** Timezone */
+            timezone: string;
+            /** Slots */
+            slots: components["schemas"]["SlotOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -887,6 +911,22 @@ export interface components {
             business_id: string;
             /** Business Name */
             business_name: string;
+        };
+        /**
+         * SlotOut
+         * @description One free time for one Service. Both moments are in UTC; show them in `timezone`.
+         */
+        SlotOut: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
         };
         /** TeamMember */
         TeamMember: {
@@ -2637,6 +2677,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_free_slots: {
+        parameters: {
+            query: {
+                service_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreeSlotsOut"];
+                };
             };
             /** @description Unauthorized */
             401: {

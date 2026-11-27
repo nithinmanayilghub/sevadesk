@@ -51,9 +51,10 @@ forbidden_modules = ["app.main", "app.worker", "app.export_openapi"]
 
 # AD-2: each module may call the ones below it, never the other way.
 [[tool.importlinter.contracts]]
-name = "module layers: inbox -> business -> accounts -> core"
+name = "module layers: inbox -> bookings -> business -> accounts -> core"
 type = "layers"
-layers = ["app.modules.inbox", "app.modules.business", "app.modules.accounts", "app.core"]
+# bookings never imports inbox: it keeps customer_id and conversation_id as plain ids.
+layers = ["app.modules.inbox", "app.modules.bookings", "app.modules.business", "app.modules.accounts", "app.core"]
 
 # AD-2: inbox uses business only through its front doors (service.py, dependencies.py).
 [[tool.importlinter.contracts]]
@@ -73,6 +74,33 @@ allow_indirect_imports = true
 name = "inbox uses accounts only through its front door"
 type = "forbidden"
 source_modules = ["app.modules.inbox"]
+forbidden_modules = [
+    "app.modules.accounts.models",
+    "app.modules.accounts.repository",
+    "app.modules.accounts.router",
+    "app.modules.accounts.team",
+    "app.modules.accounts.team_router",
+]
+allow_indirect_imports = true
+
+# AD-2: bookings uses business only through its front doors (service.py, dependencies.py).
+[[tool.importlinter.contracts]]
+name = "bookings uses business only through its front door"
+type = "forbidden"
+source_modules = ["app.modules.bookings"]
+forbidden_modules = [
+    "app.modules.business.models",
+    "app.modules.business.repository",
+    "app.modules.business.router",
+    "app.modules.business.chat_slug",
+]
+allow_indirect_imports = true
+
+# AD-2: bookings uses accounts only through its front doors, like business does.
+[[tool.importlinter.contracts]]
+name = "bookings uses accounts only through its front door"
+type = "forbidden"
+source_modules = ["app.modules.bookings"]
 forbidden_modules = [
     "app.modules.accounts.models",
     "app.modules.accounts.repository",
