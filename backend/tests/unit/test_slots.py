@@ -108,3 +108,8 @@ def test_slots_are_utc():
     ]
     assert first.start == datetime(2026, 11, 30, 4, 30, tzinfo=UTC)  # 10:00 in India
     assert first.start.tzinfo == UTC
+
+
+def test_two_hour_service_fits_only_once():
+    # A 2-hour job in a 2-hour day: only one start time leaves enough room.
+    assert starts(duration=timedelta(hours=2)) == ["10:00"]
