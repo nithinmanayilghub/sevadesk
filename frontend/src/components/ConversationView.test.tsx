@@ -202,6 +202,29 @@ test("a poll that started before a click does not undo it", async () => {
   expect(screen.getByRole("status", { name: "Who replies" })).toHaveTextContent(HANDOFF_BAR);
 });
 
+test("after a dropped poll state, the next poll asks again and shows the true state", async () => {
+  // Regression (final review): the guard dropped the old poll's state but kept its NEW cursor,
+  // so every later poll said "no change" and a wrong bar stuck. It must keep the OLD cursor.
+  // Here: we take over; meanwhile another member gives back, so the truth is "agent".
+  let finishPoll: (value: unknown) => void = () => {};
+  GET.mockResolvedValueOnce(poll([message(1, "Hi")]));
+  GET.mockImplementationOnce((() => new Promise((resolve) => (finishPoll = resolve))) as never);
+  GET.mockResolvedValueOnce(poll([], "agent", "c3"));
+  POST.mockResolvedValue(stateAnswer("handoff"));
+  view();
+  await wait();
+  await wait(5000); // the poll starts and hangs
+  fireEvent.click(screen.getByRole("button", { name: "Take over" }));
+  await wait();
+  await act(async () => finishPoll(poll([], "agent", "c2")));
+  await wait(5000); // the next poll
+  expect(GET).toHaveBeenLastCalledWith("/api/v1/inbox/conversations/{conversation_id}/messages", {
+    params: { path: { conversation_id: ID }, query: { cursor: "c1" } },
+    signal: expect.any(AbortSignal),
+  });
+  expect(screen.getByRole("status", { name: "Who replies" })).toHaveTextContent(AGENT_BAR);
+});
+
 test("a closed chat shows no bar but shows the composer", async () => {
   GET.mockResolvedValue(poll([message(1, "Hi")], "closed"));
   view();

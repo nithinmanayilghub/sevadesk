@@ -107,7 +107,11 @@ export function ConversationView({ conversationId }: { conversationId: string })
         state.replace((current) => {
           const merged = mergePoll(current, data);
           // A click happened while this poll was out: its state may be older than the click's.
-          return localChanges.current === askedAt ? merged : { ...merged, snapshot: current.snapshot };
+          // Then keep our state AND our old cursor. The new cursor would say "I have seen the
+          // newest version", so the next poll would get "no change" and never fix a wrong state.
+          // With the old cursor the next poll reads again (seqs already shown are not drawn twice).
+          if (localChanges.current === askedAt) return merged;
+          return { ...merged, snapshot: current.snapshot, cursor: current.cursor };
         });
       }
       return true;
