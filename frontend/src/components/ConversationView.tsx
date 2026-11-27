@@ -19,6 +19,7 @@ import { useLoad } from "@/lib/useLoad";
 import { useSends } from "@/lib/useSends";
 import { authorLabel, Bubble, SentBubble } from "./ChatBubble";
 import { Composer } from "./Composer";
+import { CustomerSheet } from "./CustomerSheet";
 import { LoadFailed } from "./LoadFailed";
 import { PILL_BUTTON } from "./pillButton";
 
@@ -145,9 +146,13 @@ export function ConversationView({ conversationId }: { conversationId: string })
 
   return (
     <section aria-labelledby="conversation-heading" className="flex flex-col gap-4">
-      <h2 id="conversation-heading" className="text-lg font-semibold">
-        Conversation
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="conversation-heading" className="text-lg font-semibold">
+          Conversation
+        </h2>
+        {/* The Customer detail sheet (story 4.5): shows only for the Owner. */}
+        <CustomerSheet conversationId={conversationId} />
+      </div>
 
       {/* The Handoff bar (UX-DR12). No bar for a closed chat. The status region is always in
           the page, so a screen reader hears each change. */}

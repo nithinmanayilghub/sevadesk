@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
+import { PermissionsProvider } from "@/lib/permissions";
 import { ConversationView, HINT_KEY } from "./ConversationView";
 
 vi.mock("@/api/client", () => ({ api: { GET: vi.fn(), POST: vi.fn() } }));
@@ -231,4 +232,22 @@ test("a closed chat shows no bar but shows the composer", async () => {
   await wait();
   expect(screen.queryByRole("button", { name: /Take over|Give back/ })).not.toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "Reply" })).toBeInTheDocument();
+});
+
+test("the header has a Customer button for the Owner only (story 4.5)", async () => {
+  GET.mockResolvedValue(poll([message(1, "Fan not working")]));
+  render(
+    <PermissionsProvider permissions={["use_inbox_and_bookings", "manage_customer_data"]}>
+      <ConversationView conversationId={ID} />
+    </PermissionsProvider>,
+  );
+  await wait();
+  expect(screen.getByRole("button", { name: "Customer" })).toBeInTheDocument();
+});
+
+test("staff see no Customer button (story 4.5)", async () => {
+  GET.mockResolvedValue(poll([message(1, "Fan not working")]));
+  view(); // no provider: the default permission list is empty
+  await wait();
+  expect(screen.queryByRole("button", { name: "Customer" })).not.toBeInTheDocument();
 });
