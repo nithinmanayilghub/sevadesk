@@ -70,6 +70,30 @@ def test_slots_before_now_are_dropped():
     assert starts(now=ist(MONDAY, "10:15")) == ["10:30", "11:00"]
 
 
+def test_slot_starting_exactly_now_is_kept():
+    # The edge: start == now. Only starts BEFORE now are dropped.
+    assert starts(now=ist(MONDAY, "10:00")) == ["10:00", "10:30", "11:00"]
+
+
+def test_dst_day_has_no_double_slots():
+    # India has no DST (daylight saving time), but other timezones do. In New York on
+    # 8 Mar 2026 the clock jumps from 02:00 to 03:00, so that day has only 2 real hours
+    # between 01:00 and 04:00. Steps must count REAL time, not clock time.
+    new_york = ZoneInfo("America/New_York")
+    jump_day = date(2026, 3, 8)
+    slots = free_slots(
+        hours_by_day={jump_day: OpenHours(start_time=time(1, 0), end_time=time(4, 0))},
+        duration=HOUR,
+        busy=[],
+        technicians=1,
+        tz=new_york,
+        now=datetime(2026, 1, 1, tzinfo=UTC),  # before the jump day, so no Slot is in the past
+    )
+    # 01:00 EST, 01:30 EST, 03:00 EDT (= 06:00, 06:30, 07:00 UTC). No start shows twice.
+    assert [slot.start.strftime("%H:%M") for slot in slots] == ["06:00", "06:30", "07:00"]
+    assert all(slot.end - slot.start == HOUR for slot in slots)
+
+
 def test_today_is_the_business_date_after_midnight():
     # 19:00 UTC on Sunday is already 00:30 on Monday in India.
     now = datetime(2026, 11, 29, 19, 0, tzinfo=UTC)

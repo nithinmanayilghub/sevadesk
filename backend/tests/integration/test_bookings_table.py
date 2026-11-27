@@ -15,7 +15,7 @@ from app.modules.accounts.models import Membership
 from app.modules.accounts.repository import MembershipRepository, UserRepository
 from app.modules.bookings.models import Booking
 from app.modules.business.repository import BusinessRepository
-from app.modules.inbox.models import Customer
+from app.modules.inbox.models import Conversation, Customer, VisitorToken
 
 pytestmark = pytest.mark.isolation
 
@@ -28,18 +28,25 @@ class Tenant:
     business_id: uuid.UUID
     membership_id: uuid.UUID
     customer_id: uuid.UUID
+    conversation_id: uuid.UUID
 
 
 def _tenant(session: Session, name: str) -> Tenant:
-    """One Business with one member (a Technician) and one Customer."""
+    """One Business with one member (a Technician), one Customer, and their Conversation."""
     business = BusinessRepository(session).add(name)
     user = UserRepository(session).add(f"{uuid.uuid4().hex}@example.com", "not-a-real-hash")
     with tenant_scope(business.id):
         membership = MembershipRepository(session).add(Membership(user_id=user.id, roles=["technician"]))
         customer = Customer(id=uuid.uuid7(), business_id=business.id)
-        session.add(customer)
+        token = VisitorToken(id=uuid.uuid7(), business_id=business.id, token_hash=uuid.uuid4().hex)
+        session.add_all([customer, token])
         session.flush()
-    return Tenant(business.id, membership.id, customer.id)
+        conversation = Conversation(
+            id=uuid.uuid7(), business_id=business.id, customer_id=customer.id, visitor_token_id=token.id
+        )
+        session.add(conversation)
+        session.flush()
+    return Tenant(business.id, membership.id, customer.id, conversation.id)
 
 
 @pytest.fixture
@@ -61,6 +68,7 @@ def _booking(tenant: Tenant, **changes) -> Booking:
         "starts_at": START,
         "ends_at": END,
         "customer_id": tenant.customer_id,
+        "conversation_id": tenant.conversation_id,
         "technician_membership_id": tenant.membership_id,
         "price_paise": 49900,
     }
@@ -85,6 +93,16 @@ def test_booking_row_saves(db):
 def test_customer_of_another_business_is_refused(db):
     session, a, b = db
     _refused(session, _booking(a, customer_id=b.customer_id))
+
+
+def test_conversation_of_another_business_is_refused(db):
+    session, a, b = db
+    _refused(session, _booking(a, conversation_id=b.conversation_id))
+
+
+def test_technician_of_another_business_is_refused(db):
+    session, a, b = db
+    _refused(session, _booking(a, technician_membership_id=b.membership_id))
 
 
 def test_requested_needs_expiry(db):

@@ -84,6 +84,13 @@ def test_expired_request_frees_capacity(sign_up_owner):
     assert MON_10 not in _starts(business_id, service_id)  # still waiting: it holds the Slot
 
 
+def test_request_expiring_right_now_is_expired(sign_up_owner):
+    # The edge: expires_at == now. "Live" needs expires_at > now, so it no longer holds the Slot.
+    _, business_id, service_id = _shop(sign_up_owner)
+    _book(business_id, MON_10, "requested", expires_at=NOW)
+    assert MON_10 in _starts(business_id, service_id)
+
+
 def test_confirmed_booking_takes_capacity(sign_up_owner):
     _, business_id, service_id = _shop(sign_up_owner)
     _book(business_id, MON_10, "confirmed")
@@ -96,8 +103,10 @@ def test_confirmed_booking_takes_capacity(sign_up_owner):
 def test_only_live_bookings_of_this_business_count(sign_up_owner):
     _, a_id, a_service = _shop(sign_up_owner)
     _, b_id, _ = _shop(sign_up_owner)
-    for state in ("cancelled", "completed", "declined"):
-        _book(a_id, MON_10, state)
+    # A future expires_at on each, so only the STATE can make them not count (a rule that
+    # looked only at expires_at would wrongly count them).
+    for state in ("cancelled", "completed", "declined", "expired"):
+        _book(a_id, MON_10, state, expires_at=NOW + HOUR)
     _book(b_id, MON_10, "confirmed")  # B's job takes B's Technician, not A's
     assert MON_10 in _starts(a_id, a_service)
 

@@ -51,13 +51,15 @@ def free_slots(
         hours = hours_by_day[day]
         if hours is None:
             continue
-        # Clock times become real moments in the Business timezone (AR-5).
-        start = datetime.combine(day, hours.start_time, tzinfo=tz)
-        close = datetime.combine(day, hours.end_time, tzinfo=tz)
+        # Clock times become real moments in the Business timezone (AR-5), then UTC.
+        # Why UTC before the math: "+ 30 min" on a clock time skips or repeats an hour on a
+        # day when the clock jumps (DST). In UTC every step is 30 REAL minutes.
+        start = datetime.combine(day, hours.start_time, tzinfo=tz).astimezone(UTC)
+        close = datetime.combine(day, hours.end_time, tzinfo=tz).astimezone(UTC)
         while start + duration <= close:
             end = start + duration
             taken = sum(1 for job in busy if _overlaps(job, start, end))
             if start >= now and taken < technicians:
-                slots.append(SlotOut(start=start.astimezone(UTC), end=end.astimezone(UTC)))
+                slots.append(SlotOut(start=start, end=end))
             start += step
     return slots
