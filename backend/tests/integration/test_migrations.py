@@ -43,6 +43,7 @@ def test_migrations_downgrade_to_base_and_back(client):
         "visitor_tokens",
         "conversations",
         "messages",
+        "bookings",
     }
 
     response = client.get("/api/v1/hello")
