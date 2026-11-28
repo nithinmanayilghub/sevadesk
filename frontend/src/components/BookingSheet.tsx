@@ -1,7 +1,7 @@
 "use client";
 // BookingSheet (story 5.2, FR-27, UX-DR29): a team member books a job.
 // - Without conversationId (the Calendar): for a Customer who phoned. Name and phone are asked.
-// - With conversationId (an open chat, UJ-2): for that chat's Customer. No name or phone.
+// - With conversationId (the chat on screen, any state, UJ-2): for its Customer. No name or phone.
 // Owner and Staff only: the button shows only with "use_inbox_and_bookings". The backend checks
 // the Role again on every request (AD-5); hiding the button is only for show.
 //
@@ -90,7 +90,6 @@ function FormFields({ conversationId, options }: { conversationId?: string; opti
         : Promise.resolve({ data: { timezone: "", slots: [] }, response: new Response() }),
     [serviceId, slotsVersion],
   );
-  const timezone = slots.status === "ready" ? slots.data.timezone : "Asia/Kolkata";
   const service = options.services.find((item) => item.service_id === serviceId);
   // With one Technician the server assigns them: no picker, no question (UX-DR29).
   const pickTechnician = options.technicians.length > 1;
@@ -117,7 +116,10 @@ function FormFields({ conversationId, options }: { conversationId?: string; opti
             body: { customer_name: name, customer_phone: phone, ...choice },
           });
       if (data) {
-        setBooked(`Booked: ${service?.name ?? "job"}, ${formatSlot(start, timezone)}.`);
+        // The time in the Business timezone the Slot list came with. Never a guessed zone
+        // (AR-5): without it, the message leaves the time out.
+        const when = slots.status === "ready" && slots.data.timezone ? formatSlot(start, slots.data.timezone) : "";
+        setBooked(`Booked: ${service?.name ?? "job"}${when ? `, ${when}` : ""}.`);
         return;
       }
       const envelope = error as ErrorEnvelope | undefined;

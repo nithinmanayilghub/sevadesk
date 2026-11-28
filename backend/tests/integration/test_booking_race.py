@@ -14,10 +14,11 @@ import uuid
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from tests.integration.booking_helpers import MON_10, fixed_clock, make_shop, new_customer, owner_actor
+from tests.integration.booking_helpers import MON_10, fixed_clock, make_shop, member_actor, new_customer, owner_actor
 
 from app.core.db import get_engine
 from app.core.tenancy import tenant_scope
+from app.modules.accounts.schemas import Actor
 from app.modules.bookings import service as bookings_service
 from app.modules.bookings.models import Booking
 from app.modules.bookings.schemas import NewBooking
@@ -38,14 +39,14 @@ def _new_booking(business_id: uuid.UUID, service_id: uuid.UUID) -> NewBooking:
     )
 
 
-def _book_in_thread(business_id: uuid.UUID, data: NewBooking, result: dict) -> threading.Thread:
+def _book_in_thread(business_id: uuid.UUID, actor: Actor, data: NewBooking, result: dict) -> threading.Thread:
     """Start session 2 in its own thread. Leaving the `with` commits a success."""
 
     def run() -> None:
         try:
             # tenant_scope inside the thread: context variables do not cross threads.
             with Session(get_engine()) as session, session.begin(), tenant_scope(business_id):
-                result["booking"] = bookings_service.create_confirmed(session, owner_actor(business_id), data)
+                result["booking"] = bookings_service.create_confirmed(session, actor, data)
         except BaseException as error:  # noqa: BLE001 - checked by the asserts
             result["error"] = error
 
@@ -60,16 +61,19 @@ def _confirmed_at_mon_10(business_id: uuid.UUID) -> int:
         return len(session.scalars(query).all())
 
 
-def test_two_people_book_the_last_slot_one_wins(sign_up_owner):
-    # Behaviour: two bookings of the last free Slot at once -> exactly one wins, one gets SlotUnavailable.
-    _, business_id, service_id = make_shop(sign_up_owner)  # one Technician: MON_10 has room for 1 job
+def test_two_users_book_the_last_slot_one_wins(sign_up_owner, invite_member):
+    # Behaviour: two Users (the Owner and a Staff member) book the last free Slot at once ->
+    # exactly one wins, the other gets SlotUnavailable (AR-14). Both run at the service level,
+    # not over HTTP: only there can the test hold the first transaction open on purpose.
+    owner, business_id, service_id = make_shop(sign_up_owner)  # one Technician: MON_10 has room for 1 job
+    staff = member_actor(invite_member(owner, ["staff"]).membership_id)  # Staff is no Technician
     first_data, second_data = _new_booking(business_id, service_id), _new_booking(business_id, service_id)
     result: dict = {}
 
     with Session(get_engine()) as first, tenant_scope(business_id):
         first.begin()
         bookings_service.create_confirmed(first, owner_actor(business_id), first_data)  # not committed yet
-        thread = _book_in_thread(business_id, second_data, result)
+        thread = _book_in_thread(business_id, staff, second_data, result)
         thread.join(timeout=1)
         waited = thread.is_alive()  # still running = waiting for session 1's lock
         first.commit()
@@ -91,7 +95,7 @@ def test_lock_is_per_business(sign_up_owner):
     with Session(get_engine()) as first, tenant_scope(a_id):
         first.begin()
         bookings_service.create_confirmed(first, owner_actor(a_id), a_data)  # A holds A's lock
-        thread = _book_in_thread(b_id, b_data, result)
+        thread = _book_in_thread(b_id, owner_actor(b_id), b_data, result)
         thread.join(timeout=2)
         finished_while_a_was_open = not thread.is_alive()
         first.commit()

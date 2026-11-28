@@ -467,7 +467,7 @@ def create_phone_booking(session: Session, actor: Actor, data: PhoneBookingIn) -
 def create_conversation_booking(
     session: Session, actor: Actor, conversation_id: uuid.UUID, data: ConversationBookingIn
 ) -> BookingOut:
-    """A confirmed Booking made by hand from an open Conversation (UJ-2, FR-27).
+    """A confirmed Booking made by hand from a Conversation (UJ-2, FR-27).
 
     It is for that Conversation's Customer. Any Conversation state is fine (agent, handoff,
     closed), and the state does not change. Another Business's id is a 404.

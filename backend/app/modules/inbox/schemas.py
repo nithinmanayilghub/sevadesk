@@ -233,7 +233,7 @@ def normalize_phone(raw: str) -> str:
 
 
 class ConversationBookingIn(BaseModel):
-    """A Booking made by hand from an open Conversation (UJ-2). The Customer is the chat's."""
+    """A Booking made by hand from a Conversation in any state (UJ-2). The Customer is the chat's."""
 
     service_id: uuid.UUID
     starts_at: AwareDatetime  # a moment WITH a timezone: we never guess one (AR-5)

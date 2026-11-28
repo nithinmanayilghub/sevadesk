@@ -24,7 +24,7 @@
 #
 # Bookings made by the team (story 5.2, FR-27), Owner and Staff. 409 = the time is taken.
 # - POST /api/v1/inbox/phone-bookings: for a Customer who phoned (found or made by phone).
-# - POST /api/v1/inbox/conversations/{id}/bookings: from an open chat, for its Customer.
+# - POST /api/v1/inbox/conversations/{id}/bookings: from a chat (any state), for its Customer.
 import uuid
 from typing import Annotated
 

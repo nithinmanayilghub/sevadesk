@@ -104,3 +104,15 @@ def owner_actor(business_id: uuid.UUID) -> Actor:
         business_id=business_id,
         roles=set(membership.roles),
     )
+
+
+def member_actor(membership_id: uuid.UUID) -> Actor:
+    """Any member as an Actor (e.g. an invited Staff member), the way a logged-in request sees them."""
+    with Session(get_engine()) as session:
+        membership = session.get(Membership, membership_id)
+    return Actor(
+        user_id=membership.user_id,
+        membership_id=membership.id,
+        business_id=membership.business_id,
+        roles=set(membership.roles),
+    )
