@@ -2387,6 +2387,208 @@
         }
       }
     },
+    "/api/v1/inbox/phone-bookings": {
+      "post": {
+        "summary": "Create Phone Booking",
+        "operationId": "create_phone_booking",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneBookingIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/inbox/conversations/{conversation_id}/bookings": {
+      "post": {
+        "summary": "Create Conversation Booking",
+        "operationId": "create_conversation_booking",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationBookingIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/bookings/slots": {
       "get": {
         "summary": "List Free Slots",
@@ -2472,6 +2674,72 @@
           }
         }
       }
+    },
+    "/api/v1/bookings/options": {
+      "get": {
+        "summary": "Get Booking Options",
+        "operationId": "get_booking_options",
+        "parameters": [
+          {
+            "name": "__Host-sevadesk_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "  Host-Sevadesk Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOptionsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2494,6 +2762,106 @@
           "password"
         ],
         "title": "AcceptInviteRequest"
+      },
+      "BookingOptionsOut": {
+        "properties": {
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceOut"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "technicians": {
+            "items": {
+              "$ref": "#/components/schemas/TechnicianOut"
+            },
+            "type": "array",
+            "title": "Technicians"
+          }
+        },
+        "type": "object",
+        "required": [
+          "services",
+          "technicians"
+        ],
+        "title": "BookingOptionsOut",
+        "description": "What the booking form needs before the Slots (story 5.2). The Slots come per Service."
+      },
+      "BookingOut": {
+        "properties": {
+          "booking_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Booking Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "customer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Customer Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "technician_membership_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Technician Membership Id"
+          },
+          "price_paise": {
+            "type": "integer",
+            "title": "Price Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "booking_id",
+          "state",
+          "starts_at",
+          "ends_at",
+          "service_id",
+          "customer_id",
+          "conversation_id",
+          "technician_membership_id",
+          "price_paise"
+        ],
+        "title": "BookingOut",
+        "description": "One Booking, as routes and other modules see it."
       },
       "ChatPageOut": {
         "properties": {
@@ -2656,6 +3024,39 @@
           "day"
         ],
         "title": "ClosedDayOut"
+      },
+      "ConversationBookingIn": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "technician_membership_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Technician Membership Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "starts_at"
+        ],
+        "title": "ConversationBookingIn",
+        "description": "A Booking made by hand from an open Conversation (UJ-2). The Customer is the chat's."
       },
       "ConversationStateOut": {
         "properties": {
@@ -3207,6 +3608,49 @@
         "title": "Permission",
         "description": "One member per row of the FR-10 table. permissions.py says which Roles may do each.\n\nA later action with no FR-10 row (e.g. delete a Customer) adds its own member."
       },
+      "PhoneBookingIn": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "technician_membership_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Technician Membership Id"
+          },
+          "customer_name": {
+            "type": "string",
+            "title": "Customer Name"
+          },
+          "customer_phone": {
+            "type": "string",
+            "title": "Customer Phone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "starts_at",
+          "customer_name",
+          "customer_phone"
+        ],
+        "title": "PhoneBookingIn",
+        "description": "A Booking for a Customer who phoned (FR-27). Personal data: never logged (AD-13)."
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -3470,6 +3914,26 @@
           "just_you"
         ],
         "title": "TeamResponse"
+      },
+      "TechnicianOut": {
+        "properties": {
+          "membership_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Membership Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "membership_id",
+          "email"
+        ],
+        "title": "TechnicianOut",
+        "description": "One active Technician, for the booking form's picker (story 5.2). Users have no names\nyet, so the email is the label."
       },
       "Theme": {
         "type": "string",

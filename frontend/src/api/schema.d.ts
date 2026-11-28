@@ -485,6 +485,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inbox/phone-bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Phone Booking */
+        post: operations["create_phone_booking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inbox/conversations/{conversation_id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Conversation Booking */
+        post: operations["create_conversation_booking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/slots": {
         parameters: {
             query?: never;
@@ -494,6 +528,23 @@ export interface paths {
         };
         /** List Free Slots */
         get: operations["list_free_slots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Booking Options */
+        get: operations["get_booking_options"];
         put?: never;
         post?: never;
         delete?: never;
@@ -512,6 +563,55 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /**
+         * BookingOptionsOut
+         * @description What the booking form needs before the Slots (story 5.2). The Slots come per Service.
+         */
+        BookingOptionsOut: {
+            /** Services */
+            services: components["schemas"]["ServiceOut"][];
+            /** Technicians */
+            technicians: components["schemas"]["TechnicianOut"][];
+        };
+        /**
+         * BookingOut
+         * @description One Booking, as routes and other modules see it.
+         */
+        BookingOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** State */
+            state: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Technician Membership Id */
+            technician_membership_id: string | null;
+            /** Price Paise */
+            price_paise: number;
         };
         /** ChatPageOut */
         ChatPageOut: {
@@ -574,6 +674,24 @@ export interface components {
              * Format: date
              */
             day: string;
+        };
+        /**
+         * ConversationBookingIn
+         * @description A Booking made by hand from an open Conversation (UJ-2). The Customer is the chat's.
+         */
+        ConversationBookingIn: {
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Technician Membership Id */
+            technician_membership_id?: string | null;
         };
         /**
          * ConversationStateOut
@@ -829,6 +947,28 @@ export interface components {
          */
         Permission: "manage_setup" | "use_inbox_and_bookings" | "see_own_bookings" | "see_dashboard" | "manage_customer_data";
         /**
+         * PhoneBookingIn
+         * @description A Booking for a Customer who phoned (FR-27). Personal data: never logged (AD-13).
+         */
+        PhoneBookingIn: {
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Technician Membership Id */
+            technician_membership_id?: string | null;
+            /** Customer Name */
+            customer_name: string;
+            /** Customer Phone */
+            customer_phone: string;
+        };
+        /**
          * Role
          * @enum {string}
          */
@@ -950,6 +1090,20 @@ export interface components {
             members: components["schemas"]["TeamMember"][];
             /** Just You */
             just_you: boolean;
+        };
+        /**
+         * TechnicianOut
+         * @description One active Technician, for the booking form's picker (story 5.2). Users have no names
+         *     yet, so the email is the label.
+         */
+        TechnicianOut: {
+            /**
+             * Membership Id
+             * Format: uuid
+             */
+            membership_id: string;
+            /** Email */
+            email: string;
         };
         /**
          * Theme
@@ -2716,6 +2870,150 @@ export interface operations {
             };
         };
     };
+    create_phone_booking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_conversation_booking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     list_free_slots: {
         parameters: {
             query: {
@@ -2772,6 +3070,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_booking_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "__Host-sevadesk_session"?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOptionsOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

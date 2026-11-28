@@ -4,6 +4,9 @@ from datetime import datetime
 
 from pydantic import AwareDatetime, BaseModel
 
+from app.modules.accounts.schemas import TechnicianOut
+from app.modules.business.schemas import ServiceOut
+
 
 class SlotOut(BaseModel):
     """One free time for one Service. Both moments are in UTC; show them in `timezone`."""
@@ -39,3 +42,11 @@ class BookingOut(BaseModel):
     conversation_id: uuid.UUID | None
     technician_membership_id: uuid.UUID | None
     price_paise: int
+
+
+class BookingOptionsOut(BaseModel):
+    """What the booking form needs before the Slots (story 5.2). The Slots come per Service."""
+
+    services: list[ServiceOut]  # active only, oldest first
+    # Active Technicians, oldest first. With exactly one, the form shows no picker (UX-DR29).
+    technicians: list[TechnicianOut]

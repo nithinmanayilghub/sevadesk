@@ -87,14 +87,22 @@ class MembershipRepository(TenantRepository[Membership]):
         )
         return [(membership, email) for membership, email in self.session.execute(query)]
 
-    def active_technician_ids(self) -> list[uuid.UUID]:
-        # Active members of the current Business that hold the Technician Role.
-        query = (
+    def _active_technicians(self):
+        # THE rule (AR-7): active members of the current Business that hold the Technician Role,
+        # oldest first. Both methods below start here, so the rule is written once.
+        return (
             self._select()
             .where(Membership.is_active, Membership.roles.contains(["technician"]))
             .order_by(Membership.created_at, Membership.id)
         )
-        return [membership.id for membership in self.session.scalars(query)]
+
+    def active_technician_ids(self) -> list[uuid.UUID]:
+        return [membership.id for membership in self.session.scalars(self._active_technicians())]
+
+    def active_technicians_with_emails(self) -> list[tuple[uuid.UUID, str]]:
+        """(membership id, email) of each active Technician, for the booking form's picker."""
+        query = self._active_technicians().add_columns(User.email).join(User, User.id == Membership.user_id)
+        return [(membership.id, email) for membership, email in self.session.execute(query)]
 
 
 class InviteRepository(TenantRepository[Invite]):

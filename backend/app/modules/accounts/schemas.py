@@ -161,6 +161,14 @@ class AcceptInviteRequest(BaseModel):
         return check_new_password(value)
 
 
+class TechnicianOut(BaseModel):
+    """One active Technician, for the booking form's picker (story 5.2). Users have no names
+    yet, so the email is the label."""
+
+    membership_id: uuid.UUID
+    email: str
+
+
 class TeamMember(BaseModel):
     membership_id: uuid.UUID
     email: str

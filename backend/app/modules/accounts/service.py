@@ -30,7 +30,7 @@ from app.modules.accounts.permissions import require_roles as require_roles
 from app.modules.accounts.repository import InviteRepository, MembershipRepository, SessionRepository, UserRepository
 
 # The new-password rule, re-exported: business checks sign-up passwords through this front door.
-from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role, Theme
+from app.modules.accounts.schemas import Actor, InvitePreview, OwnerCreated, Role, TechnicianOut, Theme
 from app.modules.accounts.schemas import check_new_password as check_new_password
 
 # A session with no request for this long is refused (D1).
@@ -285,6 +285,18 @@ def active_technician_ids(session: Session) -> list[uuid.UUID]:
     to assign jobs. Runs inside a tenant_scope.
     """
     return MembershipRepository(session).active_technician_ids()
+
+
+def active_technicians(session: Session) -> list[TechnicianOut]:
+    """The same people as active_technician_ids, in the same order, with their emails.
+
+    For the booking form (story 5.2): Owner AND Staff see it, because both book jobs. The full
+    team list stays Owner-only. No Role check here: the caller checks first.
+    """
+    return [
+        TechnicianOut(membership_id=membership_id, email=email)
+        for membership_id, email in MembershipRepository(session).active_technicians_with_emails()
+    ]
 
 
 def get_theme(session: Session, user_id: uuid.UUID) -> Theme:

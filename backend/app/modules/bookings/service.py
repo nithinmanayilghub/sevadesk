@@ -1,6 +1,7 @@
 # The bookings front door (AD-2). Other modules and routes call only these functions.
 # - list_free_slots (story 5.1, FR-17): the free Slots of one Service for the next 7 days.
 # - create_confirmed (story 5.2, FR-27): THE write path for a confirmed Booking (AD-9).
+# - booking_options (story 5.2): what the booking form needs (Services, Technicians).
 #
 # How it gets its facts: the Service and the Working Hours from business, the active
 # Technicians from accounts (AR-7), and the live Bookings from its own repository. Then the
@@ -19,7 +20,7 @@ from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
 from app.modules.bookings.models import Booking
 from app.modules.bookings.repository import BookingRepository
-from app.modules.bookings.schemas import BookingOut, FreeSlotsOut, NewBooking, SlotOut
+from app.modules.bookings.schemas import BookingOptionsOut, BookingOut, FreeSlotsOut, NewBooking, SlotOut
 from app.modules.bookings.slots import free_slots, window_days
 from app.modules.business import service as business_service
 from app.modules.business.schemas import ServiceOut
@@ -178,4 +179,13 @@ def create_confirmed(session: Session, actor: Actor, data: NewBooking) -> Bookin
         conversation_id=row.conversation_id,
         technician_membership_id=row.technician_membership_id,
         price_paise=row.price_paise,
+    )
+
+
+def booking_options(session: Session, actor: Actor) -> BookingOptionsOut:
+    """The booking form's facts: active Services and active Technicians. Owner and Staff only."""
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    return BookingOptionsOut(
+        services=business_service.list_active_services(session),
+        technicians=accounts_service.active_technicians(session),
     )

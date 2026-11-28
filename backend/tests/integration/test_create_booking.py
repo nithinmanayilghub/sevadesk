@@ -19,6 +19,7 @@ from tests.integration.booking_helpers import (
     owner_actor,
 )
 from tests.integration.test_team_manage import patch
+from tests.integration.test_tenant_isolation import SERVICE
 
 from app.core.db import get_engine
 from app.core.errors import AppError, Forbidden, NotFound
@@ -179,3 +180,30 @@ def test_other_business_service_is_not_found(sign_up_owner):
     _, _, other_service = make_shop(sign_up_owner)
     with pytest.raises(NotFound):
         _create(business_id, other_service, MON_10)
+
+
+# ---------------------------------------------------------------- the booking form's facts
+
+
+def test_options_list_active_services_and_technicians(sign_up_owner, invite_member):
+    # Behaviour: the form gets only what can be booked now: active Services, active Technicians.
+    owner, business_id, service_id = make_shop(sign_up_owner)
+    old = owner.post("/api/v1/services", json={**SERVICE, "name": "Old job"}).json()
+    assert owner.put(f"/api/v1/services/{old['service_id']}", json={**SERVICE, "is_active": False}).status_code == 200
+    gone = invite_member(owner, ["technician"])
+    assert patch(owner, gone.membership_id, {"is_active": False}).status_code == 200
+    staff = invite_member(owner, ["staff"])  # Staff book too, so Staff may read the form facts
+
+    response = staff.client.get("/api/v1/bookings/options")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [service["service_id"] for service in body["services"]] == [str(service_id)]
+    owner_id = owner_actor(business_id).membership_id
+    assert [technician["membership_id"] for technician in body["technicians"]] == [str(owner_id)]
+    assert body["technicians"][0]["email"].endswith("@example.com")
+
+
+def test_options_are_forbidden_for_technician_only(sign_up_owner, invite_member):
+    owner, _, _ = make_shop(sign_up_owner)
+    technician = invite_member(owner, ["technician"])
+    assert technician.client.get("/api/v1/bookings/options").status_code == 403

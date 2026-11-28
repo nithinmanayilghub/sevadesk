@@ -424,6 +424,17 @@ def check_create_phone_booking(owners: TwoOwners) -> None:
     assert _booking_count(owners.b_business_id) == 1
 
 
+def check_get_booking_options(owners: TwoOwners) -> None:
+    # A's form shows only A's Services and A's Technicians, never B's.
+    _add_service(owners.b)
+    a_service = _add_service(owners.a)["service_id"]
+    body = owners.a.get("/api/v1/bookings/options").json()
+    assert [service["service_id"] for service in body["services"]] == [a_service]
+    assert [technician["membership_id"] for technician in body["technicians"]] == [
+        str(membership_of(owners.a_business_id))
+    ]
+
+
 def check_create_conversation_booking(owners: TwoOwners) -> None:
     # A cannot book on B's chat: a 404, and B gets no Booking.
     conversation_id = _b_chat(owners)
@@ -474,6 +485,7 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/inbox/conversations/{conversation_id}/customer"): check_get_conversation_customer,
     ("DELETE", "/api/v1/inbox/customers/{customer_id}"): check_delete_customer,
     ("GET", "/api/v1/bookings/slots"): check_list_free_slots,
+    ("GET", "/api/v1/bookings/options"): check_get_booking_options,
     ("POST", "/api/v1/inbox/phone-bookings"): check_create_phone_booking,
     ("POST", "/api/v1/inbox/conversations/{conversation_id}/bookings"): check_create_conversation_booking,
 }
