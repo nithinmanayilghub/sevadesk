@@ -72,3 +72,11 @@ export function formatListTime(iso: string, now: Date, timeZone: string): string
   const date = `${weekday}, ${at.day} ${MONTHS[at.month - 1]}`;
   return at.year === today.year ? date : `${date} ${at.year}`;
 }
+
+// A Slot start for the booking form (story 5.2), in the BUSINESS timezone (UX-DR4):
+// "2026-11-30T04:30:00Z" in Asia/Kolkata -> "Mon, 30 Nov, 10:00 am".
+export function formatSlot(iso: string, timeZone: string): string {
+  const at = partsIn(new Date(iso), timeZone);
+  const weekday = WEEKDAYS[new Date(Date.UTC(at.year, at.month - 1, at.day)).getUTCDay()];
+  return `${weekday}, ${at.day} ${MONTHS[at.month - 1]}, ${formatTime(`${at.hour}:${at.minute}`)}`;
+}
