@@ -677,7 +677,7 @@ export interface components {
         };
         /**
          * ConversationBookingIn
-         * @description A Booking made by hand from an open Conversation (UJ-2). The Customer is the chat's.
+         * @description A Booking made by hand from a Conversation in any state (UJ-2). The Customer is the chat's.
          */
         ConversationBookingIn: {
             /**
