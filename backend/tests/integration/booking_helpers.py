@@ -10,12 +10,15 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from tests.integration.conftest import membership_of
 from tests.integration.test_tenant_isolation import HOURS_WEEK, SERVICE
 
 from app.core.db import get_engine
 from app.core.tenancy import tenant_scope
+from app.modules.accounts.models import Membership
+from app.modules.accounts.schemas import Actor
 from app.modules.bookings import service as bookings_service
 from app.modules.bookings.models import Booking
 from app.modules.business import service as business_service
@@ -88,3 +91,16 @@ def book(
             )
         )
     return booking_id
+
+
+def owner_actor(business_id: uuid.UUID) -> Actor:
+    """The Owner of this Business as an Actor. Works with 2+ members too (found by Role)."""
+    with Session(get_engine()) as session:
+        query = select(Membership).where(Membership.business_id == business_id, Membership.roles.contains(["owner"]))
+        membership = session.scalars(query).one()
+    return Actor(
+        user_id=membership.user_id,
+        membership_id=membership.id,
+        business_id=business_id,
+        roles=set(membership.roles),
+    )

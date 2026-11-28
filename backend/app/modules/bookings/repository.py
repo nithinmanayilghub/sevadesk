@@ -1,5 +1,6 @@
 # Database access for the bookings table (story 5.1). A tenant repository: the base adds
 # "WHERE business_id = <current Business>" to every query (AD-3).
+import uuid
 from datetime import datetime
 
 from sqlalchemy import ColumnElement, and_, or_
@@ -24,6 +25,19 @@ def is_live(now: datetime) -> ColumnElement[bool]:
 
 class BookingRepository(TenantRepository[Booking]):
     model = Booking
+
+    def technician_busy(self, technician_id: uuid.UUID, start: datetime, end: datetime) -> bool:
+        """True when this Technician already has a CONFIRMED job that overlaps [start, end) (AD-9).
+
+        Half-open ranges, like the Slot math: a job ending at 11:00 does not clash with 11:00.
+        """
+        query = self._select().where(
+            Booking.technician_membership_id == technician_id,
+            Booking.state == "confirmed",
+            Booking.starts_at < end,
+            Booking.ends_at > start,
+        )
+        return self.session.scalars(query.limit(1)).first() is not None
 
     def live_between(self, start: datetime, end: datetime, now: datetime) -> list[tuple[datetime, datetime]]:
         """(starts_at, ends_at) of every live Booking that overlaps [start, end)."""
