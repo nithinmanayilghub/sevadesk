@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import AwareDatetime, BaseModel, field_validator
 from pydantic_core import PydanticCustomError
 
 MAX_BODY = 2000  # characters
@@ -20,6 +20,11 @@ MAX_BODY = 2000  # characters
 # but it is not real text, and Postgres cannot store it (a 500 without this check).
 _ALLOWED_CONTROL = {"\n", "\r", "\t"}
 _REFUSED_CATEGORIES = {"Cc", "Cs"}
+
+
+def _has_refused_characters(value: str, allowed: set[str]) -> bool:
+    """True when the text has a control character (Cc) or a lone surrogate (Cs) not in `allowed`."""
+    return any(unicodedata.category(char) in _REFUSED_CATEGORIES and char not in allowed for char in value)
 
 
 def detect_lang(body: str) -> Literal["en", "hi"]:
@@ -43,7 +48,7 @@ class SendMessageIn(BaseModel):
     def clean_body(cls, value: str) -> str:
         # Checked BEFORE strip: a hidden character at the end must not slip through.
         # Postgres cannot store NUL (\x00): without this check it would be a 500, not a 422.
-        if any(unicodedata.category(char) in _REFUSED_CATEGORIES and char not in _ALLOWED_CONTROL for char in value):
+        if _has_refused_characters(value, allowed=_ALLOWED_CONTROL):
             raise PydanticCustomError("message_bad_characters", "This message has characters we cannot save.")
         value = value.strip()
         if not value:
@@ -205,3 +210,56 @@ class NeedsHumanCount(BaseModel):
     """How many Conversations wait for a human: the red number on the Inbox tab (UX-DR16)."""
 
     count: int
+
+
+# ---------------------------------------------------------------- Bookings made by the team (story 5.2)
+
+MAX_NAME = 100  # characters
+# Spaces, dashes and brackets people type between digits. They carry no meaning.
+_PHONE_SEPARATORS = re.compile(r"[\s\-()]")
+# A valid Indian mobile number (PRD FR-16): 10 digits that start with 6-9, with an optional
+# +91, 91 or 0 in front. [0-9], not \d: \d also matches Devanagari and other digits, and then
+# one phone could be stored in two ways, which breaks the "one Customer per phone" rule.
+_INDIAN_MOBILE = re.compile(r"(?:\+91|91|0)?([6-9][0-9]{9})")
+
+
+def normalize_phone(raw: str) -> str:
+    """One stored form for every way of writing one number: "+91" + 10 digits."""
+    match = _INDIAN_MOBILE.fullmatch(_PHONE_SEPARATORS.sub("", raw))
+    if match is None:
+        # PydanticCustomError, not ValueError: Pydantic would put "Value error, " in front.
+        raise PydanticCustomError("phone_invalid", "Enter a valid Indian mobile number.")
+    return "+91" + match.group(1)
+
+
+class ConversationBookingIn(BaseModel):
+    """A Booking made by hand from an open Conversation (UJ-2). The Customer is the chat's."""
+
+    service_id: uuid.UUID
+    starts_at: AwareDatetime  # a moment WITH a timezone: we never guess one (AR-5)
+    technician_membership_id: uuid.UUID | None = None  # None = "the only Technician"
+
+
+class PhoneBookingIn(ConversationBookingIn):
+    """A Booking for a Customer who phoned (FR-27). Personal data: never logged (AD-13)."""
+
+    customer_name: str
+    customer_phone: str
+
+    @field_validator("customer_name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        # A name is one line: no control character at all, not even a line break.
+        if _has_refused_characters(value, allowed=set()):
+            raise PydanticCustomError("name_bad_characters", "This name has characters we cannot save.")
+        value = value.strip()
+        if not value:
+            raise PydanticCustomError("name_empty", "Enter the customer's name.")
+        if len(value) > MAX_NAME:
+            raise PydanticCustomError("name_too_long", "A name can be at most 100 characters.")
+        return value
+
+    @field_validator("customer_phone")
+    @classmethod
+    def clean_phone(cls, value: str) -> str:
+        return normalize_phone(value)
