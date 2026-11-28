@@ -112,17 +112,29 @@ def _choose_technician(session: Session, picked: uuid.UUID | None) -> uuid.UUID:
     return picked
 
 
+def take_capacity_lock(session: Session) -> None:
+    """Take this Business's capacity lock, held until the request's transaction ends (AD-9).
+
+    For callers that must lock BEFORE their own writes (AD-15 lock order): inbox calls this
+    first in the phone-in flow, then finds or makes the Customer, then calls create_confirmed.
+    """
+    BookingRepository(session).take_capacity_lock()
+
+
 def create_confirmed(session: Session, actor: Actor, data: NewBooking) -> BookingOut:
     """Save a confirmed Booking in a free Slot (FR-27). The ONE write path for it (AD-9).
 
     Steps, in this order:
     1. Role check first (FR-10): a Technician-only User learns nothing.
-    2. The Service must be active and ours (404 otherwise).
-    3. The recount: the time must be one of the free Slots RIGHT NOW (else SlotUnavailable).
-    4. The Technician: chosen or checked, and not busy then (else 422 / TechnicianBusy).
-    No commit here: the request owns the transaction (AD-15).
+    2. The capacity lock, before ANY read: two bookings of one Business now go in line.
+    3. The Service must be active and ours (404 otherwise).
+    4. The recount: the time must be one of the free Slots RIGHT NOW (else SlotUnavailable).
+       It runs after the lock, so it sees every Booking committed by whoever held it before us.
+    5. The Technician: chosen or checked, and not busy then (else 422 / TechnicianBusy).
+    No commit here: the request owns the transaction (AD-15). The lock ends with it.
     """
     accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    take_capacity_lock(session)
     service = business_service.get_active_service(session, data.service_id)
     tz = ZoneInfo(business_service.business_timezone(session))
 

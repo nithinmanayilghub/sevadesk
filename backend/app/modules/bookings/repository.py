@@ -3,9 +3,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, and_, or_
+from sqlalchemy import ColumnElement, and_, func, or_, select
 
 from app.core.repository import TenantRepository
+from app.core.tenancy import current_business_id
 from app.modules.bookings.models import Booking
 
 
@@ -23,8 +24,27 @@ def is_live(now: datetime) -> ColumnElement[bool]:
     )
 
 
+# The first number of the capacity lock's two-number key. Any fixed number works: it keeps our
+# lock apart from any other advisory lock the app may take later (story 5.2, AD-9).
+BOOKINGS_LOCK_NAMESPACE = 1001
+
+
 class BookingRepository(TenantRepository[Booking]):
     model = Booking
+
+    def take_capacity_lock(self) -> None:
+        """Wait for, then hold, THIS Business's capacity lock until the transaction ends (AD-9).
+
+        pg_advisory_xact_lock(namespace, key) is a lock on a pair of numbers, not on a row. A
+        second transaction that asks for the same pair waits until the first commits or rolls
+        back. Then its recount sees the first one's Booking.
+        - The key is a hash of business_id: Businesses never wait for each other.
+        - "xact" = transaction-level: Postgres releases it at commit or rollback by itself, so
+          it can never leak (a session-level lock would stay held on a pooled connection).
+        - Taking it twice in one transaction is fine: Postgres just counts it twice.
+        """
+        key = func.hashtext(str(current_business_id()))
+        self.session.execute(select(func.pg_advisory_xact_lock(BOOKINGS_LOCK_NAMESPACE, key)))
 
     def technician_busy(self, technician_id: uuid.UUID, start: datetime, end: datetime) -> bool:
         """True when this Technician already has a CONFIRMED job that overlaps [start, end) (AD-9).
