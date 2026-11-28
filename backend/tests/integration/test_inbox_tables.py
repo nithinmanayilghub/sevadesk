@@ -117,6 +117,19 @@ def test_message_cannot_point_into_another_business(sign_up_owner):
         insert(message(a, b_conversation, 1))
 
 
+def test_phone_is_unique_per_business(sign_up_owner):
+    # Story 5.2: a Customer is known by phone inside ONE Business (PRD Glossary).
+    _, a = sign_up_owner()
+    _, b = sign_up_owner()
+    phone = "+919876543210"
+    # The same phone in two Businesses: two different Customers, both fine.
+    insert(Customer(business_id=a, phone=phone), Customer(business_id=b, phone=phone))
+    # Chat Customers have no phone yet: two NULL phones never clash.
+    insert(Customer(business_id=a), Customer(business_id=a))
+    with pytest.raises(IntegrityError, match="uq_customers_business_id_phone"):
+        insert(Customer(business_id=a, phone=phone, name="Someone else"))
+
+
 def test_visitor_token_hash_unique_per_business(sign_up_owner):
     _, a = sign_up_owner()
     _, b = sign_up_owner()
