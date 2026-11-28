@@ -217,3 +217,10 @@ Plain-word meanings. Newest terms at the bottom.
 - **DST (daylight saving time)** - Some countries move the clock 1 hour forward in spring and back in autumn. Then one clock time can be missing or come twice in a day. India has no DST.
 - **Business date** - Today's date on the Business's own clock (its timezone), not the server's UTC date.
 - **BOM (byte order mark)** - 3 invisible bytes that some Windows tools (PowerShell `-Encoding utf8`) put at the start of a file. Python and git see them as a change; remove them.
+- **Advisory lock** - A Postgres lock on a number that the app chooses, not on a table row. SevaDesk uses one per Business (`hashtext(business_id)`), so only one booking in a shop runs its recount at a time.
+- **`pg_advisory_xact_lock`** - The transaction-level advisory lock. Postgres releases it at commit or rollback by itself, so it can never be left held.
+- **Recount** - Checking again, under the lock, that the time is still free, with the same `_free_slots` that the Slot list uses.
+- **Lock order** - The fixed order in which a flow takes its locks. If every flow takes them in the same order, no two flows can wait on each other forever (a deadlock).
+- **Deadlock** - Two transactions each hold a lock that the other one waits for. Neither can go on; Postgres kills one of them.
+- **Normalize (a phone)** - Turn every way of writing one value into one stored form. "98765 43210" and "+91 98765-43210" both become `+919876543210`.
+- **`AwareDatetime`** - A Pydantic type for a moment that carries a timezone. A time without one is refused with a 422, so the server never guesses the zone.

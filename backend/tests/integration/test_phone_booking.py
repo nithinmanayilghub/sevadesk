@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from tests.integration.booking_helpers import HOUR, MON_10, fixed_clock, make_shop, owner_actor
 from tests.integration.conftest import set_owner_roles
 from tests.integration.test_inbox_list import new_chat
+from tests.integration.test_tenant_isolation import SERVICE
 
 from app.core.db import get_engine
 from app.core.tenancy import tenant_scope
@@ -186,3 +187,17 @@ def test_same_new_phone_at_once_makes_one_customer(sign_up_owner):
     assert "booking" in result, result
     assert len(customers(business_id)) == 1
     assert len(bookings(business_id)) == 2
+
+
+def test_deactivated_service_gives_404_and_saves_nothing(sign_up_owner):
+    owner, business_id, service_id = make_shop(sign_up_owner)
+    # 1. Deactivate the Service (copy the pattern from test_create_booking.py:192)
+    assert owner.put(f"/api/v1/services/{service_id}", json={**SERVICE, "is_active": False}).status_code == 200
+
+    # 2. Try to book it
+    response = owner.post(PHONE_URL, json=phone_body(service_id))
+
+    # 3. Check the answer and that nothing stayed behind
+    assert response.status_code == 404
+    assert customers(business_id) == []  # the Customer from step D is gone too
+    assert bookings(business_id) == []
