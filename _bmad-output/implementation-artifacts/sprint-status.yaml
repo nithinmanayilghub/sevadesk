@@ -70,7 +70,7 @@ development_status:
 
   epic-5: in-progress
   5-1-calculate-free-slots: done
-  5-2-create-a-booking-for-a-phone-in-customer: backlog
+  5-2-create-a-booking-for-a-phone-in-customer: done
   5-3-cancel-and-complete-bookings: backlog
   5-4-calendar-day-and-week-views: backlog
   5-5-deleting-a-customer-also-deletes-their-bookings: backlog
