@@ -21,6 +21,10 @@
 # The Customer detail sheet (story 4.5, NFR-8), Owner only (the Role check is in service.py):
 # - GET    /api/v1/inbox/conversations/{id}/customer: the Customer of this chat, with counts.
 # - DELETE /api/v1/inbox/customers/{id}: delete the Customer and all their chats (204).
+#
+# Bookings made by the team (story 5.2, FR-27), Owner and Staff. 409 = the time is taken.
+# - POST /api/v1/inbox/phone-bookings: for a Customer who phoned (found or made by phone).
+# - POST /api/v1/inbox/conversations/{id}/bookings: from a chat (any state), for its Customer.
 import uuid
 from typing import Annotated
 
@@ -31,15 +35,18 @@ from app.core.db import SessionDep
 from app.core.errors import ErrorEnvelope
 from app.core.tokens import new_token
 from app.modules.accounts.dependencies import ActorDep
+from app.modules.bookings.schemas import BookingOut
 from app.modules.business.dependencies import ChatBusinessDep
 from app.modules.inbox import chat_poll, service
 from app.modules.inbox.schemas import (
     ChatPollOut,
+    ConversationBookingIn,
     ConversationStateOut,
     CustomerOut,
     InboxPage,
     MessageOut,
     NeedsHumanCount,
+    PhoneBookingIn,
     SendMessageIn,
 )
 from app.modules.inbox.webchat import VisitorTokenCookie, WebchatChannel, set_visitor_cookie, usable_token
@@ -197,3 +204,25 @@ def get_conversation_customer(conversation_id: uuid.UUID, session: SessionDep, a
 )
 def delete_customer(customer_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> None:
     service.delete_customer(session, actor, customer_id)
+
+
+@router.post(
+    "/inbox/phone-bookings",
+    status_code=201,
+    operation_id="create_phone_booking",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 409: _ERROR, 422: _ERROR},
+)
+def create_phone_booking(body: PhoneBookingIn, session: SessionDep, actor: ActorDep) -> BookingOut:
+    return service.create_phone_booking(session, actor, body)
+
+
+@router.post(
+    "/inbox/conversations/{conversation_id}/bookings",
+    status_code=201,
+    operation_id="create_conversation_booking",
+    responses={401: _ERROR, 403: _ERROR, 404: _ERROR, 409: _ERROR, 422: _ERROR},
+)
+def create_conversation_booking(
+    conversation_id: uuid.UUID, body: ConversationBookingIn, session: SessionDep, actor: ActorDep
+) -> BookingOut:
+    return service.create_conversation_booking(session, actor, conversation_id, body)

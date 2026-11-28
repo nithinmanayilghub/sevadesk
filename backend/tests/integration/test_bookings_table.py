@@ -14,6 +14,7 @@ from app.core.tenancy import tenant_scope
 from app.modules.accounts.models import Membership
 from app.modules.accounts.repository import MembershipRepository, UserRepository
 from app.modules.bookings.models import Booking
+from app.modules.business.models import Service
 from app.modules.business.repository import BusinessRepository
 from app.modules.inbox.models import Conversation, Customer, VisitorToken
 
@@ -29,24 +30,28 @@ class Tenant:
     membership_id: uuid.UUID
     customer_id: uuid.UUID
     conversation_id: uuid.UUID
+    service_id: uuid.UUID
 
 
 def _tenant(session: Session, name: str) -> Tenant:
-    """One Business with one member (a Technician), one Customer, and their Conversation."""
+    """One Business with one member (a Technician), one Service, one Customer, and their Conversation."""
     business = BusinessRepository(session).add(name)
     user = UserRepository(session).add(f"{uuid.uuid4().hex}@example.com", "not-a-real-hash")
     with tenant_scope(business.id):
         membership = MembershipRepository(session).add(Membership(user_id=user.id, roles=["technician"]))
         customer = Customer(id=uuid.uuid7(), business_id=business.id)
         token = VisitorToken(id=uuid.uuid7(), business_id=business.id, token_hash=uuid.uuid4().hex)
-        session.add_all([customer, token])
+        service = Service(
+            id=uuid.uuid7(), business_id=business.id, name="AC gas check", duration_minutes=60, price_paise=49900
+        )
+        session.add_all([customer, token, service])
         session.flush()
         conversation = Conversation(
             id=uuid.uuid7(), business_id=business.id, customer_id=customer.id, visitor_token_id=token.id
         )
         session.add(conversation)
         session.flush()
-    return Tenant(business.id, membership.id, customer.id, conversation.id)
+    return Tenant(business.id, membership.id, customer.id, conversation.id, service.id)
 
 
 @pytest.fixture
@@ -70,6 +75,7 @@ def _booking(tenant: Tenant, **changes) -> Booking:
         "customer_id": tenant.customer_id,
         "conversation_id": tenant.conversation_id,
         "technician_membership_id": tenant.membership_id,
+        "service_id": tenant.service_id,
         "price_paise": 49900,
     }
     return Booking(**(fields | changes))
@@ -118,3 +124,13 @@ def test_confirmed_needs_technician(db):
 def test_end_must_be_after_start(db):
     session, a, _ = db
     _refused(session, _booking(a, ends_at=START))
+
+
+def test_booking_needs_a_service(db):
+    session, a, _ = db
+    _refused(session, _booking(a, service_id=None))
+
+
+def test_booking_cannot_point_at_another_business_service(db):
+    session, a, b = db
+    _refused(session, _booking(a, service_id=b.service_id))

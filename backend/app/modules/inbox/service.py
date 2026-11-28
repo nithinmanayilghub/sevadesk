@@ -5,6 +5,7 @@
 # - start_handoff / end_handoff: the ONLY code that changes a Conversation's state (AD-10,
 #   AR-15; a unit test guards this). reply / take_over / give_back call them (story 4.4).
 # - customer_details / delete_customer: the Customer detail sheet and the DPDP delete (story 4.5).
+# - create_phone_booking / create_conversation_booking: a team member books a job (story 5.2).
 #
 # This file is channel-neutral (NFR-9): it gets a Channel (channel.py) and never sees a
 # cookie or a phone number. No commit here: the request owns the transaction (AD-15).
@@ -24,6 +25,8 @@ from app.core.tenancy import current_business_id
 from app.core.versions import mark_conversation_changed, read_or_seed_version, read_version
 from app.modules.accounts import service as accounts_service
 from app.modules.accounts.schemas import Actor, Permission
+from app.modules.bookings import service as bookings_service
+from app.modules.bookings.schemas import BookingOut, NewBooking
 from app.modules.business import service as business_service
 from app.modules.inbox.channel import Channel
 from app.modules.inbox.models import Conversation, Customer, Message, VisitorToken
@@ -37,6 +40,7 @@ from app.modules.inbox.schemas import (
     ChatCursor,
     ChatPollOut,
     ChatSnapshot,
+    ConversationBookingIn,
     ConversationStateOut,
     CustomerOut,
     InboxCursor,
@@ -44,6 +48,7 @@ from app.modules.inbox.schemas import (
     InboxRow,
     MessageOut,
     NeedsHumanCount,
+    PhoneBookingIn,
     SendMessageIn,
     detect_lang,
     preview,
@@ -405,7 +410,11 @@ def delete_customer(session: Session, actor: Actor, customer_id: uuid.UUID) -> N
     tokens.lock_ids(token_ids)  # lock 1, like a send
     conversation_ids = conversations.lock_for_customer(customer_id)  # lock 2, like a send
 
-    # Epic 5: call bookings.delete_for_customer(customer_id) HERE, before our own rows (AD-13).
+    # Story 5.5: call bookings.delete_for_customer(customer_id) HERE, before our own rows (AD-13).
+    # Until then a Customer WITH a Booking cannot be deleted (the bookings foreign key refuses).
+    # Lock order for 5.5 (AD-15): bookings' capacity lock must be the FIRST lock of this flow,
+    # before customers.lock above. The from-chat Booking flow takes the capacity lock and then
+    # touches this Customer's row; taking them in the other order here would deadlock.
 
     # Children first, parent last: each foreign key still points at a row that exists.
     deleted_messages = messages.delete_where(Message.conversation_id.in_(conversation_ids))
@@ -419,4 +428,61 @@ def delete_customer(session: Session, actor: Actor, customer_id: uuid.UUID) -> N
     # A timed note in this request's trace: counts only, no ids and no text (NFR-8).
     trace.get_current_span().add_event(
         "customer.deleted", {"conversations": len(conversation_ids), "messages": deleted_messages}
+    )
+
+
+# ---------------------------------------------------------------- Bookings by the team (story 5.2)
+# Lock order (AD-15, AR-23): inbox calls bookings FIRST, before it reads or writes its own rows.
+# bookings.take_capacity_lock is the first lock of the flow; create_confirmed takes it again
+# (fine: Postgres counts it twice, and both end with the transaction).
+
+
+def create_phone_booking(session: Session, actor: Actor, data: PhoneBookingIn) -> BookingOut:
+    """A confirmed Booking for a Customer who phoned (FR-27): no Conversation.
+
+    The Customer is found by phone, or made with this name and phone. A found Customer keeps
+    its stored name. No name or phone in any trace or log (AD-13).
+    """
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    # FIRST the capacity lock, THEN the phone lookup. Two phone-ins with one new phone now go in
+    # line: the second one waits here, then finds the Customer the first one made.
+    bookings_service.take_capacity_lock(session)
+    customers = CustomerRepository(session)
+    customer = customers.find_by_phone(data.customer_phone)
+    if customer is None:
+        customer = customers.add(Customer(name=data.customer_name, phone=data.customer_phone))
+    return bookings_service.create_confirmed(
+        session,
+        actor,
+        NewBooking(
+            customer_id=customer.id,
+            conversation_id=None,
+            service_id=data.service_id,
+            starts_at=data.starts_at,
+            technician_membership_id=data.technician_membership_id,
+        ),
+    )
+
+
+def create_conversation_booking(
+    session: Session, actor: Actor, conversation_id: uuid.UUID, data: ConversationBookingIn
+) -> BookingOut:
+    """A confirmed Booking made by hand from a Conversation (UJ-2, FR-27).
+
+    It is for that Conversation's Customer. Any Conversation state is fine (agent, handoff,
+    closed), and the state does not change. Another Business's id is a 404.
+    """
+    accounts_service.require_roles(actor, Permission.USE_INBOX_AND_BOOKINGS)
+    bookings_service.take_capacity_lock(session)  # first, as in every inbox -> bookings flow
+    conversation = ConversationRepository(session).get_or_raise(conversation_id)
+    return bookings_service.create_confirmed(
+        session,
+        actor,
+        NewBooking(
+            customer_id=conversation.customer_id,
+            conversation_id=conversation.id,
+            service_id=data.service_id,
+            starts_at=data.starts_at,
+            technician_membership_id=data.technician_membership_id,
+        ),
     )

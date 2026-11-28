@@ -16,14 +16,15 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
-from tests.integration.conftest import _make_client, assert_not_found, set_owner_roles
+from tests.integration.conftest import _make_client, assert_not_found, membership_of, set_owner_roles
 
 from app.core.db import get_engine
 from app.main import app
 from app.modules.accounts.dependencies import actor_in_tenant_scope
 from app.modules.accounts.models import Invite
+from app.modules.bookings.models import Booking
 from app.modules.business.models import ClosedDay, Service
-from app.modules.inbox.models import Conversation
+from app.modules.inbox.models import Conversation, Customer
 
 pytestmark = pytest.mark.isolation
 
@@ -380,6 +381,73 @@ def check_list_free_slots(owners: TwoOwners) -> None:
     assert_not_found(owners.a.get("/api/v1/bookings/slots", params={"service_id": b_service["service_id"]}))
 
 
+# ---------------------------------------------------------------- Bookings by the team (story 5.2)
+# These checks run on the real clock, so they take a real free Slot from A's own Slot list.
+
+
+def _ready_shop(client: TestClient) -> tuple[str, str]:
+    """Give this Owner a Service and Working Hours. Returns (service_id, the first free Slot start)."""
+    service_id = _add_service(client)["service_id"]
+    _put_week(client, HOURS_WEEK)
+    slots = client.get("/api/v1/bookings/slots", params={"service_id": service_id}).json()["slots"]
+    # slots[1], not slots[0]: the first one can start a few ms from now and be past by the POST.
+    return service_id, slots[1]["start"]
+
+
+def _booking_count(business_id: uuid.UUID) -> int:
+    with Session(get_engine()) as session:
+        return session.scalar(select(func.count()).select_from(Booking).where(Booking.business_id == business_id))
+
+
+def _phone_in(client: TestClient, service_id: str, start: str, **changes):
+    body = {"customer_name": "Asha", "customer_phone": "9876543210", "service_id": service_id, "starts_at": start}
+    return client.post("/api/v1/inbox/phone-bookings", json=body | changes)
+
+
+def check_create_phone_booking(owners: TwoOwners) -> None:
+    a_service, a_start = _ready_shop(owners.a)
+    b_service, b_start = _ready_shop(owners.b)
+    # 1. B's Service: a 404, like a missing one.
+    assert_not_found(_phone_in(owners.a, b_service, b_start))
+    # 2. B's Technician: not one of A's active Technicians, so a 422 on the field.
+    wrong = _phone_in(owners.a, a_service, a_start, technician_membership_id=str(membership_of(owners.b_business_id)))
+    assert wrong.status_code == 422, wrong.text
+    assert _booking_count(owners.a_business_id) == 0
+    # 3. A phone that one of B's Customers has: A gets its OWN new Customer; B's row is untouched.
+    assert _phone_in(owners.b, b_service, b_start, customer_name="B's Asha").status_code == 201
+    mine = _phone_in(owners.a, a_service, a_start)
+    assert mine.status_code == 201, mine.text
+    with Session(get_engine()) as session:
+        rows = session.scalars(select(Customer).where(Customer.phone == "+919876543210")).all()
+    by_business = {row.business_id: row for row in rows}
+    assert by_business[owners.b_business_id].name == "B's Asha"
+    assert str(by_business[owners.a_business_id].id) == mine.json()["customer_id"]
+    assert _booking_count(owners.b_business_id) == 1
+
+
+def check_get_booking_options(owners: TwoOwners) -> None:
+    # A's form shows only A's Services and A's Technicians, never B's.
+    _add_service(owners.b)
+    a_service = _add_service(owners.a)["service_id"]
+    body = owners.a.get("/api/v1/bookings/options").json()
+    assert [service["service_id"] for service in body["services"]] == [a_service]
+    assert [technician["membership_id"] for technician in body["technicians"]] == [
+        str(membership_of(owners.a_business_id))
+    ]
+
+
+def check_create_conversation_booking(owners: TwoOwners) -> None:
+    # A cannot book on B's chat: a 404, and B gets no Booking.
+    conversation_id = _b_chat(owners)
+    a_service, a_start = _ready_shop(owners.a)
+    response = owners.a.post(
+        f"/api/v1/inbox/conversations/{conversation_id}/bookings", json={"service_id": a_service, "starts_at": a_start}
+    )
+    assert_not_found(response)
+    assert _booking_count(owners.b_business_id) == 0
+    assert _booking_count(owners.a_business_id) == 0
+
+
 NO_TENANT_DATA: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/hello"): "a fixed greeting; reads no Business data",
     ("GET", "/api/health"): "is the server up; reads no Business data",
@@ -418,6 +486,9 @@ ISOLATION_CHECKS: dict[tuple[str, str], Callable[[TwoOwners], None]] = {
     ("GET", "/api/v1/inbox/conversations/{conversation_id}/customer"): check_get_conversation_customer,
     ("DELETE", "/api/v1/inbox/customers/{customer_id}"): check_delete_customer,
     ("GET", "/api/v1/bookings/slots"): check_list_free_slots,
+    ("GET", "/api/v1/bookings/options"): check_get_booking_options,
+    ("POST", "/api/v1/inbox/phone-bookings"): check_create_phone_booking,
+    ("POST", "/api/v1/inbox/conversations/{conversation_id}/bookings"): check_create_conversation_booking,
 }
 
 

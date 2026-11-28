@@ -1,6 +1,6 @@
 // Tests for the time and date helpers (UX-DR4): "10:00 am – 6:00 pm" and "Fri, 25 Dec".
-import { expect, test } from "vitest";
-import { formatDate, formatDuration, formatListTime, formatTime, formatTimeRange, toTimeInput } from "./time";
+import { describe, expect, test } from "vitest";
+import { formatDate, formatDuration, formatListTime, formatSlot, formatTime, formatTimeRange, toTimeInput } from "./time";
 
 test("formatTime shows a 12-hour clock with lowercase am/pm", () => {
   expect(formatTime("00:00")).toBe("12:00 am");
@@ -49,4 +49,17 @@ test("formatListTime uses the Business timezone", () => {
 test("formatListTime shows a date for an older day, and the year for an older year", () => {
   expect(formatListTime("2026-11-04T06:00:00Z", new Date("2026-11-25T10:00:00Z"), IST)).toBe("Wed, 4 Nov");
   expect(formatListTime("2025-12-04T06:00:00Z", new Date("2026-11-25T10:00:00Z"), IST)).toBe("Thu, 4 Dec 2025");
+});
+
+// formatSlot (story 5.2): a Slot start in the BUSINESS timezone, for the booking form.
+describe("formatSlot", () => {
+  test("shows the Business clock, not UTC", () => {
+    // 04:30 UTC is 10:00 in India.
+    expect(formatSlot("2026-11-30T04:30:00Z", "Asia/Kolkata")).toBe("Mon, 30 Nov, 10:00 am");
+  });
+
+  test("a late UTC time is already the next Business day", () => {
+    // 19:00 UTC on Sun 29 Nov is 00:30 on Mon 30 Nov in India.
+    expect(formatSlot("2026-11-29T19:00:00Z", "Asia/Kolkata")).toBe("Mon, 30 Nov, 12:30 am");
+  });
 });

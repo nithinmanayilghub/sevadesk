@@ -1,6 +1,7 @@
 # HTTP routes of the bookings module.
 # - GET /api/v1/bookings/slots: the free Slots of one Service (story 5.1, FR-17).
 #   Owner and Staff only; the Role check lives in service.py.
+# - GET /api/v1/bookings/options: the booking form's Services and Technicians (story 5.2).
 import uuid
 
 from fastapi import APIRouter
@@ -9,7 +10,7 @@ from app.core.db import SessionDep
 from app.core.errors import ErrorEnvelope
 from app.modules.accounts.dependencies import ActorDep
 from app.modules.bookings import service
-from app.modules.bookings.schemas import FreeSlotsOut
+from app.modules.bookings.schemas import BookingOptionsOut, FreeSlotsOut
 
 router = APIRouter(prefix="/api/v1/bookings")
 
@@ -24,3 +25,12 @@ _ERROR = {"model": ErrorEnvelope}
 )
 def list_free_slots(service_id: uuid.UUID, session: SessionDep, actor: ActorDep) -> FreeSlotsOut:
     return service.list_free_slots(session, actor, service_id)
+
+
+@router.get(
+    "/options",
+    operation_id="get_booking_options",
+    responses={401: _ERROR, 403: _ERROR},
+)
+def get_booking_options(session: SessionDep, actor: ActorDep) -> BookingOptionsOut:
+    return service.booking_options(session, actor)

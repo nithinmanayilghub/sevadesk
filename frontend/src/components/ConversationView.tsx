@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/api/client";
 import { useLiveThread } from "@/lib/useLiveThread";
+import { BookingSheet } from "./BookingSheet";
 import { authorLabel, Bubble, SentBubble } from "./ChatBubble";
 import { Composer } from "./Composer";
 import { CustomerSheet } from "./CustomerSheet";
@@ -110,8 +111,12 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <h2 id="conversation-heading" className="text-lg font-semibold">
           Conversation
         </h2>
-        {/* The Customer detail sheet (story 4.5): shows only for the Owner. */}
-        <CustomerSheet conversationId={conversationId} />
+        <div className="flex flex-wrap gap-2">
+          {/* Book a job for this chat's Customer (story 5.2, UJ-2): Owner and Staff. */}
+          <BookingSheet conversationId={conversationId} />
+          {/* The Customer detail sheet (story 4.5): shows only for the Owner. */}
+          <CustomerSheet conversationId={conversationId} />
+        </div>
       </div>
 
       {/* The Handoff bar (UX-DR12). No bar for a closed chat. The status region is always in

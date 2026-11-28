@@ -7,7 +7,7 @@
 #
 # Booking states (AD-10): requested -> confirmed | declined | expired,
 #                         confirmed -> completed | cancelled.
-# Only bookings functions change the state (AD-9). This story only READS Bookings.
+# Only bookings functions change the state (AD-9). Story 5.2 adds the first write (create_confirmed).
 import uuid
 from datetime import datetime
 
@@ -36,6 +36,9 @@ class Booking(TenantModel):
         ForeignKeyConstraint(
             ["business_id", "technician_membership_id"], ["memberships.business_id", "memberships.id"]
         ),
+        # Story 5.2: the Service this job is for, in the SAME Business. Services are never deleted
+        # (only deactivated), so this link stays valid for old Bookings.
+        ForeignKeyConstraint(["business_id", "service_id"], ["services.business_id", "services.id"]),
         CheckConstraint(f"state IN {_in(BOOKING_STATES)}", name="state_valid"),
         CheckConstraint("ends_at > starts_at", name="ends_after_starts"),
         CheckConstraint("price_paise > 0", name="price_valid"),
@@ -58,6 +61,8 @@ class Booking(TenantModel):
     customer_id: Mapped[uuid.UUID]
     conversation_id: Mapped[uuid.UUID | None]
     technician_membership_id: Mapped[uuid.UUID | None]
+    # Which Service (story 5.2). Its duration gave ends_at; its Price gave price_paise.
+    service_id: Mapped[uuid.UUID]
     # The Price agreed for this job, in whole paise (AR-5). Kept here, so a later Price change
     # of the Service does not change old Bookings.
     price_paise: Mapped[int]

@@ -83,6 +83,19 @@ forbidden_modules = [
 ]
 allow_indirect_imports = true
 
+# AD-2: inbox uses bookings only through its front doors (service.py, schemas.py).
+[[tool.importlinter.contracts]]
+name = "inbox uses bookings only through its front door"
+type = "forbidden"
+source_modules = ["app.modules.inbox"]
+forbidden_modules = [
+    "app.modules.bookings.models",
+    "app.modules.bookings.repository",
+    "app.modules.bookings.router",
+    "app.modules.bookings.slots",
+]
+allow_indirect_imports = true
+
 # AD-2: bookings uses business only through its front doors (service.py, dependencies.py).
 [[tool.importlinter.contracts]]
 name = "bookings uses business only through its front door"

@@ -38,6 +38,10 @@ class CustomerRepository(TenantRepository[Customer]):
         """
         return self.session.scalars(_locked(self._select().where(Customer.id == customer_id))).one_or_none()
 
+    def find_by_phone(self, phone: str) -> Customer | None:
+        """This Business's Customer with this phone (already normalized: "+91" + 10 digits)."""
+        return self.session.scalars(self._select().where(Customer.phone == phone)).one_or_none()
+
 
 class VisitorTokenRepository(TenantRepository[VisitorToken]):
     model = VisitorToken

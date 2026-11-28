@@ -1,6 +1,6 @@
 # Tables owned by the inbox module (story 4.1, AR-1). All four are tenant tables:
 # each row belongs to one Business (AD-3).
-# - customers: a person who chats with the Business. Name and phone come in a later story.
+# - customers: a person who chats with or phones the Business. Name and phone: story 5.2.
 # - visitor_tokens: a Chat Page browser, known only by the HASH of its cookie (AD-16).
 # - conversations: one chat thread, with its state and the last seq used (AD-7, AD-10).
 # - messages: what was said, in order (seq), in the shape of AD-8.
@@ -42,9 +42,18 @@ def _in(column: str, values: tuple[str, ...]) -> str:
 
 class Customer(TenantModel):
     __tablename__ = "customers"
-    __table_args__ = (UniqueConstraint("business_id", "id"),)
+    __table_args__ = (
+        UniqueConstraint("business_id", "id"),
+        # A Customer is known by phone inside one Business (PRD Glossary): a phone-in Booking
+        # finds the same Customer again (story 5.2). NULL phones (chat Customers) never clash.
+        UniqueConstraint("business_id", "phone"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    # Personal data (AD-13): never in logs or traces. Both are empty for chat Customers until
+    # the Agent collects them (Epic 6). The phone is always stored as "+91" + 10 digits.
+    name: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
