@@ -390,7 +390,8 @@ def _ready_shop(client: TestClient) -> tuple[str, str]:
     service_id = _add_service(client)["service_id"]
     _put_week(client, HOURS_WEEK)
     slots = client.get("/api/v1/bookings/slots", params={"service_id": service_id}).json()["slots"]
-    return service_id, slots[0]["start"]
+    # slots[1], not slots[0]: the first one can start a few ms from now and be past by the POST.
+    return service_id, slots[1]["start"]
 
 
 def _booking_count(business_id: uuid.UUID) -> int:

@@ -239,6 +239,23 @@ class ConversationBookingIn(BaseModel):
     starts_at: AwareDatetime  # a moment WITH a timezone: we never guess one (AR-5)
     technician_membership_id: uuid.UUID | None = None  # None = "the only Technician"
 
+    # "Book" tapped before a pick sends "" (or null). Say what to pick, in plain words, instead
+    # of Pydantic's own text ("Input should be a valid UUID, ..."). mode="before": this runs
+    # before Pydantic tries to read the value as a UUID or a datetime.
+    @field_validator("service_id", mode="before")
+    @classmethod
+    def service_picked(cls, value: object) -> object:
+        if value is None or value == "":
+            raise PydanticCustomError("service_missing", "Pick a service.")
+        return value
+
+    @field_validator("starts_at", mode="before")
+    @classmethod
+    def time_picked(cls, value: object) -> object:
+        if value is None or value == "":
+            raise PydanticCustomError("time_missing", "Pick a time.")
+        return value
+
 
 class PhoneBookingIn(ConversationBookingIn):
     """A Booking for a Customer who phoned (FR-27). Personal data: never logged (AD-13)."""

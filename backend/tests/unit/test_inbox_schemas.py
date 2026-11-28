@@ -116,3 +116,18 @@ def test_bad_phone_message_has_no_prefix():
 def test_time_without_timezone_is_refused():
     # "10:00" with no zone could be India or UTC: a 5.5-hour mistake. We never guess (AR-5).
     assert phone_in_error(starts_at="2026-11-30T10:00:00").startswith("Input should have timezone info")
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"service_id": ""}, "Pick a service."),
+        ({"service_id": None}, "Pick a service."),
+        ({"starts_at": ""}, "Pick a time."),
+        ({"starts_at": None}, "Pick a time."),
+    ],
+)
+def test_empty_service_or_time_says_what_to_pick(changes, message):
+    # Regression (story 5.2 review): "Book" before picking showed Pydantic's raw text
+    # ("Input should be a valid UUID, invalid length: ..."), which a shop owner cannot read.
+    assert phone_in_error(**changes) == message
