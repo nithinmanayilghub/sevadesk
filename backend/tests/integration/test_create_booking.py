@@ -55,7 +55,8 @@ def _create(
 
 def _free_starts(business_id: uuid.UUID, service_id: uuid.UUID) -> list[datetime]:
     with Session(get_engine()) as session, tenant_scope(business_id):
-        return [slot.start for slot in bookings_service.list_free_slots(session, owner_actor(business_id), service_id).slots]
+        result = bookings_service.list_free_slots(session, owner_actor(business_id), service_id)
+    return [slot.start for slot in result.slots]
 
 
 def _bookings(business_id: uuid.UUID) -> list[Booking]:
